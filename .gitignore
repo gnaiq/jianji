@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+local.properties
+
+# Kotlin
+*.kt.bak
+*.kexe
+
+# Build
+bin/
+gen/
+out/
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+.m2/
