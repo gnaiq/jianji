@@ -49,13 +49,29 @@ jobs:
           cp "$APK_FILE" jianji-${{ github.ref_name }}.apk
 
       - name: Upload APK artifact
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: jianji-release-apk
           path: app/build/outputs/apk/release/*.apk
 
-      - name: Create Release
+      # 幂等守卫：同一 tag 已发布过 Release 则跳过，避免重复生成 APK Release
+      - name: Check if release already exists
+        id: check_release
         if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release for $TAG already exists, will skip creation to avoid duplicates."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/') && steps.check_release.outputs.exists != 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: jianji-${{ github.ref_name }}.apk

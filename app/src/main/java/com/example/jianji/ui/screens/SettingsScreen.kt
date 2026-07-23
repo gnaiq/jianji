@@ -876,7 +876,30 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
     var jsonText by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
     var backups by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // 执行恢复：清空现有交易并按备份重新写入（替换语义）
+    val doImport: () -> Unit = {
+        if (jsonText.isBlank() || viewModel == null) return@doImport
+        importing = true
+        scope.launch {
+            try {
+                val importer = DataImportManager()
+                val count = importer.importFromJson(jsonText, viewModel.transactionRepository, viewModel.categoryRepository)
+                importing = false
+                if (count > 0) {
+                    Toast.makeText(context, "恢复成功，导入 ${count} 条", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                } else {
+                    Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                importing = false
+                Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // 自动检测共享下载目录中的备份文件（卸载后保留）
     LaunchedEffect(Unit) {
@@ -948,29 +971,28 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
         },
         confirmButton = {
             Button(
-                onClick = {
-                    if (jsonText.isBlank() || viewModel == null) return@Button
-                    importing = true
-                    scope.launch {
-                        try {
-                            val importer = DataImportManager()
-                            val count = importer.importFromJson(jsonText, viewModel.transactionRepository, viewModel.categoryRepository)
-                            importing = false
-                            if (count > 0) {
-                                Toast.makeText(context, "恢复成功，导入 ${count} 条", Toast.LENGTH_SHORT).show()
-                                onDismiss()
-                            } else {
-                                Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            importing = false
-                            Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
+                onClick = { showRestoreConfirm = true },
                 enabled = jsonText.isNotBlank() && !importing
             ) { Text(if (importing) "恢复中..." else "恢复") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
+
+    if (showRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = false },
+            title = { Text("确认恢复备份") },
+            text = { Text("恢复将清空当前所有交易记录并按备份重新写入，且不可撤销。确定要从该备份恢复吗？") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestoreConfirm = false
+                        doImport()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("确定恢复") }
+            },
+            dismissButton = { TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") } }
+        )
+    }
 }

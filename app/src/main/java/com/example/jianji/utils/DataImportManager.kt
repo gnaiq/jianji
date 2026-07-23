@@ -61,6 +61,10 @@ class DataImportManager {
             }
         }
 
+        // 恢复 = 替换：先清空现有交易，再按备份重新写入，
+        // 避免同一备份反复恢复时在原有数据上无限叠加产生重复记录
+        transactionRepo.deleteAll()
+
         // 导入交易
         for (ti in data.transactions) {
             try {

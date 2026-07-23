@@ -511,7 +511,8 @@ fun SwipeToDeleteItem(
     ) {
         TransactionItemCard(
             transaction = transaction, category = category,
-            accountName = accountName, onClick = onClick, onDelete = onDelete
+            accountName = accountName, onClick = onClick,
+            onRequestDelete = { showConfirm = true }
         )
     }
 }
@@ -546,7 +547,7 @@ fun TransactionItemCard(
     category: Category? = null,
     accountName: String? = null,
     onClick: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onRequestDelete: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
@@ -595,7 +596,7 @@ fun TransactionItemCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
             }
-            IconButton(onClick = onDelete) {
+            IconButton(onClick = onRequestDelete) {
                 Icon(Icons.Default.Delete, "删除", tint = Color.Red.copy(alpha = 0.6f))
             }
         }
