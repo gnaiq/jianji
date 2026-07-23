@@ -63,6 +63,7 @@ fun HomeScreen(
     onProcessRecurring: () -> Unit = {}
 ) {
     val today = LocalDate.now()
+    var selectedDate by remember { mutableStateOf(today) }
     val numberFormat = remember {
         NumberFormat.getNumberInstance(Locale.getDefault()).apply {
             minimumFractionDigits = 2; maximumFractionDigits = 2
@@ -74,7 +75,7 @@ fun HomeScreen(
     val defaultAccount = remember(accounts) { accounts.firstOrNull { it.isDefault } ?: accounts.firstOrNull() }
 
     // 搜索模式显示所有匹配交易
-    val displayTransactions = remember(transactions, searchQuery, isSearching) {
+    val displayTransactions = remember(transactions, searchQuery, isSearching, selectedDate) {
         if (isSearching && searchQuery.isNotBlank()) {
             transactions.filter { tx ->
                 val cat = categoryMap[tx.categoryId]
@@ -83,7 +84,7 @@ fun HomeScreen(
                 tx.description.lowercase().contains(q)
             }.sortedByDescending { it.date }
         } else {
-            transactions.filter { it.date.toLocalDate() == today }.sortedByDescending { it.date }
+            transactions.filter { it.date.toLocalDate() == selectedDate }.sortedByDescending { it.date }
         }
     }
 
@@ -353,10 +354,11 @@ fun HomeScreen(
                         ) {
                             items(sevenDayStats) { (date, income, expense) ->
                                 val isToday = date == today
+                                val isSelected = date == selectedDate
                                 Card(
-                                    modifier = Modifier.size(72.dp, 90.dp),
+                                    modifier = Modifier.size(72.dp, 90.dp).clickable { selectedDate = date },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (isToday)
+                                        containerColor = if (isSelected)
                                             MaterialTheme.colorScheme.primaryContainer
                                         else MaterialTheme.colorScheme.surfaceVariant
                                     ),
@@ -373,8 +375,8 @@ fun HomeScreen(
                                         Text(
                                             text = if (isToday) "今天" else date.format(DateTimeFormatter.ofPattern("EEE")),
                                             style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isToday) MaterialTheme.colorScheme.primary
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                         if (expense > 0) {
                                             Text("¥${expense.toInt()}",
@@ -400,13 +402,22 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    if (isSearching) "搜索结果" else "今日交易",
+                    if (isSearching) "搜索结果"
+                    else if (selectedDate == today) "今日交易"
+                    else "${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))} 交易",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
-                Text("${displayTransactions.size} 笔",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!isSearching && selectedDate != today) {
+                        TextButton(onClick = { selectedDate = today }) {
+                            Text("回到今天", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Text("${displayTransactions.size} 笔",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
             }
         }
 
@@ -416,7 +427,8 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center) {
                     Text(
                         if (isSearching && searchQuery.isNotBlank()) "无匹配交易"
-                        else "今天还没有交易记录",
+                        else if (selectedDate == today) "今天还没有交易记录"
+                        else "${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))} 还没有交易记录",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }

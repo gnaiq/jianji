@@ -1,6 +1,7 @@
 package com.example.jianji.ui.screens
 
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -793,7 +794,16 @@ fun AnnualPosterDialog(
                         scope.launch {
                             try {
                                 val file = posterGenerator.generatePoster(transactions, categories, year)
-                                posterGenerator.sharePoster(file)
+                                try {
+                                    posterGenerator.sharePoster(file)
+                                    onDismiss()
+                                } catch (e: ActivityNotFoundException) {
+                                    Toast.makeText(context, "海报已生成，但未找到可分享的应用", Toast.LENGTH_LONG).show()
+                                    onDismiss()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    onDismiss()
+                                }
                             } catch (e: Exception) {
                                 Toast.makeText(context, "生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
                             } finally {
@@ -823,7 +833,18 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var jsonText by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
+    var backups by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
     val scope = rememberCoroutineScope()
+
+    // 自动检测下载目录中的备份文件
+    LaunchedEffect(Unit) {
+        val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+        val list = dir?.listFiles { f -> f.isFile && f.name.matches(Regex("简记备份_.*\\.json")) }
+            ?.sortedByDescending { it.lastModified() }
+            ?.take(10)
+            ?: emptyList()
+        backups = list
+    }
 
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -843,8 +864,39 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
         title = { Text("恢复备份") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("选择 JSON 备份文件，或粘贴 JSON 数据以恢复交易记录",
-                    style = MaterialTheme.typography.bodyMedium)
+                if (backups.isNotEmpty()) {
+                    Text("检测到以下备份（点击选择）", style = MaterialTheme.typography.labelMedium)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp).padding(4.dp)
+                        ) {
+                            items(backups) { file ->
+                                val sizeKb = (file.length() / 1024.0).let { if (it < 1) "<1" else "%.1f".format(it) }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        try {
+                                            jsonText = file.readText()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "读取失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(file.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                    Text("${sizeKb}KB", style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text("未检测到本地备份，可手动选择文件或粘贴 JSON 数据",
+                        style = MaterialTheme.typography.bodyMedium)
+                }
                 Button(onClick = { filePicker.launch("application/json") }) {
                     Text("选择备份文件")
                 }

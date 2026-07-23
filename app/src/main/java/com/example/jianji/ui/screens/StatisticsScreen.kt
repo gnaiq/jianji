@@ -1,6 +1,7 @@
 package com.example.jianji.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -10,17 +11,26 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.example.jianji.data.Category
 import com.example.jianji.data.Transaction
 import com.example.jianji.data.TransactionType
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.Description
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.time.temporal.WeekFields
 import java.util.Locale
 
@@ -78,6 +88,80 @@ fun StatisticsScreen(
     }
 }
 
+// ─── Trend Line Chart (MPAndroidChart) ────────────────────
+
+@Composable
+private fun TrendLineChart(
+    title: String,
+    labels: List<String>,
+    expense: List<Float>,
+    income: List<Float> = emptyList()
+) {
+    if (labels.isEmpty()) return
+    if (expense.none { it > 0f } && income.none { it > 0f }) return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(bottom = 8.dp))
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                factory = { ctx ->
+                    LineChart(ctx).apply {
+                        description = Description().apply { isEnabled = false }
+                        setScaleEnabled(false)
+                        setTouchEnabled(true)
+                        setPinchZoom(false)
+                        legend.isEnabled = true
+                        xAxis.position = XAxis.XAxisPosition.BOTTOM
+                        xAxis.setDrawGridLines(false)
+                        xAxis.granularity = 1f
+                        xAxis.labelRotationAngle = -45f
+                        xAxis.setLabelCount(6, false)
+                        axisRight.isEnabled = false
+                        axisLeft.setDrawGridLines(true)
+                        axisLeft.axisMinimum = 0f
+                    }
+                },
+                update = { chart ->
+                    val dataSets = mutableListOf<ILineDataSet>()
+                    if (expense.any { it > 0f }) {
+                        val ds = LineDataSet(
+                            expense.mapIndexed { i, v -> Entry(i.toFloat(), v) }, "支出"
+                        ).apply {
+                            color = android.graphics.Color.parseColor("#F44336")
+                            setCircleColor(android.graphics.Color.parseColor("#F44336"))
+                            lineWidth = 2f
+                            circleRadius = 3f
+                            setDrawCircles(false)
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.CUBIC_BEZIER
+                        }
+                        dataSets.add(ds)
+                    }
+                    if (income.any { it > 0f }) {
+                        val ds = LineDataSet(
+                            income.mapIndexed { i, v -> Entry(i.toFloat(), v) }, "收入"
+                        ).apply {
+                            color = android.graphics.Color.parseColor("#4CAF50")
+                            setCircleColor(android.graphics.Color.parseColor("#4CAF50"))
+                            lineWidth = 2f
+                            circleRadius = 3f
+                            setDrawCircles(false)
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.CUBIC_BEZIER
+                        }
+                        dataSets.add(ds)
+                    }
+                    chart.data = LineData(dataSets)
+                    chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
+                    chart.invalidate()
+                }
+            )
+        }
+    }
+}
+
 // ─── Week ──────────────────────────────────────────────────
 
 @Composable
@@ -97,6 +181,16 @@ private fun WeekStatistics(
     val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 
+    val weekStart = range.first.toLocalDate()
+    val weekDays = (0..6).map { weekStart.plusDays(it.toLong()) }
+    val weekLabels = weekDays.map { it.format(DateTimeFormatter.ofPattern("M/d")) }
+    val weekExpense = weekDays.map { d ->
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+    }
+    val weekIncome = weekDays.map { d ->
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.INCOME }.sumOf { it.amount }.toFloat()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         PeriodNavigator(
             label = formatWeekLabel(range.first.toLocalDate()),
@@ -104,6 +198,8 @@ private fun WeekStatistics(
             onNext = onNextWeek,
             allowNext = weekOffset < 0
         )
+        TrendLineChart("本周每日趋势", weekLabels, weekExpense, weekIncome)
+        Spacer(modifier = Modifier.height(8.dp))
         StatisticsContent(
             incomeTotal = incomeTotal,
             expenseTotal = expenseTotal,
@@ -145,6 +241,17 @@ private fun MonthStatistics(
     val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 
+    val monthStart = range.first.toLocalDate()
+    val daysInMonth = monthStart.lengthOfMonth()
+    val monthDays = (1..daysInMonth).map { monthStart.withDayOfMonth(it) }
+    val monthLabels = monthDays.map { it.dayOfMonth.toString() }
+    val monthExpense = monthDays.map { d ->
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+    }
+    val monthIncome = monthDays.map { d ->
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.INCOME }.sumOf { it.amount }.toFloat()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         PeriodNavigator(
             label = range.first.toLocalDate().run { "${year}年 ${monthValue}月" },
@@ -152,6 +259,8 @@ private fun MonthStatistics(
             onNext = onNextMonth,
             allowNext = monthOffset < 0
         )
+        TrendLineChart("本月每日趋势（日）", monthLabels, monthExpense, monthIncome)
+        Spacer(modifier = Modifier.height(8.dp))
         StatisticsContent(
             incomeTotal = incomeTotal,
             expenseTotal = expenseTotal,
@@ -186,6 +295,21 @@ private fun YearStatistics(
     val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 
+    val year = range.first.year
+    val yearTxs = transactions.filter { it.date.year == year }
+    val monthLabels = (1..12).map { "${it}月" }
+    val monthExpense = (1..12).map { m ->
+        yearTxs.filter { it.date.monthValue == m && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+    }
+    val monthIncome = (1..12).map { m ->
+        yearTxs.filter { it.date.monthValue == m && it.type == TransactionType.INCOME }.sumOf { it.amount }.toFloat()
+    }
+    val years = ((year - 4)..year).toList()
+    val fiveYearLabels = years.map { "$it" }
+    val fiveYearExpense = years.map { y ->
+        transactions.filter { it.date.year == y && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         PeriodNavigator(
             label = "${range.first.year}年",
@@ -193,6 +317,10 @@ private fun YearStatistics(
             onNext = onNextYear,
             allowNext = yearOffset < 0
         )
+        TrendLineChart("本年各月趋势（月）", monthLabels, monthExpense, monthIncome)
+        Spacer(modifier = Modifier.height(8.dp))
+        TrendLineChart("近五年年度趋势（年）", fiveYearLabels, fiveYearExpense)
+        Spacer(modifier = Modifier.height(8.dp))
         StatisticsContent(
             incomeTotal = incomeTotal,
             expenseTotal = expenseTotal,
