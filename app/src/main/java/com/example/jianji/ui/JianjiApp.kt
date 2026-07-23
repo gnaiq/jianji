@@ -8,7 +8,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
+import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.screens.*
+import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.data.Transaction as AppTransaction
 
 enum class Tab(val label: String) {
