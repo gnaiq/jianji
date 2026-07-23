@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
@@ -695,13 +697,13 @@ fun RecurringManagementDialog(
                             if (it.all { c -> c.isDigit() }) rDayOfMonth = it
                         }, label = { Text(if (rFreq == RecurringFrequency.YEARLY) "每年几号" else "每月几号") },
                             modifier = Modifier.fillMaxWidth(), singleLine = true,
-                            keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
                     OutlinedTextField(value = rInterval, onValueChange = {
                         if (it.all { c -> c.isDigit() }) rInterval = it
                     }, label = { Text("间隔（每 N 个${unitLabel}执行一次）") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     Text("选择分类", style = MaterialTheme.typography.labelMedium)
                     LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
                         val rCt = if (rType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
@@ -826,7 +828,7 @@ fun AnnualPosterDialog(
                     label = { Text("年份（如 2025）") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Button(
                     onClick = {

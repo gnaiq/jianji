@@ -30,7 +30,8 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
-import com.github.mikephil.charting.listener.OnChartClickListener
+import com.github.mikephil.charting.listener.OnChartValueSelectedListener
+import com.github.mikephil.charting.highlight.Highlight
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -149,7 +150,14 @@ private fun TrendLineChart(
                         axisRight.isEnabled = false
                         axisLeft.setDrawGridLines(true)
                         axisLeft.axisMinimum = 0f
-                        setOnChartClickListener(OnChartClickListener { showValues.value = !showValues.value })
+                        setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
+                            override fun onValueSelected(e: Entry?, h: Highlight?) {
+                                showValues.value = true
+                            }
+                            override fun onNothingSelected() {
+                                showValues.value = false
+                            }
+                        })
                     }
                 },
                 update = { chart ->
@@ -194,7 +202,7 @@ private fun TrendLineChart(
                 }
             )
                 Text(
-                    if (showValues) "轻点图表可隐藏数值" else "轻点图表显示费用数值",
+                    if (showValues) "轻点空白处可隐藏数值" else "轻点折线上的数据点显示费用数值",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
