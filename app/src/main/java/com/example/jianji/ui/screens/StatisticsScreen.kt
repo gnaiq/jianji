@@ -116,7 +116,7 @@ private fun TrendLineChart(
             ) {
                 Text(title, style = MaterialTheme.typography.titleSmall)
                 Icon(
-                    imageVector = if (expanded) ExpandLess else ExpandMore,
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "收起" else "展开"
                 )
             }
