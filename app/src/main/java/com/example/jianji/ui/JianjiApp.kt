@@ -139,9 +139,10 @@ fun JianjiApp() {
                 showAddCategoryDialog = true
             },
             onConfirm = { categoryId, amount, type, description, date ->
-                if (editingTransaction != null) {
+                val editing = editingTransaction
+                if (editing != null) {
                     viewModel.updateTransaction(
-                        editingTransaction.copy(
+                        editing.copy(
                             categoryId = categoryId,
                             amount = amount,
                             type = type,

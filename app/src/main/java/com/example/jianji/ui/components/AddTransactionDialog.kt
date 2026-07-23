@@ -56,17 +56,21 @@ fun AddTransactionDialog(
     var selectedDate by remember { mutableStateOf(editingTransaction?.date ?: LocalDateTime.now()) }
     var showCategoryPicker by remember { mutableStateOf(false) }
 
+    // selectedType(TransactionType) 与 Category.type(CategoryType) 是两个枚举，需转换
+    val selectedCategoryType =
+        if (selectedType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
+
     // 自动选择默认分类：打开时/切换收支类型时，若无有效选择则选中该类型第一个分类
     LaunchedEffect(categories, selectedType) {
         if (categories.isEmpty()) return@LaunchedEffect
         val current = categories.find { it.id == selectedCategoryId }
-        if (current == null || current.type != selectedType) {
-            selectedCategoryId = categories.firstOrNull { it.type == selectedType }?.id
+        if (current == null || current.type != selectedCategoryType) {
+            selectedCategoryId = categories.firstOrNull { it.type == selectedCategoryType }?.id
         }
     }
 
     val selectedCategory = categories.find { it.id == selectedCategoryId }
-    val filteredCategories = categories.filter { it.type == selectedType }
+    val filteredCategories = categories.filter { it.type == selectedCategoryType }
     val parsedAmount = amount.toDoubleOrNull() ?: 0.0
     val isValid = selectedCategory != null && parsedAmount > 0
 
@@ -227,7 +231,7 @@ fun AddTransactionDialog(
                             selectedCategoryId = it.id
                             showCategoryPicker = false
                         },
-                        onRequestAdd = { onRequestAddCategory(selectedType) },
+                        onRequestAdd = { onRequestAddCategory(selectedCategoryType) },
                         onDismiss = { showCategoryPicker = false }
                     )
                 }
