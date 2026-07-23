@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -245,16 +247,21 @@ fun SettingsScreen(
                 onClick = {
                     updateStatus = "检查中..."
                     scope.launch {
-                        try {
-                            updateManager.checkForUpdate()
-                                .onSuccess { info ->
-                                    if (info != null) {
-                                        updateManager.downloadAndInstall(info.downloadUrl)
-                                        updateStatus = "发现 v${info.versionName}，开始下载"
-                                    } else updateStatus = "当前已是最新版本"
+                        val result = updateManager.checkForUpdate()
+                        result.onSuccess { info ->
+                            if (info == null) {
+                                updateStatus = "当前已是最新版本"
+                            } else {
+                                updateStatus = "发现新版本 v${info.versionName}，正在下载并自动安装…"
+                                try {
+                                    updateManager.downloadAndInstall(info.downloadUrl)
+                                } catch (e: Exception) {
+                                    updateStatus = "下载失败: ${e.message}"
                                 }
-                                .onFailure { updateStatus = "检查失败: ${it.message}" }
-                        } catch (_: Exception) { updateStatus = "检查失败" }
+                            }
+                        }.onFailure { e ->
+                            updateStatus = "检查失败: ${e.message}"
+                        }
                     }
                 }
             )
@@ -611,7 +618,7 @@ fun RecurringManagementDialog(
         onDismissRequest = onDismiss,
         title = { Text("周期交易") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("到期的周期交易会自动生成交易记录", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 if (recurringTransactions.isEmpty() && !showAdd) {
@@ -654,7 +661,8 @@ fun RecurringManagementDialog(
                         RecurringFrequency.entries.forEach { freq ->
                             FilterChip(
                                 selected = rFreq == freq, onClick = { rFreq = freq },
-                                label = { Text(freq.name, style = MaterialTheme.typography.labelSmall) }
+                                label = { Text(freq.name, style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -804,11 +812,11 @@ fun AnnualPosterDialog(
                                     Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                     onDismiss()
                                 }
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            } finally {
-                                isGenerating = false
-                            }
+                    } catch (e: Throwable) {
+                        Toast.makeText(context, "生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isGenerating = false
+                    }
                         }
                     },
                     enabled = !isGenerating,

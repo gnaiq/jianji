@@ -161,6 +161,14 @@ class UpdateManager(private val context: Context) {
             setDataAndType(uri, "application/vnd.android.package-archive")
             flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
         }
-        context.startActivity(intent)
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(
+                context,
+                "已下载更新，请点击通知或到下载目录手动安装",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 }

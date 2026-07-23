@@ -1,5 +1,6 @@
 package com.example.jianji.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
@@ -7,6 +8,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -100,11 +103,26 @@ private fun TrendLineChart(
     if (labels.isEmpty()) return
     if (expense.none { it > 0f } && income.none { it > 0f }) return
 
+    var expanded by remember { mutableStateOf(true) }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(bottom = 8.dp))
-            AndroidView(
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Icon(
+                    imageVector = if (expanded) ExpandLess else ExpandMore,
+                    contentDescription = if (expanded) "收起" else "展开"
+                )
+            }
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AndroidView(
                 modifier = Modifier.fillMaxWidth().height(200.dp),
                 factory = { ctx ->
                     LineChart(ctx).apply {

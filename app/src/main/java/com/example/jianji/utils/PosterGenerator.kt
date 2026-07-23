@@ -232,7 +232,8 @@ class PosterGenerator(private val context: Context) {
         canvas.drawText("记录每一笔 · 让生活更有数", width / 2f, y, labelPaint)
 
         // Save to file
-        val posterDir = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "简记海报")
+        val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
+        val posterDir = File(baseDir, "简记海报")
         posterDir.mkdirs()
         val file = File(posterDir, "简记_${stats.year}年度账单.png")
         FileOutputStream(file).use { fos ->
