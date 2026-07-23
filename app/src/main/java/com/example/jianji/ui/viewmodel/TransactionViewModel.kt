@@ -13,8 +13,8 @@ import java.time.YearMonth
 
 class TransactionViewModel(application: Application) : AndroidViewModel(application) {
     private val database = JianjiDatabase.getDatabase(application)
-    val transactionRepositorysitory = TransactionRepository(database.transactionDao())
-    val categoryRepositorysitory = CategoryRepository(database.categoryDao())
+    val transactionRepository = TransactionRepository(database.transactionDao())
+    val categoryRepository = CategoryRepository(database.categoryDao())
     private val accountRepo = AccountRepository(database.accountDao())
     private val budgetRepo = BudgetRepository(database.budgetDao())
     private val recurringRepo = RecurringTransactionRepository(database.recurringTransactionDao())
