@@ -6,11 +6,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.screens.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
+import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
 import com.example.jianji.data.Transaction as AppTransaction
 
 enum class Tab(val label: String) {
@@ -21,9 +23,11 @@ enum class Tab(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JianjiApp(
-    viewModel: TransactionViewModel = viewModel()
-) {
+fun JianjiApp() {
+    val context = LocalContext.current
+    val viewModel: TransactionViewModel = viewModel(
+        factory = TransactionViewModelFactory(context)
+    )
     val transactions by viewModel.transactions.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val monthlyIncome by viewModel.monthlyIncome.collectAsState()
