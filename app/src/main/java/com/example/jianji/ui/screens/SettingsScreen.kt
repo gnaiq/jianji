@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -243,26 +244,38 @@ fun SettingsScreen(
                 icon = Icons.Default.SystemUpdate,
                 title = updateStatus,
                 subtitle = "当前版本: ${BuildConfig.VERSION_NAME}",
-                onClick = {
-                    updateStatus = "检查中..."
-                    scope.launch {
-                        val result = updateManager.checkForUpdate()
-                        result.onSuccess { info ->
-                            if (info == null) {
-                                updateStatus = "当前已是最新版本"
-                            } else {
-                                updateStatus = "发现新版本 v${info.versionName}，正在下载并自动安装…"
-                                try {
-                                    updateManager.downloadAndInstall(info.downloadUrl)
-                                } catch (e: Exception) {
-                                    updateStatus = "下载失败: ${e.message}"
-                                }
+            onClick = {
+                updateStatus = "检查中..."
+                scope.launch {
+                    val result = updateManager.checkForUpdate()
+                    result.onSuccess { info ->
+                        if (info == null) {
+                            updateStatus = "当前已是最新版本"
+                        } else {
+                            updateStatus = "发现新版本 v${info.versionName}，正在下载并自动安装…"
+                            try {
+                                updateManager.downloadAndInstall(info.downloadUrl)
+                                updateStatus = "正在下载 v${info.versionName}…"
+                            } catch (e: Exception) {
+                                updateStatus = "下载失败: ${e.message}"
                             }
-                        }.onFailure { e ->
+                        }
+                    }.onFailure { e ->
+                        // 检查失败，但本机可能已下好安装包 → 直接复用安装
+                        if (updateManager.hasLocalApk()) {
+                            updateStatus = "检测到本机已有新版本安装包，正在安装…"
+                            updateManager.installLocalApk()
+                        } else {
                             updateStatus = "检查失败: ${e.message}"
+                            Toast.makeText(
+                                context,
+                                "可前往 GitHub 手动下载：${updateManager.releasesUrl()}",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     }
                 }
+            }
             )
         }
 
@@ -809,7 +822,12 @@ fun AnnualPosterDialog(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var yearText by remember { mutableStateOf(LocalDate.now().year.toString()) }
+    val candidateYears = remember(transactions) {
+        val set = transactions.map { it.date.year }.toMutableSet()
+        set.add(LocalDate.now().year)
+        set.sortedDescending()
+    }
+    var selectedYear by remember(candidateYears) { mutableStateOf(candidateYears.first()) }
     var isGenerating by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -818,26 +836,27 @@ fun AnnualPosterDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("选择年份生成年度账单分享海报", style = MaterialTheme.typography.bodyMedium)
-                OutlinedTextField(
-                    value = yearText,
-                    onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 4) yearText = it },
-                    label = { Text("年份（如 2025）") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                Text("年份", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    candidateYears.forEach { y ->
+                        FilterChip(
+                            selected = selectedYear == y,
+                            onClick = { selectedYear = y },
+                            label = { Text(y.toString()) }
+                        )
+                    }
+                }
                 Button(
                     onClick = {
                         isGenerating = true
                         scope.launch {
-                        try {
-                            val y = yearText.toIntOrNull()
-                            if (y == null || y !in 2000..2099) {
-                                Toast.makeText(context, "请输入有效年份（2000-2099）", Toast.LENGTH_SHORT).show()
-                                return@launch
-                            }
-                            val file = posterGenerator.generatePoster(transactions, categories, y)
+                            try {
+                                val uri = posterGenerator.generatePoster(transactions, categories, selectedYear)
                                 try {
-                                    posterGenerator.sharePoster(file)
+                                    posterGenerator.sharePoster(uri)
                                     onDismiss()
                                 } catch (e: ActivityNotFoundException) {
                                     Toast.makeText(context, "海报已生成，但未找到可分享的应用", Toast.LENGTH_LONG).show()
@@ -846,11 +865,11 @@ fun AnnualPosterDialog(
                                     Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                     onDismiss()
                                 }
-                    } catch (e: Throwable) {
-                        Toast.makeText(context, "生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                    } finally {
-                        isGenerating = false
-                    }
+                            } catch (e: Throwable) {
+                                Toast.makeText(context, "生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isGenerating = false
+                            }
                         }
                     },
                     enabled = !isGenerating,
@@ -881,7 +900,7 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
 
     // 执行恢复：清空现有交易并按备份重新写入（替换语义）
     val doImport: () -> Unit = {
-        if (jsonText.isBlank() || viewModel == null) return@doImport
+        if (jsonText.isNotBlank() && viewModel != null) {
         importing = true
         scope.launch {
             try {
@@ -898,6 +917,7 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
                 importing = false
                 Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
         }
     }
 
