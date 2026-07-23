@@ -33,28 +33,23 @@ class JianjiWidget : GlanceAppWidget() {
         }
 
         provideContent {
-            Column(
-                modifier = GlanceModifier.fillMaxSize()
-            ) {
+            Column {
                 Text(
                     text = "简记",
                     style = TextStyle(color = ColorProvider(0xff6200ee.toInt()))
                 )
-
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth()
-                ) {
-                    Column(modifier = GlanceModifier.defaultWeight()) {
+                Row {
+                    Column {
                         Text("月支出", style = TextStyle(color = ColorProvider(0xff999999.toInt())))
                         Text("¥${nf.format(monthExpense)}",
                             style = TextStyle(color = ColorProvider(0xffff0000.toInt())))
                     }
-                    Column(modifier = GlanceModifier.defaultWeight()) {
+                    Column {
                         Text("月收入", style = TextStyle(color = ColorProvider(0xff999999.toInt())))
                         Text("¥${nf.format(monthIncome)}",
                             style = TextStyle(color = ColorProvider(0xff4caf50.toInt())))
                     }
-                    Column(modifier = GlanceModifier.defaultWeight()) {
+                    Column {
                         Text("今日支出", style = TextStyle(color = ColorProvider(0xff999999.toInt())))
                         Text("¥${nf.format(todayExpense)}",
                             style = TextStyle(color = ColorProvider(0xffff0000.toInt())))
