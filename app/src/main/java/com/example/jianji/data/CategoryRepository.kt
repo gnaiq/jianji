@@ -1,33 +1,28 @@
 package com.example.jianji.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
-class CategoryRepository(private val categoryDao: CategoryDao) {
-    fun getAllCategories(): Flow<List<Category>> = categoryDao.getAllCategories()
-
-    fun getCategoriesByType(type: CategoryType): Flow<List<Category>> =
-        categoryDao.getCategoriesByType(type)
-
-    suspend fun insertCategory(category: Category): Long =
-        categoryDao.insert(category)
-
-    suspend fun updateCategory(category: Category) =
-        categoryDao.update(category)
-
-    suspend fun deleteCategory(category: Category) =
-        categoryDao.delete(category)
-
-    suspend fun getDefaultCategories(): List<Category> =
-        categoryDao.getDefaultCategories()
-
-    suspend fun deleteAll() = categoryDao.deleteAll()
-
-    /**
-     * 重新种植默认分类。clearAllData() 之后调用，保证清库后仍能继续记账。
-     */
-    suspend fun seedDefaults() {
-        createDefaultCategories().forEach { insertCategory(it) }
+class CategoryRepository(private val dao: CategoryDao) {
+    fun getAllCategories(): Flow<List<Category>> = dao.getAllCategories()
+    fun getCategoriesByType(type: TransactionType): Flow<List<Category>> {
+        val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+        return dao.getCategoriesByType(ct)
     }
 
-    suspend fun getCount(): Int = categoryDao.getCount()
+    suspend fun insertCategory(category: Category): Long = dao.insert(category)
+    suspend fun updateCategory(category: Category) = dao.update(category)
+    suspend fun deleteCategory(category: Category) = dao.delete(category)
+    suspend fun getDefaultCategories(): List<Category> = dao.getDefaultCategories()
+    suspend fun deleteAll() = dao.deleteAll()
+    suspend fun getCount(): Int = dao.getCount()
+    suspend fun getMaxSortOrder(): Int = dao.getMaxSortOrder()
+
+    suspend fun seedDefaults() {
+        if (dao.getCount() == 0) {
+            for (cat in createDefaultCategories()) {
+                dao.insert(cat)
+            }
+        }
+    }
 }

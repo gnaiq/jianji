@@ -1,142 +1,230 @@
 package com.example.jianji.ui.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.jianji.data.Category
-import com.example.jianji.data.CategoryRepository
-import com.example.jianji.data.Transaction
-import com.example.jianji.data.TransactionRepository
-import com.example.jianji.data.TransactionType
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.example.jianji.data.*
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
 
-class TransactionViewModel(
-    private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
-) : ViewModel() {
+class TransactionViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = JianjiDatabase.getDatabase(application)
+    val transactionRepositorysitory = TransactionRepository(database.transactionDao())
+    val categoryRepositorysitory = CategoryRepository(database.categoryDao())
+    private val accountRepo = AccountRepository(database.accountDao())
+    private val budgetRepo = BudgetRepository(database.budgetDao())
+    private val recurringRepo = RecurringTransactionRepository(database.recurringTransactionDao())
+    private val templateRepo = QuickTemplateRepository(database.quickTemplateDao())
 
-    private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
-    val transactions: StateFlow<List<Transaction>> = _transactions.asStateFlow()
+    // === 保持兼容的 Public StateFlows ===
+    val transactions: StateFlow<List<Transaction>> = transactionRepository.getAllTransactions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _categories = MutableStateFlow<List<Category>>(emptyList())
-    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
+    val categories: StateFlow<List<Category>> = categoryRepository.getAllCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _monthlyIncome = MutableStateFlow(0.0)
-    val monthlyIncome: StateFlow<Double> = _monthlyIncome.asStateFlow()
+    val allAccounts: StateFlow<List<Account>> = flow { emit(accountRepo.getAll()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _monthlyExpense = MutableStateFlow(0.0)
-    val monthlyExpense: StateFlow<Double> = _monthlyExpense.asStateFlow()
+    val expenseCategories: StateFlow<List<Category>> = categoryRepository.getCategoriesByType(TransactionType.EXPENSE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _dailyExpense = MutableStateFlow(0.0)
-    val dailyExpense: StateFlow<Double> = _dailyExpense.asStateFlow()
+    val incomeCategories: StateFlow<List<Category>> = categoryRepository.getCategoriesByType(TransactionType.INCOME)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    init {
-        loadTransactions()
-        loadCategories()
-        updateMonthlyStats()
-        updateDailyStats()
-    }
+    val allTemplates: StateFlow<List<QuickTemplate>> = flow { emit(templateRepo.getAll()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private fun loadTransactions() {
+    val recurringTransactions: StateFlow<List<RecurringTransaction>> = flow { emit(recurringRepo.getAll()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 当月收支
+    private val thisMonthStart = YearMonth.now().atDay(1).atStartOfDay()
+    private val nextMonthStart = YearMonth.now().plusMonths(1).atDay(1).atStartOfDay()
+
+    val monthlyIncome: StateFlow<Double> = transactionRepository.getTransactionsByDateRange(thisMonthStart, nextMonthStart)
+        .map { txs -> txs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val monthlyExpense: StateFlow<Double> = transactionRepository.getTransactionsByDateRange(thisMonthStart, nextMonthStart)
+        .map { txs -> txs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // 今日支出
+    private val todayStart = LocalDate.now().atStartOfDay()
+    private val tomorrowStart = LocalDate.now().plusDays(1).atStartOfDay()
+
+    val dailyExpense: StateFlow<Double> = transactionRepository.getTransactionsByDateRange(todayStart, tomorrowStart)
+        .map { txs -> txs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // -- Transaction CRUD --
+    fun addTransaction(
+        categoryId: Long,
+        amount: Double,
+        type: TransactionType,
+        description: String,
+        date: LocalDateTime,
+        accountId: Long? = null
+    ) {
         viewModelScope.launch {
-            transactionRepository.getAllTransactions().collect {
-                _transactions.value = it
-            }
-        }
-    }
-
-    private fun loadCategories() {
-        viewModelScope.launch {
-            categoryRepository.getAllCategories().collect {
-                _categories.value = it
-            }
-        }
-    }
-
-    fun addTransaction(categoryId: Long, amount: Double, type: TransactionType, description: String, date: LocalDateTime) {
-        viewModelScope.launch {
-            val transaction = Transaction(
-                categoryId = categoryId,
-                amount = amount,
-                type = type,
-                description = description,
-                date = date
+            transactionRepository.insertTransaction(
+                Transaction(
+                    categoryId = categoryId,
+                    amount = amount,
+                    type = type,
+                    description = description,
+                    date = date,
+                    accountId = accountId ?: accountRepo.getDefault()?.id
+                )
             )
-            transactionRepository.insertTransaction(transaction)
-            updateMonthlyStats()
-            updateDailyStats()
         }
     }
 
     fun updateTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            transactionRepository.updateTransaction(transaction)
-            updateMonthlyStats()
-            updateDailyStats()
+            transactionRepository.updateTransaction(transaction.copy(updatedAt = LocalDateTime.now()))
         }
     }
 
     fun deleteTransaction(transaction: Transaction) {
-        viewModelScope.launch {
-            transactionRepository.deleteTransaction(transaction)
-            updateMonthlyStats()
-            updateDailyStats()
-        }
+        viewModelScope.launch { transactionRepository.deleteTransaction(transaction) }
     }
 
-    fun addCategory(name: String, icon: String, type: com.example.jianji.data.CategoryType) {
+    // -- Category CRUD --
+    fun addCategory(name: String, icon: String = "📁", type: CategoryType) {
         viewModelScope.launch {
-            val category = Category(name = name, icon = icon, type = type)
-            categoryRepository.insertCategory(category)
+            val maxOrder = categoryRepository.getMaxSortOrder()
+            categoryRepository.insertCategory(Category(name = name, type = type, icon = icon, sortOrder = maxOrder + 1))
         }
     }
 
     fun updateCategory(category: Category) {
-        viewModelScope.launch {
-            categoryRepository.updateCategory(category)
-        }
+        viewModelScope.launch { categoryRepository.updateCategory(category) }
     }
 
     fun deleteCategory(category: Category) {
+        viewModelScope.launch { categoryRepository.deleteCategory(category) }
+    }
+
+    // -- Account CRUD --
+    fun addAccount(name: String, icon: String = "💳") {
+        viewModelScope.launch { accountRepo.insert(Account(name = name, icon = icon)) }
+    }
+
+    fun updateAccount(account: Account) {
+        viewModelScope.launch { accountRepo.update(account) }
+    }
+
+    fun deleteAccount(account: Account) {
+        viewModelScope.launch { accountRepo.delete(account) }
+    }
+
+    fun setDefaultAccount(id: Long) {
+        viewModelScope.launch { accountRepo.setDefault(id) }
+    }
+
+    // -- Budget --
+    fun setBudget(budget: Budget) {
+        viewModelScope.launch { budgetRepo.setBudget(budget) }
+    }
+
+    fun deleteBudget(budget: Budget) {
+        viewModelScope.launch { budgetRepo.delete(budget) }
+    }
+
+    suspend fun getBudgetProgress(year: Int, month: Int, budget: Budget?, categoryId: Long? = null): BudgetProgress {
+        return transactionRepository.getBudgetProgress(year, month, budget, categoryId)
+    }
+
+    // -- Quick Templates --
+    fun addTemplate(template: QuickTemplate) {
+        viewModelScope.launch { templateRepo.insert(template) }
+    }
+
+    fun updateTemplate(template: QuickTemplate) {
+        viewModelScope.launch { templateRepo.update(template) }
+    }
+
+    fun deleteTemplate(template: QuickTemplate) {
+        viewModelScope.launch { templateRepo.delete(template) }
+    }
+
+    fun useTemplate(templateId: Long) {
+        viewModelScope.launch { templateRepo.incrementUseCount(templateId) }
+    }
+
+    // -- Recurring Transactions --
+    fun addRecurring(tx: RecurringTransaction) {
+        viewModelScope.launch { recurringRepo.insert(tx) }
+    }
+
+    fun updateRecurring(tx: RecurringTransaction) {
+        viewModelScope.launch { recurringRepo.update(tx) }
+    }
+
+    fun deleteRecurring(tx: RecurringTransaction) {
+        viewModelScope.launch { recurringRepo.delete(tx) }
+    }
+
+    fun processRecurringDue() {
         viewModelScope.launch {
-            categoryRepository.deleteCategory(category)
+            val due = recurringRepo.getDue(LocalDateTime.now())
+            val defaultAcc = accountRepo.getDefault()?.id
+            for (rtx in due) {
+                transactionRepository.insertTransaction(
+                    Transaction(
+                        categoryId = rtx.categoryId,
+                        amount = rtx.amount,
+                        type = rtx.type,
+                        description = rtx.description,
+                        date = LocalDateTime.now(),
+                        accountId = rtx.accountId ?: defaultAcc
+                    )
+                )
+                val next = rtx.nextRunDate.let { cur ->
+                    when (rtx.frequency) {
+                        RecurringFrequency.DAILY -> cur.plusDays(rtx.interval.toLong())
+                        RecurringFrequency.WEEKLY -> cur.plusWeeks(rtx.interval.toLong())
+                        RecurringFrequency.MONTHLY -> cur.plusMonths(rtx.interval.toLong())
+                        RecurringFrequency.YEARLY -> cur.plusYears(rtx.interval.toLong())
+                    }
+                }
+                recurringRepo.update(rtx.copy(nextRunDate = next))
+            }
         }
     }
 
-    fun updateDailyStats(date: LocalDate = LocalDate.now()) {
-        viewModelScope.launch {
-            val startDate = date.atStartOfDay()
-            val endDate = date.atTime(23, 59, 59)
-            val expense = transactionRepository.getSumByType(TransactionType.EXPENSE, startDate, endDate)
-            _dailyExpense.value = expense
-        }
-    }
-
-    fun updateMonthlyStats(yearMonth: YearMonth = YearMonth.now()) {
-        viewModelScope.launch {
-            val startDate = yearMonth.atDay(1).atStartOfDay()
-            val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59)
-
-            val income = transactionRepository.getSumByType(TransactionType.INCOME, startDate, endDate)
-            val expense = transactionRepository.getSumByType(TransactionType.EXPENSE, startDate, endDate)
-
-            _monthlyIncome.value = income
-            _monthlyExpense.value = expense
-        }
-    }
-
+    // -- Clear all data --
     fun clearAllData() {
         viewModelScope.launch {
             transactionRepository.deleteAll()
             categoryRepository.deleteAll()
+            budgetRepo.deleteAll()
+            templateRepo.deleteAll()
+            recurringRepo.deleteAll()
             categoryRepository.seedDefaults()
-            _monthlyIncome.value = 0.0
-            _monthlyExpense.value = 0.0
+            accountRepo.seedDefaults()
+        }
+    }
+
+    // -- Snapshots for export --
+    suspend fun getAllTransactionsSnapshot(): List<Transaction> = transactionRepository.getAllSnapshot()
+    suspend fun getTransactionsByDateSnapshot(start: LocalDateTime, end: LocalDateTime): List<Transaction> =
+        transactionRepository.getByDateRangeSnapshot(start, end)
+
+    // -- Seed initial data --
+    init {
+        viewModelScope.launch {
+            categoryRepository.seedDefaults()
+            accountRepo.seedDefaults()
+            recurringRepo.getDue(LocalDateTime.now()).let { due ->
+                if (due.isNotEmpty()) processRecurringDue()
+            }
         }
     }
 }

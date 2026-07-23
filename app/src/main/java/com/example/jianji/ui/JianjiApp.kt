@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.ui.components.AddTransactionDialog
+import com.example.jianji.ui.components.CategoryFormDialog
 import com.example.jianji.ui.screens.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
@@ -27,29 +28,32 @@ enum class Tab(val label: String) {
 fun JianjiApp() {
     val context = LocalContext.current
     val viewModel: TransactionViewModel = viewModel(
-        factory = TransactionViewModelFactory(context)
+        factory = TransactionViewModelFactory(context.applicationContext as android.app.Application)
     )
     val transactions by viewModel.transactions.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val monthlyIncome by viewModel.monthlyIncome.collectAsState()
     val monthlyExpense by viewModel.monthlyExpense.collectAsState()
     val dailyExpense by viewModel.dailyExpense.collectAsState()
+    val allAccounts by viewModel.allAccounts.collectAsState()
+    val allTemplates by viewModel.allTemplates.collectAsState()
+    val allRecurring by viewModel.recurringTransactions.collectAsState()
 
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialogTab by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<AppTransaction?>(null) }
-
-    // 在Transaction对话框内触发的添加分类（非标签页FAB触发）
     var showAddCategoryQuick by remember { mutableStateOf(false) }
-    var addCategoryQuickType by remember { mutableStateOf(CategoryType.EXPENSE) }
-
-    // 分类管理页的当前类型
+    var addCategoryQuickType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var categoryTabType by remember { mutableStateOf(CategoryType.EXPENSE) }
+
+    // 搜索状态
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
 
     Scaffold(
         floatingActionButton = {
-            if (selectedTab != Tab.SETTINGS) {
+            if (selectedTab != Tab.SETTINGS && !isSearching) {
                 FloatingActionButton(
                     onClick = {
                         if (selectedTab == Tab.CATEGORIES) {
@@ -72,7 +76,10 @@ fun JianjiApp() {
                 Tab.entries.forEach { tab ->
                     Tab(
                         selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
+                        onClick = {
+                            selectedTab = tab
+                            if (tab != Tab.HOME) { isSearching = false; searchQuery = "" }
+                        },
                         text = { Text(tab.label) }
                     )
                 }
@@ -85,8 +92,27 @@ fun JianjiApp() {
                     monthlyIncome = monthlyIncome,
                     monthlyExpense = monthlyExpense,
                     dailyExpense = dailyExpense,
+                    accounts = allAccounts,
+                    templates = allTemplates,
+                    recurringTransactions = allRecurring,
+                    searchQuery = searchQuery,
+                    isSearching = isSearching,
+                    onSearchQueryChange = { searchQuery = it },
+                    onToggleSearch = { isSearching = !isSearching },
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { viewModel.deleteTransaction(it) }
+                    onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                    onUseTemplate = { template ->
+                        viewModel.useTemplate(template.id)
+                        viewModel.addTransaction(
+                            categoryId = template.categoryId,
+                            amount = template.amount,
+                            type = template.type,
+                            description = template.description,
+                            date = java.time.LocalDateTime.now(),
+                            accountId = template.accountId
+                        )
+                    },
+                    onProcessRecurring = { viewModel.processRecurringDue() }
                 )
                 Tab.STATISTICS -> StatisticsScreen(
                     transactions = transactions,
@@ -106,21 +132,27 @@ fun JianjiApp() {
                 Tab.SETTINGS -> SettingsScreen(
                     transactions = transactions,
                     categories = categories,
+                    accounts = allAccounts,
+                    templates = allTemplates,
+                    recurringTransactions = allRecurring,
+                    viewModel = viewModel,
                     onDataCleared = { viewModel.clearAllData() }
                 )
             }
         }
 
-        // Transaction 新增/编辑对话框
+        // Transaction dialog
         if (showAddDialog || editingTransaction != null) {
             AddTransactionDialog(
                 categories = categories,
                 editingTransaction = editingTransaction,
+                templates = allTemplates,
+                accounts = allAccounts,
                 onDismiss = {
                     showAddDialog = false
                     editingTransaction = null
                 },
-                onConfirm = { categoryId, amount, type, description, date ->
+                onConfirm = { categoryId, amount, type, description, date, accountId ->
                     if (editingTransaction != null) {
                         viewModel.updateTransaction(
                             editingTransaction!!.copy(
@@ -128,11 +160,12 @@ fun JianjiApp() {
                                 amount = amount,
                                 type = type,
                                 description = description,
-                                date = date
+                                date = date,
+                                accountId = accountId
                             )
                         )
                     } else {
-                        viewModel.addTransaction(categoryId, amount, type, description, date)
+                        viewModel.addTransaction(categoryId, amount, type, description, date, accountId)
                     }
                     showAddDialog = false
                     editingTransaction = null
@@ -144,13 +177,13 @@ fun JianjiApp() {
             )
         }
 
-        // Transaction 对话框内触发的快速添加分类
         if (showAddCategoryQuick) {
-            CategoryFormDialog(
+                CategoryFormDialog(
                 title = "添加分类",
                 categoryType = addCategoryQuickType,
                 onConfirm = { name, icon ->
-                    viewModel.addCategory(name, icon, addCategoryQuickType)
+                    val ct = if (addCategoryQuickType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                    viewModel.addCategory(name, icon, ct)
                     showAddCategoryQuick = false
                 },
                 onDismiss = { showAddCategoryQuick = false }

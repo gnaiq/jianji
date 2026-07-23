@@ -1,13 +1,13 @@
 package com.example.jianji.ui.screens
 
 import android.content.Context
-import android.os.Environment
+import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,388 +16,818 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.jianji.data.Category
-import com.example.jianji.data.Transaction
-import com.example.jianji.utils.DataExportManager
-import com.example.jianji.utils.UpdateManager
+import com.example.jianji.data.*
+import com.example.jianji.ui.viewmodel.TransactionViewModel
+import com.example.jianji.utils.*
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen(
     transactions: List<Transaction> = emptyList(),
     categories: List<Category> = emptyList(),
-    onDataCleared: (() -> Unit)? = null,
+    accounts: List<Account> = emptyList(),
+    templates: List<QuickTemplate> = emptyList(),
+    recurringTransactions: List<RecurringTransaction> = emptyList(),
+    viewModel: TransactionViewModel? = null,
+    onDataCleared: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
-
     var showClearDialog by remember { mutableStateOf(false) }
-    var showRestoreDialog by remember { mutableStateOf(false) }
-    var isChecking by remember { mutableStateOf(false) }
-    var isExporting by remember { mutableStateOf(false) }
-    var isBackingUp by remember { mutableStateOf(false) }
-    var updateInfo by remember { mutableStateOf<UpdateManager.ReleaseInfo?>(null) }
-    var updateError by remember { mutableStateOf<String?>(null) }
-    var backupFiles by remember { mutableStateOf<List<File>>(emptyList()) }
+    var showBudgetDialog by remember { mutableStateOf(false) }
+    var showRecurringDialog by remember { mutableStateOf(false) }
+    var showTemplateDialog by remember { mutableStateOf(false) }
+    var showAccountDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var showLockSetup by remember { mutableStateOf(false) }
+    var showPosterDialog by remember { mutableStateOf(false) }
+    var showPinDialog by remember { mutableStateOf(false) }
+    var showExportProgress by remember { mutableStateOf(false) }
 
-    // 版本号
-    val appInfo = remember {
-        try {
-            val pi = context.packageManager.getPackageInfo(context.packageName, 0)
-            Pair(pi.versionName ?: "?", pi.versionCode)
-        } catch (_: Exception) {
-            Pair("?", 0)
-        }
-    }
-
-    val exportManager = remember { DataExportManager(context) }
     val updateManager = remember { UpdateManager(context) }
+    val excelExportManager = remember { ExcelExportManager(context) }
+    val appLockManager = remember { AppLockManager(context) }
+    val posterGenerator = remember { PosterGenerator(context) }
+    var updateStatus by remember { mutableStateOf("检查更新") }
 
-    if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            title = { Text("清除所有数据") },
-            text = { Text("此操作将删除所有账目记录和自定义分类。默认分类会重置。此操作不可撤销，确定继续？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showClearDialog = false
-                    onDataCleared?.invoke()
-                    Toast.makeText(context, "数据已清除", Toast.LENGTH_SHORT).show()
-                }) {
-                    Text("确认清除", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) {
-                    Text("取消")
-                }
-            }
-        )
-    }
-
-    if (showRestoreDialog) {
-        val files = backupFiles
-        AlertDialog(
-            onDismissRequest = { showRestoreDialog = false },
-            title = { Text("选择备份文件恢复") },
-            text = {
-                if (files.isEmpty()) {
-                    Text("暂无备份文件")
-                } else {
-                    Column {
-                        Text("恢复备份将覆盖当前数据，确定继续？", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        files.sortedByDescending { it.lastModified() }.forEach { file ->
-                            val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-                                .format(Date(file.lastModified()))
-                            TextButton(
-                                onClick = {
-                                    showRestoreDialog = false
-                                    scope.launch {
-                                        val dbPath = context.getDatabasePath("jianji_database").absolutePath
-                                        exportManager.restoreBackup(file, dbPath).fold(
-                                            onSuccess = {
-                                                Toast.makeText(context, "恢复成功，请重启应用", Toast.LENGTH_LONG).show()
-                                            },
-                                            onFailure = { e ->
-                                                Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                            }
-                                        )
-                                    }
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(file.name, fontWeight = FontWeight.Medium)
-                                    Text(date, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showRestoreDialog = false }) {
-                    Text("取消")
-                }
-            }
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // ═══ 版本更新 ═══
-        Text("版本更新", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(8.dp))
+        item { Text("设置", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("当前版本", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "v${appInfo.first} (build ${appInfo.second})",
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 16.sp
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            isChecking = true
-                            updateError = null
-                            scope.launch {
-                                updateManager.checkForUpdate().fold(
-                                    onSuccess = { info ->
-                                        if (info == null) {
-                                            Toast.makeText(context, "已是最新版本", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            updateInfo = info
-                                        }
-                                    },
-                                    onFailure = { e ->
-                                        updateError = "检查失败: ${e.message}"
-                                    }
-                                )
-                                isChecking = false
+        // === 数据管理 ===
+        item { SectionHeader("数据管理") }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.CloudUpload,
+                title = "Excel 导出",
+                subtitle = "导出交易记录为 .xlsx 格式",
+                enabled = !showExportProgress,
+                onClick = {
+                    if (showExportProgress) return@SettingsCard
+                    showExportProgress = true
+                    scope.launch {
+                        try {
+                            val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
+                            if (all.isEmpty()) {
+                                Toast.makeText(context, "暂无数据可导出", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val result = excelExportManager.exportToExcel(all, categories, accounts)
+                                excelExportManager.shareFile(result.file)
+                                Toast.makeText(context, "导出成功(${result.recordCount}条): ${result.file.name}", Toast.LENGTH_SHORT).show()
                             }
-                        },
-                        enabled = !isChecking
-                    ) {
-                        if (isChecking) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        } finally {
+                            showExportProgress = false
                         }
-                        Text(if (isChecking) "检查中" else "检查更新")
                     }
                 }
-
-                // 更新详情
-                updateInfo?.let { info ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("发现新版本 v${info.versionName}", fontWeight = FontWeight.Bold)
-                    if (info.body.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            info.body.take(200),
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            val id = updateManager.downloadAndInstall(info.downloadUrl)
-                            Toast.makeText(context, "开始下载更新...", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Text("下载并安装 (%.1f MB)".format(info.apkSize / 1024.0 / 1024.0))
-                    }
-                }
-
-                updateError?.let { err ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(err, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                }
-            }
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        item {
+            SettingsCard(
+                icon = Icons.Default.CloudDownload,
+                title = "数据导入",
+                subtitle = "从 JSON 文件导入交易记录",
+                onClick = { showImportDialog = true }
+            )
+        }
 
-        // ═══ 数据管理 ═══
-        Text("数据管理", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                // 导出 CSV
-                SettingsItem(
-                    icon = Icons.Default.FileDownload,
-                    title = "导出 CSV",
-                    subtitle = "将所有账目导出为 CSV 文件",
-                    trailing = if (isExporting) {
-                        { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
-                    } else null,
-                    onClick = {
-                        if (transactions.isEmpty()) {
-                            Toast.makeText(context, "暂无数据可导出", Toast.LENGTH_SHORT).show()
-                            return@SettingsItem
-                        }
-                        isExporting = true
-                        scope.launch {
-                            val catMap = categories.associate { it.id to it }
-                            exportManager.exportToCSV(transactions, catMap).fold(
-                                onSuccess = { file ->
-                                    // Copy to Downloads for user access
-                                    try {
-                                        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                        val destFile = File(downloadsDir, file.name)
-                                        file.inputStream().use { src ->
-                                            FileOutputStream(destFile).use { dst -> src.copyTo(dst) }
-                                        }
-                                        Toast.makeText(context, "已导出到下载目录: ${destFile.name}", Toast.LENGTH_LONG).show()
-                                    } catch (_: Exception) {
-                                        Toast.makeText(context, "已导出: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-                                    }
-                                },
-                                onFailure = { e ->
-                                    Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        item {
+            SettingsCard(
+                icon = Icons.Default.Backup,
+                title = "CSV 备份",
+                subtitle = "导出 CSV 格式到下载目录",
+                onClick = {
+                    scope.launch {
+                        try {
+                            val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
+                            if (all.isEmpty()) {
+                                Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val csv = buildString {
+                                appendLine("ID,日期,类型,分类ID,金额,描述")
+                                all.sortedByDescending { it.date }.forEach { tx ->
+                                    appendLine("${tx.id},${tx.date},${tx.type},${tx.categoryId},${tx.amount},${tx.description}")
                                 }
-                            )
-                            isExporting = false
+                            }
+                            val file = java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "简记备份_${LocalDate.now()}.csv")
+                            file.writeText(csv)
+                            Toast.makeText(context, "备份成功: ${file.name}", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
                     }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                // 数据库备份
-                SettingsItem(
-                    icon = Icons.Default.Backup,
-                    title = "数据库备份",
-                    subtitle = "创建当前数据库的完整备份",
-                    trailing = if (isBackingUp) {
-                        { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
-                    } else null,
-                    onClick = {
-                        if (transactions.isEmpty()) {
-                            Toast.makeText(context, "暂无数据，跳过备份", Toast.LENGTH_SHORT).show()
-                            return@SettingsItem
-                        }
-                        isBackingUp = true
-                        scope.launch {
-                            val dbPath = context.getDatabasePath("jianji_database").absolutePath
-                            exportManager.createBackup(dbPath).fold(
-                                onSuccess = { file ->
-                                    Toast.makeText(context, "备份完成: ${file.name}", Toast.LENGTH_SHORT).show()
-                                },
-                                onFailure = { e ->
-                                    Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                            isBackingUp = false
-                        }
-                    }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                // 恢复备份
-                SettingsItem(
-                    icon = Icons.Default.Restore,
-                    title = "恢复备份",
-                    subtitle = "从备份文件恢复数据",
-                    onClick = {
-                        backupFiles = exportManager.getBackupFiles()
-                        showRestoreDialog = true
-                    }
-                )
-            }
+                }
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // ═══ 关于 ═══
-        Text("关于", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                SettingsItem(
-                    icon = Icons.Default.Info,
-                    title = "简记 (Jianji)",
-                    subtitle = "简洁高效的记账工具 · 数据完全本地存储",
-                    onClick = {}
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                SettingsItem(
-                    icon = Icons.AutoMirrored.Filled.OpenInNew,
-                    title = "GitHub 项目主页",
-                    subtitle = "gnaiq/jianji",
-                    onClick = {
-                        val intent = android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://github.com/gnaiq/jianji")
-                        )
-                        context.startActivity(intent)
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // ═══ 危险区域 ═══
-        Text("危险区域", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
-        ) {
-            SettingsItem(
-                icon = Icons.Default.DeleteForever,
+        item {
+            SettingsCard(
+                icon = Icons.Default.Delete,
                 title = "清除所有数据",
-                subtitle = "删除所有账目和分类，恢复初始状态",
-                titleColor = MaterialTheme.colorScheme.error,
+                subtitle = "删除所有交易、分类和设置",
+                color = MaterialTheme.colorScheme.error,
                 onClick = { showClearDialog = true }
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        // === 功能管理 ===
+        item { SectionHeader("功能管理") }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.AccountBalance,
+                title = "预算设置",
+                subtitle = "设定月度/年度预算上限",
+                onClick = { showBudgetDialog = true }
+            )
+        }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.AccountBalanceWallet,
+                title = "账户管理",
+                subtitle = "管理支付账户（微信/支付宝/现金/银行卡等）",
+                onClick = { showAccountDialog = true }
+            )
+        }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.Bookmark,
+                title = "快捷模板",
+                subtitle = "管理常用交易模板",
+                onClick = { showTemplateDialog = true }
+            )
+        }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.Cycle,
+                title = "周期交易",
+                subtitle = "自动记账（房租/工资/订阅等）",
+                onClick = { showRecurringDialog = true }
+            )
+        }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.Style,
+                title = "年度账单海报",
+                subtitle = "生成分享用年度账单图片",
+                onClick = { showPosterDialog = true }
+            )
+        }
+
+        // === 安全 ===
+        item { SectionHeader("安全") }
+
+        item {
+            val isLocked = appLockManager.isLockEnabled
+            SettingsCard(
+                icon = Icons.Default.Lock,
+                title = "App 锁",
+                subtitle = if (isLocked) "已启用指纹/PIN 锁" else "启动时验证指纹或密码",
+                onClick = { showLockSetup = true }
+            )
+        }
+
+        // === 关于 ===
+        item { SectionHeader("关于 & 更新") }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.SystemUpdate,
+                title = updateStatus,
+                subtitle = "当前版本: 1.3.0",
+                onClick = {
+                    updateStatus = "检查中..."
+                    scope.launch {
+                        try {
+                            val hasUpdate = updateManager.checkUpdate()
+                            updateStatus = if (hasUpdate) {
+                                updateManager.downloadAndInstall(context)
+                                "有更新"
+                            } else "已是最新"
+                        } catch (e: Exception) {
+                            updateStatus = "检查失败"
+                        }
+                    }
+                }
+            )
+        }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.Info,
+                title = "关于简记",
+                subtitle = "v1.3.0 | 记录每一笔 · 让生活更有数",
+                onClick = {}
+            )
+        }
+
+        item { Spacer(Modifier.height(80.dp)) }
+    }
+
+    // === Dialogs ===
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("确认清除") },
+            text = { Text("将删除所有交易记录、自定义分类和设置。此操作不可撤销！") },
+            confirmButton = {
+                Button(onClick = { onDataCleared(); showClearDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                    Text("确认清除")
+                }
+            },
+            dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } }
+        )
+    }
+
+    if (showBudgetDialog) {
+        BudgetSettingsDialog(
+            viewModel = viewModel,
+            onDismiss = { showBudgetDialog = false }
+        )
+    }
+
+    if (showAccountDialog) {
+        AccountManagementDialog(
+            accounts = accounts,
+            viewModel = viewModel,
+            onDismiss = { showAccountDialog = false }
+        )
+    }
+
+    if (showTemplateDialog) {
+        TemplateManagementDialog(
+            templates = templates,
+            categories = categories,
+            viewModel = viewModel,
+            onDismiss = { showTemplateDialog = false }
+        )
+    }
+
+    if (showRecurringDialog) {
+        RecurringManagementDialog(
+            recurringTransactions = recurringTransactions,
+            categories = categories,
+            accounts = accounts,
+            viewModel = viewModel,
+            onDismiss = { showRecurringDialog = false }
+        )
+    }
+
+    if (showLockSetup) {
+        AppLockSetupDialog(
+            appLockManager = appLockManager,
+            onDismiss = { showLockSetup = false }
+        )
+    }
+
+    if (showPosterDialog) {
+        AnnualPosterDialog(
+            posterGenerator = posterGenerator,
+            transactions = transactions,
+            categories = categories,
+            onDismiss = { showPosterDialog = false }
+        )
+    }
+
+    if (showImportDialog) {
+        ImportDialog(
+            viewModel = viewModel,
+            onDismiss = { showImportDialog = false }
+        )
     }
 }
 
 @Composable
-private fun SettingsItem(
+fun SectionHeader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+fun SettingsCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
-    titleColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
-    trailing: @Composable (() -> Unit)? = null,
-    onClick: () -> Unit,
+    enabled: Boolean = true,
+    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit
 ) {
-    Surface(onClick = onClick) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onClick() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(12.dp)
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = if (titleColor == MaterialTheme.colorScheme.error) titleColor else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(16.dp))
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Medium, color = titleColor)
-                Text(
-                    subtitle,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = color)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             }
-            trailing?.invoke()
+            Icon(Icons.Default.ChevronRight, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
         }
     }
+}
+
+// ======== Budget Dialog ========
+@Composable
+fun BudgetSettingsDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
+    val year = YearMonth.now().year
+    val month = YearMonth.now().monthValue
+    var budgetAmount by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("预算设置") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("设定 ${year}年${month}月 月度预算", style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = budgetAmount,
+                    onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) budgetAmount = it },
+                    label = { Text("预算金额") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val amt = budgetAmount.toDoubleOrNull() ?: return@Button
+                scope.launch {
+                    viewModel?.setBudget(Budget(
+                        amount = amt, period = BudgetPeriod.MONTHLY,
+                        year = year, month = month
+                    ))
+                }
+                onDismiss()
+            }) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+// ======== Account Dialog ========
+@Composable
+fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
+    var showAdd by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newIcon by remember { mutableStateOf("💳") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("账户管理") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                accounts.forEach { acc ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (acc.isDefault) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(acc.icon, style = MaterialTheme.typography.bodyLarge)
+                                Column {
+                                    Text(acc.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    if (acc.isDefault) Text("默认", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                            Row {
+                                if (!acc.isDefault) {
+                                    TextButton(onClick = { viewModel?.setDefaultAccount(acc.id) }) { Text("默认") }
+                                }
+                                if (accounts.size > 1 && !acc.isDefault) {
+                                    TextButton(onClick = { viewModel?.deleteAccount(acc) },
+                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (showAdd) {
+                    OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("账户名称") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    val iconOptions = listOf("💵","💬","🔵","🏦","💰","💳","🪙","📱","💲")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        iconOptions.forEach { i ->
+                            Text(i, modifier = Modifier.clickable { newIcon = i }, style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                } else {
+                    TextButton(onClick = { showAdd = true }) { Text("+ 添加账户") }
+                }
+            }
+        },
+        confirmButton = {
+            if (showAdd) {
+                Button(onClick = {
+                    if (newName.isNotBlank()) { viewModel?.addAccount(newName, newIcon); showAdd = false; newName = "" }
+                }, enabled = newName.isNotBlank()) { Text("添加") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+// ======== Template Dialog ========
+@Composable
+fun TemplateManagementDialog(
+    templates: List<QuickTemplate>,
+    categories: List<Category>,
+    viewModel: TransactionViewModel?,
+    onDismiss: () -> Unit
+) {
+    var showAdd by remember { mutableStateOf(false) }
+    var tmpAmount by remember { mutableStateOf("") }
+    var tmpDesc by remember { mutableStateOf("") }
+    var tmpCatId by remember { mutableStateOf<Long?>(null) }
+    var tmpType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    val filteredCats = categories.filter { it.type == tmpType }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("快捷模板") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (templates.isEmpty() && !showAdd) {
+                    Text("暂无模板，点击下方按钮创建", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+                templates.forEach { t ->
+                    val cat = categories.find { it.id == t.categoryId }
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(cat?.icon ?: "📁")
+                                Column {
+                                    Text(t.description.ifEmpty { cat?.name ?: "" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    Text("${if (t.type == TransactionType.EXPENSE) "-" else "+"}¥${t.amount} · 使用${t.useCount}次",
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                }
+                            }
+                            TextButton(onClick = { viewModel?.deleteTemplate(t) },
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
+                        }
+                    }
+                }
+                if (showAdd) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { tmpType = TransactionType.INCOME }, modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (tmpType == TransactionType.INCOME) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant)) { Text("收入") }
+                        Button(onClick = { tmpType = TransactionType.EXPENSE }, modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (tmpType == TransactionType.EXPENSE) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.surfaceVariant)) { Text("支出") }
+                    }
+                    OutlinedTextField(value = tmpAmount, onValueChange = { tmpAmount = it }, label = { Text("金额") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = tmpDesc, onValueChange = { tmpDesc = it }, label = { Text("描述") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Text("选择分类", style = MaterialTheme.typography.labelMedium)
+                    LazyColumn(modifier = Modifier.heightIn(max = 150.dp)) {
+                        items(filteredCats) { cat ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { tmpCatId = cat.id },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (tmpCatId == cat.id) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Text("${cat.icon} ${cat.name}", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                } else {
+                    TextButton(onClick = { showAdd = true }) { Text("+ 创建模板") }
+                }
+            }
+        },
+        confirmButton = {
+            if (showAdd) {
+                Button(onClick = {
+                    val amt = tmpAmount.toDoubleOrNull() ?: return@Button
+                    val catId = tmpCatId ?: return@Button
+                    viewModel?.addTemplate(QuickTemplate(categoryId = catId, amount = amt, type = tmpType, description = tmpDesc))
+                    showAdd = false; tmpAmount = ""; tmpDesc = ""; tmpCatId = null
+                }, enabled = tmpAmount.toDoubleOrNull() != null && tmpCatId != null) { Text("添加") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+// ======== Recurring Dialog ========
+@Composable
+fun RecurringManagementDialog(
+    recurringTransactions: List<RecurringTransaction>,
+    categories: List<Category>,
+    accounts: List<Account>,
+    viewModel: TransactionViewModel?,
+    onDismiss: () -> Unit
+) {
+    var showAdd by remember { mutableStateOf(false) }
+    var rCatId by remember { mutableStateOf<Long?>(null) }
+    var rAmount by remember { mutableStateOf("") }
+    var rDesc by remember { mutableStateOf("") }
+    var rType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var rFreq by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
+    var rDayOfMonth by remember { mutableStateOf("1") }
+    var rInterval by remember { mutableStateOf("1") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("周期交易") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("到期的周期交易会自动生成交易记录", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                if (recurringTransactions.isEmpty() && !showAdd) {
+                    Text("暂无周期交易", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+                recurringTransactions.forEach { rt ->
+                    val cat = categories.find { it.id == rt.categoryId }
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("${cat?.icon ?: "📁"} ${rt.description.ifEmpty { cat?.name ?: "" }}",
+                                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                Text("${if (rt.type == TransactionType.EXPENSE) "-" else "+"}¥${rt.amount} · ${rt.frequency.name} · 下次: ${rt.nextRunDate.format(DateTimeFormatter.ofPattern("MM/dd"))}",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                            }
+                            TextButton(onClick = { viewModel?.deleteRecurring(rt) },
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
+                        }
+                    }
+                }
+                if (showAdd) {
+                    OutlinedTextField(value = rAmount, onValueChange = { rAmount = it }, label = { Text("金额") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = rDesc, onValueChange = { rDesc = it }, label = { Text("描述") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { rType = TransactionType.INCOME }, modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (rType == TransactionType.INCOME) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)) { Text("收入") }
+                        Button(onClick = { rType = TransactionType.EXPENSE }, modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (rType == TransactionType.EXPENSE) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant)) { Text("支出") }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        RecurringFrequency.entries.forEach { freq ->
+                            FilterChip(
+                                selected = rFreq == freq, onClick = { rFreq = freq },
+                                label = { Text(freq.name, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+                    if (rFreq == RecurringFrequency.MONTHLY || rFreq == RecurringFrequency.YEARLY) {
+                        OutlinedTextField(value = rDayOfMonth, onValueChange = { rDayOfMonth = it },
+                            label = { Text("每月几号") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    }
+                    OutlinedTextField(value = rInterval, onValueChange = { rInterval = it },
+                        label = { Text("间隔（每N个周期一次）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Text("选择分类", style = MaterialTheme.typography.labelMedium)
+                    LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
+                        items(categories.filter { it.type == rType }) { cat ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { rCatId = cat.id },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (rCatId == cat.id) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                            ) { Text("${cat.icon} ${cat.name}", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium) }
+                        }
+                    }
+                } else {
+                    TextButton(onClick = { showAdd = true }) { Text("+ 添加周期交易") }
+                }
+            }
+        },
+        confirmButton = {
+            if (showAdd) {
+                Button(onClick = {
+                    val amt = rAmount.toDoubleOrNull() ?: return@Button
+                    val catId = rCatId ?: return@Button
+                    val dom = rDayOfMonth.toIntOrNull() ?: 1
+                    val interval = rInterval.toIntOrNull() ?: 1
+                    val nextRun = when (rFreq) {
+                        RecurringFrequency.DAILY -> LocalDate.now().plusDays(1).atStartOfDay()
+                        RecurringFrequency.WEEKLY -> LocalDate.now().plusWeeks(1).atStartOfDay()
+                        RecurringFrequency.MONTHLY -> YearMonth.now().atDay(dom.coerceIn(1,28)).atStartOfDay()
+                            .let { if (it.isBefore(LocalDateTime.now())) it.plusMonths(1) else it }
+                        RecurringFrequency.YEARLY -> LocalDate.of(YearMonth.now().year, 1, dom.coerceIn(1,28)).atStartOfDay()
+                            .let { if (it.isBefore(LocalDateTime.now())) it.plusYears(1) else it }
+                    }
+                    viewModel?.addRecurring(RecurringTransaction(
+                        categoryId = catId, amount = amt, type = rType, description = rDesc,
+                        frequency = rFreq, interval = interval, dayOfMonth = dom, nextRunDate = nextRun
+                    ))
+                    showAdd = false; rAmount = ""; rDesc = ""; rCatId = null
+                }, enabled = rAmount.toDoubleOrNull() != null && rCatId != null) { Text("添加") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+// ======== App Lock ========
+@Composable
+fun AppLockSetupDialog(appLockManager: AppLockManager, onDismiss: () -> Unit) {
+    val isEnabled = appLockManager.isLockEnabled
+    val bioAvailable = appLockManager.canUseBiometric()
+    val bioEnabled = appLockManager.isBiometricEnabled
+    var showPinInput by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var pinStep by remember { mutableStateOf(0) } // 0=not entered, 1=enter, 2=confirm
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("App 锁") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("启用应用锁", style = MaterialTheme.typography.bodyLarge)
+                    Switch(checked = isEnabled, onCheckedChange = { appLockManager.enableLock(it); if (!it) pinStep = 0 })
+                }
+                if (isEnabled && bioAvailable) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("指纹/面部解锁", style = MaterialTheme.typography.bodyLarge)
+                        Switch(checked = bioEnabled, onCheckedChange = { appLockManager.setBiometricEnabled(it) })
+                    }
+                }
+                if (isEnabled && !showPinInput) {
+                    TextButton(onClick = { showPinInput = true; pinStep = 1 }) {
+                        Text(if (appLockManager.hasPin) "修改密码" else "设置密码")
+                    }
+                }
+                if (isEnabled && showPinInput) {
+                    if (pinStep == 1) {
+                        OutlinedTextField(value = pin, onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) pin = it },
+                            label = { Text("输入4-6位数字密码") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Button(onClick = { if (pin.length >= 4) pinStep = 2 }) { Text("下一步") }
+                    } else if (pinStep == 2) {
+                        OutlinedTextField(value = confirmPin, onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) confirmPin = it },
+                            label = { Text("确认密码") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Button(onClick = {
+                            if (pin == confirmPin) {
+                                appLockManager.setPin(pin); showPinInput = false; pinStep = 0; pin = ""; confirmPin = ""
+                            }
+                        }, enabled = confirmPin.length >= 4) { Text("确认设置") }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+// ======== Annual Poster ========
+@Composable
+fun AnnualPosterDialog(
+    posterGenerator: PosterGenerator,
+    transactions: List<Transaction>,
+    categories: List<Category>,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var year by remember { mutableStateOf(LocalDate.now().year) }
+    var isGenerating by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("年度账单海报") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("选择年份生成年度账单分享海报", style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = year.toString(),
+                    onValueChange = { it.toIntOrNull()?.let { y -> if (y in 2000..2099) year = y } },
+                    label = { Text("年份") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Button(
+                    onClick = {
+                        isGenerating = true
+                        scope.launch {
+                            try {
+                                val file = posterGenerator.generatePoster(transactions, categories, year)
+                                posterGenerator.sharePoster(file)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isGenerating = false
+                            }
+                        }
+                    },
+                    enabled = !isGenerating,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isGenerating) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (isGenerating) "生成中..." else "生成并分享")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+// ======== Import Dialog ========
+@Composable
+fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var jsonText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("数据导入") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("粘贴 JSON 数据以导入交易记录", style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = jsonText,
+                    onValueChange = { jsonText = it },
+                    label = { Text("JSON 数据") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
+                    maxLines = 10
+                )
+                Text("示例格式", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                Text("""{"transactions":[{"categoryId":1,"amount":50,"type":"EXPENSE","description":"午餐","date":"2024-07-23T12:00:00"}],"categories":[{"name":"餐饮","type":"EXPENSE","icon":"🍔"}]}""",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                scope.launch {
+                    try {
+                        val importer = DataImportManager()
+                        // Need access to repositories...
+                        if (viewModel != null) {
+                            importer.importFromJson(jsonText, viewModel.transactionRepository, viewModel.categoryRepository)
+                            Toast.makeText(context, "导入成功", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "导入失败: JSON 格式错误", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }, enabled = jsonText.isNotBlank()) { Text("导入") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }

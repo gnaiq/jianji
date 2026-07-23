@@ -8,10 +8,11 @@ data class Category(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
-    val icon: String = "💰", // Emoji or icon name
-    val color: String = "#6200EE", // Hex color
-    val type: CategoryType, // INCOME or EXPENSE
-    val isDefault: Boolean = false
+    val icon: String = "💰",
+    val color: String = "#6200EE",
+    val type: CategoryType,
+    val isDefault: Boolean = false,
+    val sortOrder: Int = 0
 )
 
 enum class CategoryType {

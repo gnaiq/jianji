@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.jianji"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.2.0"
+        versionCode = 7
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -61,7 +61,8 @@ android {
                 "/META-INF/NOTICE",
                 "/META-INF/NOTICE.txt",
                 "/META-INF/README",
-                "/META-INF/INDEX.LIST"
+                "/META-INF/INDEX.LIST",
+                "/META-INF/versions/9/module-info.class"
             )
         }
     }
@@ -98,6 +99,18 @@ dependencies {
 
     // CSV Export
     implementation("org.apache.commons:commons-csv:1.10.0")
+
+    // Biometric
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
+
+    // JSON parsing for import
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // Glance AppWidget
+    implementation("androidx.glance:glance-appwidget:1.1.0")
+
+    // Fragment for BiometricPrompt
+    implementation("androidx.fragment:fragment-ktx:1.7.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

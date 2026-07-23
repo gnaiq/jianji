@@ -21,10 +21,10 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getById(id: Long): Category?
 
-    @Query("SELECT * FROM categories WHERE type = :type ORDER BY name ASC")
+    @Query("SELECT * FROM categories WHERE type = :type ORDER BY sortOrder ASC, name ASC")
     fun getCategoriesByType(type: CategoryType): Flow<List<Category>>
 
-    @Query("SELECT * FROM categories ORDER BY type ASC, name ASC")
+    @Query("SELECT * FROM categories ORDER BY type ASC, sortOrder ASC, name ASC")
     fun getAllCategories(): Flow<List<Category>>
 
     @Query("SELECT * FROM categories WHERE isDefault = 1")
@@ -35,4 +35,7 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun getCount(): Int
+
+    @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM categories")
+    suspend fun getMaxSortOrder(): Int
 }

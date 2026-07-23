@@ -37,114 +37,58 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.Category
-import com.example.jianji.data.CategoryType
-
-/** 图标分组：标签 → emoji 列表 */
-data class IconGroup(val label: String, val icons: List<String>)
-
-/** 内置 55 个 emoji 图标，按场景分组 */
-val iconLibrary: List<IconGroup> = listOf(
-    IconGroup("生活", listOf("🏠", "👕", "🛏️", "🪥", "🧴", "🪞", "🧹", "🧺", "🚿", "🛒", "🎂", "☕", "🍵", "🍺", "🍚", "🥡")),
-    IconGroup("交通", listOf("🚗", "🚙", "🏍️", "🚲", "⛽", "🔧", "🅿️", "🚌", "🚐", "🚕", "✈️", "🚄", "🚢")),
-    IconGroup("汽车", listOf("🚗", "🚙", "🔧", "🛞", "🚦", "🛻", "⛽", "🔑", "🧰", "🪫")),
-    IconGroup("保险", listOf("🛡️", "🔒", "📋", "📝", "⚖️", "🏛️", "💼", "📄")),
-    IconGroup("学习", listOf("📚", "📖", "✏️", "🎓", "🏫", "📝", "🖊️", "📐", "🔬", "🧪", "🎒", "📓", "🖍️")),
-    IconGroup("科技", listOf("📱", "💻", "🖥️", "⌨️", "🖱️", "📷", "🎧", "🔌", "🔋", "📡", "⌚", "🎮", "🕹️", "🤖")),
-    IconGroup("医疗", listOf("🏥", "💊", "💉", "🩺", "🩻", "💗", "🧬", "🦷", "👁️")),
-    IconGroup("金融", listOf("💰", "💳", "🏦", "📊", "💵", "💎", "🪙", "🧧", "📈")),
-    IconGroup("娱乐", listOf("🎮", "🎬", "🎵", "🎤", "🎸", "🎹", "🎯", "🎲", "♟️", "🏀", "⚽", "🎾")),
-    IconGroup("购物", listOf("🛍️", "🛒", "👗", "👠", "💄", "💍", "👜", "🎁", "👟", "🧥")),
-    IconGroup("餐饮", listOf("🍔", "🍕", "🍣", "🍜", "🥗", "🍰", "☕", "🍺", "🧋", "🥤", "🍱", "🥩")),
-)
-
-/** 平铺全部图标（去重） */
-val allIconsFlat: List<String> = iconLibrary.flatMap { it.icons }.distinct()
+import com.example.jianji.data.TransactionType
 
 @Composable
 fun CategoryManagementScreen(
     categories: List<Category> = emptyList(),
-    onAddCategory: (String, String, CategoryType) -> Unit = { _, _, _ -> },
+    onAddCategory: (String, String, TransactionType) -> Unit = { _, _, _ -> },
     onDeleteCategory: (Category) -> Unit = {},
     onUpdateCategory: (Category) -> Unit = {},
     showAddCategoryDialog: Boolean = false,
     onDismissAddDialog: () -> Unit = {},
-    onTypeChanged: (CategoryType) -> Unit = {}
+    onTypeChanged: (TransactionType) -> Unit = {}
 ) {
-    var selectedType by remember { mutableStateOf(CategoryType.EXPENSE) }
-    var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
 
-    // 同步选中的类型到父组件
     remember(selectedType) { onTypeChanged(selectedType) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "分类管理",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Text("分类管理", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
-        // Tabs for Income/Expense
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { selectedType = CategoryType.INCOME },
+                onClick = { selectedType = TransactionType.INCOME },
                 modifier = Modifier.weight(1f),
-                enabled = selectedType != CategoryType.INCOME,
+                enabled = selectedType != TransactionType.INCOME,
                 shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("收入分类")
-            }
+            ) { Text("收入分类") }
             Button(
-                onClick = { selectedType = CategoryType.EXPENSE },
+                onClick = { selectedType = TransactionType.EXPENSE },
                 modifier = Modifier.weight(1f),
-                enabled = selectedType != CategoryType.EXPENSE,
+                enabled = selectedType != TransactionType.EXPENSE,
                 shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("支出分类")
-            }
+            ) { Text("支出分类") }
         }
 
-        // Category List
         val filtered = categories.filter { it.type == selectedType }
         if (filtered.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "暂无分类，点击右下角 + 添加",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("暂无分类，点击右下角 + 添加", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filtered) { category ->
-                    CategoryItemCard(
-                        category = category,
-                        onEdit = { editingCategory = category },
-                        onDelete = { onDeleteCategory(category) }
-                    )
-                }
+            LazyColumn(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filtered) { category -> CategoryItemCard(category = category) }
             }
         }
     }
 
-    // 添加分类对话框（由父组件 FAB 触发）
     if (showAddCategoryDialog) {
-        CategoryFormDialog(
+        RichCategoryFormDialog(
             title = "添加分类",
             categoryType = selectedType,
             onConfirm = { name, icon ->
@@ -152,21 +96,6 @@ fun CategoryManagementScreen(
                 onDismissAddDialog()
             },
             onDismiss = onDismissAddDialog
-        )
-    }
-
-    // 编辑分类对话框
-    if (editingCategory != null) {
-        CategoryFormDialog(
-            title = "编辑分类",
-            categoryType = editingCategory!!.type,
-            initialName = editingCategory!!.name,
-            initialIcon = editingCategory!!.icon,
-            onConfirm = { name, icon ->
-                onUpdateCategory(editingCategory!!.copy(name = name, icon = icon))
-                editingCategory = null
-            },
-            onDismiss = { editingCategory = null }
         )
     }
 }
@@ -183,9 +112,7 @@ fun CategoryItemCard(
         shape = RoundedCornerShape(8.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -194,48 +121,30 @@ fun CategoryItemCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val parsedColor = try {
-                    Color(android.graphics.Color.parseColor(category.color))
-                } catch (e: IllegalArgumentException) {
-                    MaterialTheme.colorScheme.primary
-                }
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = parsedColor.copy(alpha = 0.2f)
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(
-                        text = category.icon,
-                        modifier = Modifier.padding(8.dp),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Text(text = category.icon, modifier = Modifier.padding(8.dp),
+                        style = MaterialTheme.typography.bodyLarge)
                 }
-
                 Column {
+                    Text(category.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        text = category.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (category.isDefault) "默认分类" else "自定义",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        if (category.isDefault) "默认分类" else "自定义",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Edit, "编辑", tint = MaterialTheme.colorScheme.primary)
                 }
-
                 if (!category.isDefault) {
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                        Icon(Icons.Default.Delete, "删除", tint = Color.Red)
                     }
                 }
             }
@@ -243,11 +152,28 @@ fun CategoryItemCard(
     }
 }
 
-/** 统一的分类表单对话框（新增 / 编辑复用） */
+/** 图标分组 */
+data class IconGroup(val label: String, val icons: List<String>)
+
+val iconLibrary: List<IconGroup> = listOf(
+    IconGroup("生活", listOf("🏠","👕","🛏️","🪥","🧴","🪞","🧹","🧺","🚿","🛒","🎂","☕","🍵","🍺","🍚","🥡")),
+    IconGroup("交通", listOf("🚗","🚙","🏍️","🚲","⛽","🔧","🅿️","🚌","🚕","✈️","🚄","🚢")),
+    IconGroup("学习", listOf("📚","📖","✏️","🎓","🏫","📝","🖊️","📐","🔬","🧪","🎒")),
+    IconGroup("科技", listOf("📱","💻","🖥️","⌨️","🖱️","📷","🎧","🔌","🔋","📡","⌚","🎮","🤖")),
+    IconGroup("医疗", listOf("🏥","💊","💉","🩺","🩻","💗","🧬","🦷","👁️")),
+    IconGroup("金融", listOf("💰","💳","🏦","📊","💵","💎","🪙","🧧","📈")),
+    IconGroup("娱乐", listOf("🎮","🎬","🎵","🎤","🎸","🎹","🎯","🎲","🏀","⚽","🎾")),
+    IconGroup("购物", listOf("🛍️","🛒","👗","👠","💄","💍","👜","🎁","👟","🧥")),
+    IconGroup("餐饮", listOf("🍔","🍕","🍣","🍜","🥗","🍰","☕","🍺","🧋","🥤","🍱","🥩")),
+)
+
+val allIconsFlat: List<String> = iconLibrary.flatMap { it.icons }.distinct()
+
+/** 丰富的分类表单对话框（带图标分组选择） */
 @Composable
-fun CategoryFormDialog(
+fun RichCategoryFormDialog(
     title: String,
-    categoryType: CategoryType,
+    categoryType: TransactionType,
     initialName: String = "",
     initialIcon: String = "💰",
     onConfirm: (String, String) -> Unit,
@@ -262,91 +188,45 @@ fun CategoryFormDialog(
         title = { Text(title) },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .verticalScroll(scrollState),
+                modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
-                    value = categoryName,
-                    onValueChange = { categoryName = it },
-                    label = { Text("分类名称") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    value = categoryName, onValueChange = { categoryName = it },
+                    label = { Text("分类名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true
                 )
-
-                Text(
-                    text = "选择图标（${allIconsFlat.size}+ 个可选）",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-
-                // 按组展示图标
+                Text("选择图标", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 iconLibrary.forEach { group ->
-                    Text(
-                        text = group.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                    // 每行放 7 个图标
+                    Text(group.label, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp))
                     val rows = group.icons.chunked(7)
                     rows.forEach { rowIcons ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             rowIcons.forEach { icon ->
-                                val isSelected = selectedIcon == icon
                                 Card(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clickable { selectedIcon = icon },
+                                    modifier = Modifier.size(40.dp).clickable { selectedIcon = icon },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (isSelected)
+                                        containerColor = if (selectedIcon == icon)
                                             MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                                        else
-                                            MaterialTheme.colorScheme.surface
+                                        else MaterialTheme.colorScheme.surface
                                     ),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = icon,
-                                            style = MaterialTheme.typography.bodyLarge
-                                        )
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Text(icon, style = MaterialTheme.typography.bodyLarge)
                                     }
                                 }
                             }
-                            // 填充剩余空格，保持对齐
-                            repeat(7 - rowIcons.size) {
-                                Box(modifier = Modifier.size(40.dp))
-                            }
+                            repeat(7 - rowIcons.size) { Box(modifier = Modifier.size(40.dp)) }
                         }
                     }
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (categoryName.isNotEmpty()) {
-                        onConfirm(categoryName.trim(), selectedIcon)
-                    }
-                }
-            ) {
-                Text("确认")
-            }
+            Button(onClick = { if (categoryName.isNotEmpty()) onConfirm(categoryName.trim(), selectedIcon) }) { Text("确认") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 }
