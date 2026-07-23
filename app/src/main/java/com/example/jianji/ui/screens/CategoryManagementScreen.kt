@@ -1,14 +1,19 @@
 package com.example.jianji.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -34,15 +39,42 @@ import androidx.compose.ui.unit.dp
 import com.example.jianji.data.Category
 import com.example.jianji.data.CategoryType
 
+/** 图标分组：标签 → emoji 列表 */
+data class IconGroup(val label: String, val icons: List<String>)
+
+/** 内置 55 个 emoji 图标，按场景分组 */
+val iconLibrary: List<IconGroup> = listOf(
+    IconGroup("生活", listOf("🏠", "👕", "🛏️", "🪥", "🧴", "🪞", "🧹", "🧺", "🚿", "🛒", "🎂", "☕", "🍵", "🍺", "🍚", "🥡")),
+    IconGroup("交通", listOf("🚗", "🚙", "🏍️", "🚲", "⛽", "🔧", "🅿️", "🚌", "🚐", "🚕", "✈️", "🚄", "🚢")),
+    IconGroup("汽车", listOf("🚗", "🚙", "🔧", "🛞", "🚦", "🛻", "⛽", "🔑", "🧰", "🪫")),
+    IconGroup("保险", listOf("🛡️", "🔒", "📋", "📝", "⚖️", "🏛️", "💼", "📄")),
+    IconGroup("学习", listOf("📚", "📖", "✏️", "🎓", "🏫", "📝", "🖊️", "📐", "🔬", "🧪", "🎒", "📓", "🖍️")),
+    IconGroup("科技", listOf("📱", "💻", "🖥️", "⌨️", "🖱️", "📷", "🎧", "🔌", "🔋", "📡", "⌚", "🎮", "🕹️", "🤖")),
+    IconGroup("医疗", listOf("🏥", "💊", "💉", "🩺", "🩻", "💗", "🧬", "🦷", "👁️")),
+    IconGroup("金融", listOf("💰", "💳", "🏦", "📊", "💵", "💎", "🪙", "🧧", "📈")),
+    IconGroup("娱乐", listOf("🎮", "🎬", "🎵", "🎤", "🎸", "🎹", "🎯", "🎲", "♟️", "🏀", "⚽", "🎾")),
+    IconGroup("购物", listOf("🛍️", "🛒", "👗", "👠", "💄", "💍", "👜", "🎁", "👟", "🧥")),
+    IconGroup("餐饮", listOf("🍔", "🍕", "🍣", "🍜", "🥗", "🍰", "☕", "🍺", "🧋", "🥤", "🍱", "🥩")),
+)
+
+/** 平铺全部图标（去重） */
+val allIconsFlat: List<String> = iconLibrary.flatMap { it.icons }.distinct()
+
 @Composable
 fun CategoryManagementScreen(
     categories: List<Category> = emptyList(),
     onAddCategory: (String, String, CategoryType) -> Unit = { _, _, _ -> },
     onDeleteCategory: (Category) -> Unit = {},
-    onEditCategory: (Category) -> Unit = {}
+    onUpdateCategory: (Category) -> Unit = {},
+    showAddCategoryDialog: Boolean = false,
+    onDismissAddDialog: () -> Unit = {},
+    onTypeChanged: (CategoryType) -> Unit = {}
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
     var selectedType by remember { mutableStateOf(CategoryType.EXPENSE) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
+
+    // 同步选中的类型到父组件
+    remember(selectedType) { onTypeChanged(selectedType) }
 
     Column(
         modifier = Modifier
@@ -80,30 +112,62 @@ fun CategoryManagementScreen(
         }
 
         // Category List
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(categories.filter { it.type == selectedType }) { category ->
-                CategoryItemCard(
-                    category = category,
-                    onEdit = { onEditCategory(category) },
-                    onDelete = { onDeleteCategory(category) }
+        val filtered = categories.filter { it.type == selectedType }
+        if (filtered.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "暂无分类，点击右下角 + 添加",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filtered) { category ->
+                    CategoryItemCard(
+                        category = category,
+                        onEdit = { editingCategory = category },
+                        onDelete = { onDeleteCategory(category) }
+                    )
+                }
+            }
         }
+    }
 
-        // Add button
-        if (showAddDialog) {
-            AddCategoryDialog(
-                categoryType = selectedType,
-                onAdd = { name, icon ->
-                    onAddCategory(name, icon, selectedType)
-                    showAddDialog = false
-                },
-                onDismiss = { showAddDialog = false }
-            )
-        }
+    // 添加分类对话框（由父组件 FAB 触发）
+    if (showAddCategoryDialog) {
+        CategoryFormDialog(
+            title = "添加分类",
+            categoryType = selectedType,
+            onConfirm = { name, icon ->
+                onAddCategory(name, icon, selectedType)
+                onDismissAddDialog()
+            },
+            onDismiss = onDismissAddDialog
+        )
+    }
+
+    // 编辑分类对话框
+    if (editingCategory != null) {
+        CategoryFormDialog(
+            title = "编辑分类",
+            categoryType = editingCategory!!.type,
+            initialName = editingCategory!!.name,
+            initialIcon = editingCategory!!.icon,
+            onConfirm = { name, icon ->
+                onUpdateCategory(editingCategory!!.copy(name = name, icon = icon))
+                editingCategory = null
+            },
+            onDismiss = { editingCategory = null }
+        )
     }
 }
 
@@ -130,14 +194,12 @@ fun CategoryItemCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Icon with background
                 val parsedColor = try {
                     Color(android.graphics.Color.parseColor(category.color))
                 } catch (e: IllegalArgumentException) {
                     MaterialTheme.colorScheme.primary
                 }
                 Card(
-                    modifier = Modifier.padding(0.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = parsedColor.copy(alpha = 0.2f)
                     ),
@@ -167,13 +229,13 @@ fun CategoryItemCard(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                if (!category.isDefault) {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
-                    }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
+                }
 
+                if (!category.isDefault) {
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = androidx.compose.ui.graphics.Color.Red)
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
                     }
                 }
             }
@@ -181,28 +243,29 @@ fun CategoryItemCard(
     }
 }
 
+/** 统一的分类表单对话框（新增 / 编辑复用） */
 @Composable
-fun AddCategoryDialog(
+fun CategoryFormDialog(
+    title: String,
     categoryType: CategoryType,
-    onAdd: (String, String) -> Unit,
+    initialName: String = "",
+    initialIcon: String = "💰",
+    onConfirm: (String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var categoryName by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf("💰") }
-
-    val icons = listOf(
-        "💼", "🎁", "📈", "💰", // Income
-        "🍔", "🚗", "🎮", "🛍️", "🏥", "📚", "💸" // Expense
-    )
+    var categoryName by remember { mutableStateOf(initialName) }
+    var selectedIcon by remember { mutableStateOf(initialIcon) }
+    val scrollState = rememberScrollState()
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加分类") },
+        title = { Text(title) },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
@@ -214,35 +277,56 @@ fun AddCategoryDialog(
                 )
 
                 Text(
-                    text = "选择图标",
+                    text = "选择图标（${allIconsFlat.size}+ 个可选）",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold
                 )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    icons.forEach { icon ->
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(4.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selectedIcon == icon) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                else MaterialTheme.colorScheme.surface
-                            ),
-                            shape = RoundedCornerShape(8.dp)
+                // 按组展示图标
+                iconLibrary.forEach { group ->
+                    Text(
+                        text = group.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    // 每行放 7 个图标
+                    val rows = group.icons.chunked(7)
+                    rows.forEach { rowIcons ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                text = icon,
-                                modifier = Modifier
-                                    .padding(12.dp)
-                                    .align(Alignment.CenterHorizontally),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                            rowIcons.forEach { icon ->
+                                val isSelected = selectedIcon == icon
+                                Card(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable { selectedIcon = icon },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected)
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                        else
+                                            MaterialTheme.colorScheme.surface
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = icon,
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
+                                }
+                            }
+                            // 填充剩余空格，保持对齐
+                            repeat(7 - rowIcons.size) {
+                                Box(modifier = Modifier.size(40.dp))
+                            }
                         }
                     }
                 }
@@ -252,7 +336,7 @@ fun AddCategoryDialog(
             Button(
                 onClick = {
                     if (categoryName.isNotEmpty()) {
-                        onAdd(categoryName, selectedIcon)
+                        onConfirm(categoryName.trim(), selectedIcon)
                     }
                 }
             ) {

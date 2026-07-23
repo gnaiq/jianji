@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 
@@ -31,10 +32,14 @@ class TransactionViewModel(
     private val _monthlyExpense = MutableStateFlow(0.0)
     val monthlyExpense: StateFlow<Double> = _monthlyExpense.asStateFlow()
 
+    private val _dailyExpense = MutableStateFlow(0.0)
+    val dailyExpense: StateFlow<Double> = _dailyExpense.asStateFlow()
+
     init {
         loadTransactions()
         loadCategories()
         updateMonthlyStats()
+        updateDailyStats()
     }
 
     private fun loadTransactions() {
@@ -64,6 +69,7 @@ class TransactionViewModel(
             )
             transactionRepository.insertTransaction(transaction)
             updateMonthlyStats()
+            updateDailyStats()
         }
     }
 
@@ -71,6 +77,7 @@ class TransactionViewModel(
         viewModelScope.launch {
             transactionRepository.updateTransaction(transaction)
             updateMonthlyStats()
+            updateDailyStats()
         }
     }
 
@@ -78,6 +85,7 @@ class TransactionViewModel(
         viewModelScope.launch {
             transactionRepository.deleteTransaction(transaction)
             updateMonthlyStats()
+            updateDailyStats()
         }
     }
 
@@ -97,6 +105,15 @@ class TransactionViewModel(
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             categoryRepository.deleteCategory(category)
+        }
+    }
+
+    fun updateDailyStats(date: LocalDate = LocalDate.now()) {
+        viewModelScope.launch {
+            val startDate = date.atStartOfDay()
+            val endDate = date.atTime(23, 59, 59)
+            val expense = transactionRepository.getSumByType(TransactionType.EXPENSE, startDate, endDate)
+            _dailyExpense.value = expense
         }
     }
 

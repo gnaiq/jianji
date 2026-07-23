@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.jianji.BuildConfig
 import com.example.jianji.ui.theme.ExpenseRed
 import com.example.jianji.ui.viewmodel.TransactionViewModel
 
@@ -183,7 +184,7 @@ fun SettingsScreen(viewModel: TransactionViewModel? = null) {
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = "1.0.0",
+                                text = BuildConfig.VERSION_NAME,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold
                             )
