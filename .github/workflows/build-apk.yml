@@ -25,7 +25,20 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Decode signing keystore
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release.keystore"
+          echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/release.keystore" >> "$GITHUB_ENV"
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
       - name: Build Release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease
 
       - name: Find and rename APK

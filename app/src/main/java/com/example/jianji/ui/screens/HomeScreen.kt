@@ -446,14 +446,35 @@ fun SwipeToDeleteItem(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var showConfirm by remember { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                false
+                showConfirm = true
+                false // 不自动删除，等二次确认
             } else false
         }
     )
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("删除交易") },
+            text = { Text("确定要删除这笔交易记录吗？删除后无法恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirm = false
+                        onDelete()
+                    }
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("取消") }
+            }
+        )
+    }
+
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {

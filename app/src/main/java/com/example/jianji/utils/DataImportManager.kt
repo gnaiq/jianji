@@ -5,6 +5,7 @@ import com.example.jianji.data.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
@@ -45,8 +46,7 @@ class DataImportManager {
         var count = 0
 
         // 导入分类
-        val existingCats = mutableListOf<Category>()
-        categoryRepo.getAllCategories().collect { existingCats.addAll(it) }
+        val existingCats = categoryRepo.getAllCategories().first().toMutableList()
 
         val catNameMap = mutableMapOf<String, Long>()
         for (ci in data.categories) {

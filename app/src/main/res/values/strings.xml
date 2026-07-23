@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">简记 (Jianji)</string>
+    <string name="app_name">简记</string>
     <string name="tab_home">首页</string>
     <string name="tab_statistics">统计</string>
     <string name="tab_category">分类</string>

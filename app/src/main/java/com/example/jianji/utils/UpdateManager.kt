@@ -22,7 +22,6 @@ class UpdateManager(private val context: Context) {
 
     data class ReleaseInfo(
         val versionName: String,
-        val versionCode: Int,
         val downloadUrl: String,
         val body: String,
         val apkSize: Long
@@ -68,28 +67,40 @@ class UpdateManager(private val context: Context) {
             }
 
             if (downloadUrl.isEmpty()) {
-                return@withContext Result.failure(Exception("未找到 APK 下载链接"))
+                return@withContext Result.failure(Exception("未在 Release 中找到 APK 下载链接"))
             }
 
-            // 从 tag 解析 versionCode：用 versionName 推一个保守估计
-            // GitHub Tag 里没有 versionCode，用 CI 一致的映射: major*1000 + minor*100 + patch
-            val versionName = tagName.removePrefix("v")
-            val parts = versionName.split(".").map { it.toIntOrNull() ?: 0 }
-            val versionCode = (parts.getOrElse(0) { 0 }) * 1000 +
-                              (parts.getOrElse(1) { 0 }) * 100 +
-                              (parts.getOrElse(2) { 0 })
+            // 用版本号字符串做语义化比较，避免 versionCode 映射不一致
+            val latestVersion = tagName.removePrefix("v").trim()
+            val currentVersion = try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
+            } catch (_: Exception) { "0" }
 
-            val currentCode = context.packageManager
-                .getPackageInfo(context.packageName, 0).versionCode
-
-            if (versionCode <= currentCode) {
+            if (!isNewerVersion(currentVersion, latestVersion)) {
                 Result.success(null) // 已是最新版
             } else {
-                Result.success(ReleaseInfo(versionName, versionCode, downloadUrl, releaseBody, apkSize))
+                Result.success(ReleaseInfo(latestVersion, downloadUrl, releaseBody, apkSize))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * 语义化比较版本号：latest 是否比 current 更新。
+     * 例：current="1.3.0", latest="1.3.5" -> true；current="1.4.0", latest="1.3.5" -> false
+     */
+    private fun isNewerVersion(current: String, latest: String): Boolean {
+        val c = current.split(".").map { it.toIntOrNull() ?: 0 }
+        val l = latest.split(".").map { it.toIntOrNull() ?: 0 }
+        val len = maxOf(c.size, l.size)
+        for (i in 0 until len) {
+            val cv = c.getOrElse(i) { 0 }
+            val lv = l.getOrElse(i) { 0 }
+            if (lv > cv) return true
+            if (lv < cv) return false
+        }
+        return false
     }
 
     /**

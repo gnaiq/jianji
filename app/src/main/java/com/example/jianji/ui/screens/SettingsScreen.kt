@@ -3,6 +3,8 @@ package com.example.jianji.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.utils.*
+import com.example.jianji.BuildConfig
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -96,9 +99,35 @@ fun SettingsScreen(
 
         item {
             SettingsCard(
+                icon = Icons.Default.Backup,
+                title = "备份数据库",
+                subtitle = "导出完整数据(JSON)到下载目录",
+                onClick = {
+                    scope.launch {
+                        try {
+                            val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
+                            if (all.isEmpty()) {
+                                Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val json = DataImportManager().generateExportJson(all, categories)
+                            val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+                            val file = java.io.File(dir, "简记备份_${LocalDate.now()}.json")
+                            file.writeText(json)
+                            Toast.makeText(context, "备份成功: ${file.name}", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+        }
+
+        item {
+            SettingsCard(
                 icon = Icons.Default.CloudDownload,
-                title = "数据导入",
-                subtitle = "从 JSON 文件导入交易记录",
+                title = "恢复备份",
+                subtitle = "从 JSON 备份文件恢复数据",
                 onClick = { showImportDialog = true }
             )
         }
@@ -211,7 +240,7 @@ fun SettingsScreen(
             SettingsCard(
                 icon = Icons.Default.SystemUpdate,
                 title = updateStatus,
-                subtitle = "当前版本: 1.3.0",
+                subtitle = "当前版本: ${BuildConfig.VERSION_NAME}",
                 onClick = {
                     updateStatus = "检查中..."
                     scope.launch {
@@ -220,10 +249,10 @@ fun SettingsScreen(
                                 .onSuccess { info ->
                                     if (info != null) {
                                         updateManager.downloadAndInstall(info.downloadUrl)
-                                        updateStatus = "发现 v${info.versionName}"
-                                    } else updateStatus = "已是最新"
+                                        updateStatus = "发现 v${info.versionName}，开始下载"
+                                    } else updateStatus = "当前已是最新版本"
                                 }
-                                .onFailure { updateStatus = "检查失败" }
+                                .onFailure { updateStatus = "检查失败: ${it.message}" }
                         } catch (_: Exception) { updateStatus = "检查失败" }
                     }
                 }
@@ -234,7 +263,7 @@ fun SettingsScreen(
             SettingsCard(
                 icon = Icons.Default.Info,
                 title = "关于简记",
-                subtitle = "v1.3.0 | 记录每一笔 · 让生活更有数",
+                subtitle = "v${BuildConfig.VERSION_NAME} | 记录每一笔 · 让生活更有数",
                 onClick = {}
             )
         }
@@ -793,44 +822,65 @@ fun AnnualPosterDialog(
 fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var jsonText by remember { mutableStateOf("") }
+    var importing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                jsonText = stream.bufferedReader().readText()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "读取文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("数据导入") },
+        title = { Text("恢复备份") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("粘贴 JSON 数据以导入交易记录", style = MaterialTheme.typography.bodyMedium)
+                Text("选择 JSON 备份文件，或粘贴 JSON 数据以恢复交易记录",
+                    style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = { filePicker.launch("application/json") }) {
+                    Text("选择备份文件")
+                }
                 OutlinedTextField(
                     value = jsonText,
                     onValueChange = { jsonText = it },
                     label = { Text("JSON 数据") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                     maxLines = 10
                 )
-                Text("示例格式", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                Text("""{"transactions":[{"categoryId":1,"amount":50,"type":"EXPENSE","description":"午餐","date":"2024-07-23T12:00:00"}],"categories":[{"name":"餐饮","type":"EXPENSE","icon":"🍔"}]}""",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
             }
         },
         confirmButton = {
-            Button(onClick = {
-                scope.launch {
-                    try {
-                        val importer = DataImportManager()
-                        // Need access to repositories...
-                        if (viewModel != null) {
-                            importer.importFromJson(jsonText, viewModel.transactionRepository, viewModel.categoryRepository)
-                            Toast.makeText(context, "导入成功", Toast.LENGTH_SHORT).show()
-                            onDismiss()
+            Button(
+                onClick = {
+                    if (jsonText.isBlank() || viewModel == null) return@Button
+                    importing = true
+                    scope.launch {
+                        try {
+                            val importer = DataImportManager()
+                            val count = importer.importFromJson(jsonText, viewModel.transactionRepository, viewModel.categoryRepository)
+                            importing = false
+                            if (count > 0) {
+                                Toast.makeText(context, "恢复成功，导入 ${count} 条", Toast.LENGTH_SHORT).show()
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            importing = false
+                            Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "导入失败: JSON 格式错误", Toast.LENGTH_SHORT).show()
                     }
-                }
-            }, enabled = jsonText.isNotBlank()) { Text("导入") }
+                },
+                enabled = jsonText.isNotBlank() && !importing
+            ) { Text(if (importing) "恢复中..." else "恢复") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )

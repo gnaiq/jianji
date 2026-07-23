@@ -1,21 +1,21 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:translateX="27"
-        android:translateY="27">
+    <group android:translateX="22" android:translateY="20">
+        <!-- 简约记账卡片（白底 + 三条账目线） -->
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M54,27 L54,81 M27,54 L81,54"
-            android:strokeWidth="6"
-            android:strokeColor="#FFFFFF" />
+            android:pathData="M6,4 h56 a8,8 0 0 1 8,8 v64 a8,8 0 0 1 -8,8 h-56 a8,8 0 0 1 -8,-8 v-64 a8,8 0 0 1 8,-8 z" />
         <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M38,38 h32 v32 h-32 z" />
+            android:fillColor="#6200EE"
+            android:pathData="M12,28 h42 v6 h-42 z" />
+        <path
+            android:fillColor="#6200EE"
+            android:pathData="M12,44 h42 v6 h-42 z" />
+        <path
+            android:fillColor="#6200EE"
+            android:pathData="M12,60 h26 v6 h-26 z" />
     </group>
 </vector>

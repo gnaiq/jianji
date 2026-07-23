@@ -12,12 +12,22 @@ android {
         applicationId = "com.example.jianji"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.3.0"
+        versionCode = 8
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    signingConfigs {
+        getByName("debug")
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+            storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("KEY_ALIAS") ?: ""
+            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
         }
     }
 
@@ -26,7 +36,9 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            // 有 CI 签名密钥时用固定 release keystore，否则回退 debug（本地开发）
+            signingConfig = if (System.getenv("KEYSTORE_FILE") != null)
+                signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false
