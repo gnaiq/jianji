@@ -83,7 +83,12 @@ class UpdateManager(private val context: Context) {
                 Result.success(ReleaseInfo(latestVersion, downloadUrl, releaseBody, apkSize))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            val msg = when (e) {
+                is java.net.UnknownHostException -> "无法连接更新服务器（网络受限或被拦截）"
+                is java.net.SocketTimeoutException -> "连接更新服务器超时"
+                else -> e.message ?: "未知错误"
+            }
+            Result.failure(Exception(msg))
         }
     }
 
@@ -147,6 +152,22 @@ class UpdateManager(private val context: Context) {
         context.registerReceiver(onComplete, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
         return downloadId
     }
+
+    /** 本机是否已存在此前下载好的更新安装包 */
+    fun hasLocalApk(): Boolean {
+        val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
+        return f.exists() && f.length() > 0
+    }
+
+    /** 安装本机已下载好的更新安装包（检查更新失败但仍已下好包时复用） */
+    fun installLocalApk() {
+        val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
+        if (f.exists()) installApk(f)
+        else Toast.makeText(context, "未找到本地安装包", Toast.LENGTH_SHORT).show()
+    }
+
+    /** 手动下载地址 */
+    fun releasesUrl(): String = "https://github.com/gnaiq/jianji/releases"
 
     /**
      * 使用 FileProvider 安装 APK
