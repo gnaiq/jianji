@@ -18,7 +18,8 @@ import com.example.jianji.data.Transaction as AppTransaction
 enum class Tab(val label: String) {
     HOME("首页"),
     STATISTICS("统计"),
-    CATEGORIES("分类管理")
+    CATEGORIES("分类管理"),
+    SETTINGS("设置")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,18 +49,20 @@ fun JianjiApp() {
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    if (selectedTab == Tab.CATEGORIES) {
-                        showAddCategoryDialogTab = true
-                    } else {
-                        editingTransaction = null
-                        showAddDialog = true
-                    }
-                },
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
+            if (selectedTab != Tab.SETTINGS) {
+                FloatingActionButton(
+                    onClick = {
+                        if (selectedTab == Tab.CATEGORIES) {
+                            showAddCategoryDialogTab = true
+                        } else {
+                            editingTransaction = null
+                            showAddDialog = true
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add")
+                }
             }
         }
     ) { innerPadding ->
@@ -99,6 +102,11 @@ fun JianjiApp() {
                     showAddCategoryDialog = showAddCategoryDialogTab,
                     onDismissAddDialog = { showAddCategoryDialogTab = false },
                     onTypeChanged = { categoryTabType = it }
+                )
+                Tab.SETTINGS -> SettingsScreen(
+                    transactions = transactions,
+                    categories = categories,
+                    onDataCleared = { viewModel.clearAllData() }
                 )
             }
         }

@@ -134,6 +134,7 @@ class TransactionViewModel(
         viewModelScope.launch {
             transactionRepository.deleteAll()
             categoryRepository.deleteAll()
+            categoryRepository.seedDefaults()
             _monthlyIncome.value = 0.0
             _monthlyExpense.value = 0.0
         }
