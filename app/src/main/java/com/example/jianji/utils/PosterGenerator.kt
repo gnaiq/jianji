@@ -239,7 +239,7 @@ class PosterGenerator(private val context: Context) {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
         }
         bitmap.recycle()
-        file
+        return file
     }
 
     fun sharePoster(file: File) {
