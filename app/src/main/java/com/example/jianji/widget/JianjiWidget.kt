@@ -1,7 +1,6 @@
 package com.example.jianji.widget
 
 import android.content.Context
-import android.graphics.Color
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.provideContent
@@ -35,51 +34,30 @@ class JianjiWidget : GlanceAppWidget() {
 
         provideContent {
             Column(
-                modifier = GlanceModifier.fillMaxSize().padding(
-                    PaddingValues(12.dp)
-                )
+                modifier = GlanceModifier.fillMaxSize()
             ) {
                 Text(
                     text = "简记",
-                    style = TextStyle(
-                        color = ColorProvider(Color.parseColor("#6200EE"))
-                    )
+                    style = TextStyle(color = ColorProvider(0xff6200ee.toInt()))
                 )
-                Spacer(modifier = GlanceModifier.height(8.dp))
 
-                Row(modifier = GlanceModifier.fillMaxWidth()) {
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth()
+                ) {
                     Column(modifier = GlanceModifier.defaultWeight()) {
-                        Text("本月支出", style = TextStyle(
-                            color = ColorProvider(Color.GRAY)
-                        ))
-                        Text(
-                            "¥${nf.format(monthExpense)}",
-                            style = TextStyle(
-                                color = ColorProvider(Color.RED)
-                            )
-                        )
+                        Text("月支出", style = TextStyle(color = ColorProvider(0xff999999.toInt())))
+                        Text("¥${nf.format(monthExpense)}",
+                            style = TextStyle(color = ColorProvider(0xffff0000.toInt())))
                     }
                     Column(modifier = GlanceModifier.defaultWeight()) {
-                        Text("本月收入", style = TextStyle(
-                            color = ColorProvider(Color.GRAY)
-                        ))
-                        Text(
-                            "¥${nf.format(monthIncome)}",
-                            style = TextStyle(
-                                color = ColorProvider(Color.parseColor("#4CAF50"))
-                            )
-                        )
+                        Text("月收入", style = TextStyle(color = ColorProvider(0xff999999.toInt())))
+                        Text("¥${nf.format(monthIncome)}",
+                            style = TextStyle(color = ColorProvider(0xff4caf50.toInt())))
                     }
                     Column(modifier = GlanceModifier.defaultWeight()) {
-                        Text("今日支出", style = TextStyle(
-                            color = ColorProvider(Color.GRAY)
-                        ))
-                        Text(
-                            "¥${nf.format(todayExpense)}",
-                            style = TextStyle(
-                                color = ColorProvider(Color.RED)
-                            )
-                        )
+                        Text("今日支出", style = TextStyle(color = ColorProvider(0xff999999.toInt())))
+                        Text("¥${nf.format(todayExpense)}",
+                            style = TextStyle(color = ColorProvider(0xffff0000.toInt())))
                     }
                 }
             }

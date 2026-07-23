@@ -1,6 +1,7 @@
 package com.example.jianji.utils
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.*
 import android.net.Uri
 import android.os.Environment
@@ -245,7 +246,7 @@ class PosterGenerator(private val context: Context) {
         val uri = FileProvider.getUriForFile(
             context, "${context.packageName}.fileprovider", file
         )
-        val intent = android.content.Intent(Intent.ACTION_SEND).apply {
+        val intent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
