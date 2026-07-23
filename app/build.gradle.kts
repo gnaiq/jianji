@@ -99,15 +99,6 @@ dependencies {
     // CSV Export
     implementation("org.apache.commons:commons-csv:1.10.0")
 
-    // Excel Export
-    implementation("org.apache.poi:poi:5.0.0") {
-        exclude(group = "org.apache.xmlgraphics", module = "batik-all")
-    }
-    implementation("org.apache.poi:poi-ooxml:5.0.0") {
-        exclude(group = "org.apache.xmlgraphics", module = "batik-all")
-    }
-    implementation("org.apache.xmlbeans:xmlbeans:5.0.0")
-
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

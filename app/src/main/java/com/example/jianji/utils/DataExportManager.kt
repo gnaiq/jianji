@@ -5,9 +5,6 @@ import com.example.jianji.data.Category
 import com.example.jianji.data.Transaction
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVPrinter
-import org.apache.poi.ss.usermodel.CellStyle
-import org.apache.poi.ss.usermodel.Font
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -55,62 +52,6 @@ class DataExportManager(private val context: Context) {
                         )
                     }
                 }
-            }
-            Result.success(file)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * 导出为 Excel 格式
-     */
-    fun exportToExcel(
-        transactions: List<Transaction>,
-        categories: Map<Long, Category>,
-        fileName: String = "jianji_export_${System.currentTimeMillis()}.xlsx"
-    ): Result<File> {
-        return try {
-            val exportDir = File(context.filesDir, "exports")
-            if (!exportDir.exists()) {
-                exportDir.mkdirs()
-            }
-
-            val file = File(exportDir, fileName)
-            XSSFWorkbook().use { workbook ->
-                val sheet = workbook.createSheet("记账数据")
-
-                // 创建标题行
-                val headerRow = sheet.createRow(0)
-                val headers = listOf("ID", "分类", "金额", "类型", "描述", "日期", "创建时间")
-                val headerStyle = createHeaderStyle(workbook)
-
-                headers.forEachIndexed { index, header ->
-                    val cell = headerRow.createCell(index)
-                    cell.setCellValue(header)
-                    cell.cellStyle = headerStyle
-                }
-
-                // 填充数据行
-                transactions.forEachIndexed { index, transaction ->
-                    val row = sheet.createRow(index + 1)
-                    val category = categories[transaction.categoryId]?.name ?: "未知"
-
-                    row.createCell(0).setCellValue(transaction.id.toDouble())
-                    row.createCell(1).setCellValue(category)
-                    row.createCell(2).setCellValue(transaction.amount)
-                    row.createCell(3).setCellValue(transaction.type.name)
-                    row.createCell(4).setCellValue(transaction.description)
-                    row.createCell(5).setCellValue(dateFormatShort.get()!!.format(Date.from(transaction.date.atZone(java.time.ZoneId.systemDefault()).toInstant())))
-                    row.createCell(6).setCellValue(dateFormat.get()!!.format(Date.from(transaction.createdAt.atZone(java.time.ZoneId.systemDefault()).toInstant())))
-                }
-
-                // 自动调整列宽
-                for (i in 0 until headers.size) {
-                    sheet.autoSizeColumn(i)
-                }
-
-                workbook.write(file.outputStream())
             }
             Result.success(file)
         } catch (e: Exception) {
@@ -177,16 +118,5 @@ class DataExportManager(private val context: Context) {
      */
     fun deleteBackup(backupFile: File): Boolean {
         return backupFile.delete()
-    }
-
-    private fun createHeaderStyle(workbook: XSSFWorkbook): org.apache.poi.xssf.usermodel.XSSFCellStyle {
-        val style = workbook.createCellStyle() as org.apache.poi.xssf.usermodel.XSSFCellStyle
-        val font = workbook.createFont()
-        font.bold = true
-        font.fontHeightInPoints = 12
-        style.setFont(font)
-        style.fillForegroundColor = org.apache.poi.ss.usermodel.IndexedColors.LIGHT_BLUE.index
-        style.fillPattern = org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND
-        return style
     }
 }
