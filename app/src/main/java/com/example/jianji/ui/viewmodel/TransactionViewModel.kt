@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.jianji.data.*
+import com.example.jianji.utils.BackupStorage
+import com.example.jianji.utils.DataImportManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -216,6 +218,19 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     suspend fun getAllTransactionsSnapshot(): List<Transaction> = transactionRepository.getAllSnapshot()
     suspend fun getTransactionsByDateSnapshot(start: LocalDateTime, end: LocalDateTime): List<Transaction> =
         transactionRepository.getByDateRangeSnapshot(start, end)
+
+    // -- 自动备份：写入共享目录，卸载后仍可恢复 --
+    fun autoBackup() {
+        viewModelScope.launch {
+            try {
+                val all = transactionRepository.getAllSnapshot()
+                if (all.isEmpty()) return@launch
+                val cats = categoryRepository.getAllCategories().first()
+                val json = DataImportManager().generateExportJson(all, cats)
+                BackupStorage.saveAutoBackup(getApplication(), json)
+            } catch (_: Exception) { }
+        }
+    }
 
     // -- Seed initial data --
     init {

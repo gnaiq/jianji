@@ -1,10 +1,13 @@
 package com.example.jianji.utils
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.example.jianji.data.*
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +38,7 @@ class PosterGenerator(private val context: Context) {
         transactions: List<Transaction>,
         categories: List<Category>,
         year: Int = LocalDate.now().year
-    ): File = withContext(Dispatchers.IO) {
+    ): Uri = withContext(Dispatchers.IO) {
         val stats = computeStats(transactions, categories, year)
         drawPoster(stats)
     }
@@ -88,7 +91,7 @@ class PosterGenerator(private val context: Context) {
         )
     }
 
-    private fun drawPoster(stats: AnnualStats): File {
+    private fun drawPoster(stats: AnnualStats): Uri {
         val width = 1080
         val height = 1920
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -231,23 +234,37 @@ class PosterGenerator(private val context: Context) {
         labelPaint.textSize = 20f
         canvas.drawText("记录每一笔 · 让生活更有数", width / 2f, y, labelPaint)
 
-        // Save to file
-        val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
-        val posterDir = File(baseDir, "简记海报")
-        posterDir.mkdirs()
-        val file = File(posterDir, "简记_${stats.year}年度账单.png")
-        FileOutputStream(file).use { fos ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
-            fos.flush()
+        // Save：写入媒体库公共图片目录（相册可见、卸载后保留、可正常分享打开）
+        val resolver = context.contentResolver
+        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "简记_${stats.year}年度账单.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/简记海报")
+            }
+            val inserted = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw RuntimeException("无法写入媒体库")
+            resolver.openOutputStream(inserted)?.use { os ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, os)
+                os.flush()
+            } ?: throw RuntimeException("无法写入图片")
+            inserted
+        } else {
+            val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
+            val posterDir = File(baseDir, "简记海报")
+            posterDir.mkdirs()
+            val file = File(posterDir, "简记_${stats.year}年度账单.png")
+            FileOutputStream(file).use { fos ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                fos.flush()
+            }
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         }
         bitmap.recycle()
-        return file
+        return uri
     }
 
-    fun sharePoster(file: File) {
-        val uri = FileProvider.getUriForFile(
-            context, "${context.packageName}.fileprovider", file
-        )
+    fun sharePoster(uri: Uri) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)

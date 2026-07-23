@@ -94,6 +94,9 @@ fun StatisticsScreen(
     }
 }
 
+// 选中数据点后展示的时段费用
+private data class ChartPoint(val label: String, val expense: Float, val income: Float)
+
 // ─── Trend Line Chart (MPAndroidChart) ────────────────────
 
 @Composable
@@ -107,7 +110,7 @@ private fun TrendLineChart(
     if (expense.none { it > 0f } && income.none { it > 0f }) return
 
     var expanded by remember { mutableStateOf(true) }
-    val showValues = remember { mutableStateOf(true) }
+    val selectedPoint = remember { mutableStateOf<ChartPoint?>(null) }
 
     val valueFormatter = remember {
         object : ValueFormatter() {
@@ -152,10 +155,17 @@ private fun TrendLineChart(
                         axisLeft.axisMinimum = 0f
                         setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
                             override fun onValueSelected(e: Entry?, h: Highlight?) {
-                                showValues.value = true
+                                val idx = e?.x?.toInt() ?: return
+                                if (idx in labels.indices) {
+                                    selectedPoint.value = ChartPoint(
+                                        labels[idx],
+                                        expense.getOrElse(idx) { 0f },
+                                        income.getOrElse(idx) { 0f }
+                                    )
+                                }
                             }
                             override fun onNothingSelected() {
-                                showValues.value = false
+                                selectedPoint.value = null
                             }
                         })
                     }
@@ -171,7 +181,7 @@ private fun TrendLineChart(
                             lineWidth = 2f
                             circleRadius = 3f
                             setDrawCircles(false)
-                            setDrawValues(showValues.value)
+                            setDrawValues(false)
                             setValueTextSize(9f)
                             setValueTextColor(android.graphics.Color.parseColor("#B71C1C"))
                             setValueFormatter(valueFormatter)
@@ -188,7 +198,7 @@ private fun TrendLineChart(
                             lineWidth = 2f
                             circleRadius = 3f
                             setDrawCircles(false)
-                            setDrawValues(showValues.value)
+                            setDrawValues(false)
                             setValueTextSize(9f)
                             setValueTextColor(android.graphics.Color.parseColor("#1B5E20"))
                             setValueFormatter(valueFormatter)
@@ -201,8 +211,17 @@ private fun TrendLineChart(
                     chart.invalidate()
                 }
             )
+                val chartInfo = selectedPoint.value
                 Text(
-                    if (showValues.value) "轻点空白处可隐藏数值" else "轻点折线上的数据点显示费用数值",
+                    text = if (chartInfo != null) {
+                        if (chartInfo.income > 0f) {
+                            "%s · 支出 ¥%.2f · 收入 ¥%.2f".format(chartInfo.label, chartInfo.expense, chartInfo.income)
+                        } else {
+                            "%s · 支出 ¥%.2f".format(chartInfo.label, chartInfo.expense)
+                        }
+                    } else {
+                        "轻点折线上的数据点，查看该时段费用"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)

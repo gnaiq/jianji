@@ -96,6 +96,11 @@ fun JianjiApp() {
         if (appLockManager.isLockEnabled && appLockManager.hasPin) requestUnlock()
     }
 
+    // 自动备份：数据变化时写入共享目录（卸载后仍可恢复）
+    LaunchedEffect(transactions) {
+        viewModel.autoBackup()
+    }
+
     if (!isUnlocked) {
         LockScreen(
             onUnlock = { requestUnlock() },

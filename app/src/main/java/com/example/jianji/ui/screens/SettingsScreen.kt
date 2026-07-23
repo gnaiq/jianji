@@ -648,13 +648,16 @@ fun RecurringManagementDialog(
         onDismissRequest = onDismiss,
         title = { Text("周期交易") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("到期的周期交易会自动生成交易记录", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                if (recurringTransactions.isEmpty() && !showAdd) {
-                    Text("暂无周期交易", style = MaterialTheme.typography.bodyMedium,
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!showAdd) {
+                    Text("到期的周期交易会自动生成交易记录", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    if (recurringTransactions.isEmpty()) {
+                        Text("暂无周期交易，点击下方按钮添加", style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    }
                 }
+                if (!showAdd) {
                 recurringTransactions.forEach { rt ->
                     val cat = categories.find { it.id == rt.categoryId }
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -673,6 +676,7 @@ fun RecurringManagementDialog(
                                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
                         }
                     }
+                }
                 }
                 if (showAdd) {
                     OutlinedTextField(value = rAmount, onValueChange = { rAmount = it }, label = { Text("金额") },
@@ -729,11 +733,15 @@ fun RecurringManagementDialog(
                     val previewNext = computeRecurringNextRun(
                         rFreq, rDayOfMonth.toIntOrNull() ?: 1, rInterval.toIntOrNull() ?: 1
                     )
-                    Text(
-                        "下次记账: ${previewNext.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text("下次记账: ${previewNext.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAdd = false; rAmount = ""; rDesc = ""; rCatId = null }) { Text("取消") }
+                    }
                 } else {
                     TextButton(onClick = { showAdd = true }) { Text("+ 添加周期交易") }
                 }
