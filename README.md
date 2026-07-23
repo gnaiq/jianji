@@ -160,6 +160,12 @@ MIT License
 
 ## 更新日志
 
+### v1.4.6 (2026-07-24)
+
+- **检查更新（修复下载失败）**：弃用 `DownloadManager`（其 `file://` 目标 URI 在 Android 7+ 触发 `FileUriExposedException`/目标校验异常，表现为“下载失败：com.example.jianji:One of…”）；改用 `HttpURLConnection` 直接下载 APK 并经 FileProvider 安装，错误提示改为可读中文
+- **移除 App 锁**：删除指纹/PIN 应用锁功能（含 `AppLockManager`、锁门禁、`biometric`/`fragment-ktx` 依赖与 `USE_BIOMETRIC` 权限）
+- **管理备份**：新增“管理备份”入口，可列出并删除下载目录中的旧备份文件（防备份堆积），删除前二次确认
+
 ### v1.4.5 (2026-07-23)
 
 - **统计**：折线图点击数据点显示该时段费用数字

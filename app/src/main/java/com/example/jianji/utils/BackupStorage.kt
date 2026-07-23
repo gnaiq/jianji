@@ -115,4 +115,15 @@ object BackupStorage {
         }
         throw RuntimeException("无法读取备份文件")
     }
+
+    /** 删除指定备份文件（Q+ 走 MediaStore，低版本直接删文件） */
+    fun delete(context: Context, uri: Uri) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            context.contentResolver.delete(uri, null, null)
+        } else {
+            val path = uri.path ?: return
+            val file = File(path)
+            if (file.exists()) file.delete()
+        }
+    }
 }

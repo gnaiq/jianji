@@ -51,14 +51,13 @@ fun SettingsScreen(
     var showTemplateDialog by remember { mutableStateOf(false) }
     var showAccountDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
-    var showLockSetup by remember { mutableStateOf(false) }
+    var showBackupManage by remember { mutableStateOf(false) }
     var showPosterDialog by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
     var showExportProgress by remember { mutableStateOf(false) }
 
     val updateManager = remember { UpdateManager(context) }
     val excelExportManager = remember { ExcelExportManager(context) }
-    val appLockManager = remember { AppLockManager(context) }
     val posterGenerator = remember { PosterGenerator(context) }
     var updateStatus by remember { mutableStateOf("检查更新") }
 
@@ -167,6 +166,15 @@ fun SettingsScreen(
 
         item {
             SettingsCard(
+                icon = Icons.Default.DeleteSweep,
+                title = "管理备份",
+                subtitle = "查看并删除下载目录中的旧备份文件",
+                onClick = { showBackupManage = true }
+            )
+        }
+
+        item {
+            SettingsCard(
                 icon = Icons.Default.Delete,
                 title = "清除所有数据",
                 subtitle = "删除所有交易、分类和设置",
@@ -223,19 +231,6 @@ fun SettingsScreen(
             )
         }
 
-        // === 安全 ===
-        item { SectionHeader("安全") }
-
-        item {
-            val isLocked = appLockManager.isLockEnabled
-            SettingsCard(
-                icon = Icons.Default.Lock,
-                title = "App 锁",
-                subtitle = if (isLocked) "已启用指纹/PIN 锁" else "启动时验证指纹或密码",
-                onClick = { showLockSetup = true }
-            )
-        }
-
         // === 关于 ===
         item { SectionHeader("关于 & 更新") }
 
@@ -255,9 +250,9 @@ fun SettingsScreen(
                             updateStatus = "发现新版本 v${info.versionName}，正在下载并自动安装…"
                             try {
                                 updateManager.downloadAndInstall(info.downloadUrl)
-                                updateStatus = "正在下载 v${info.versionName}…"
+                                updateStatus = "下载完成，正在安装…"
                             } catch (e: Exception) {
-                                updateStatus = "下载失败: ${e.message}"
+                                updateStatus = "下载失败: ${e.message ?: "未知错误"}"
                             }
                         }
                     }.onFailure { e ->
@@ -341,13 +336,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showLockSetup) {
-        AppLockSetupDialog(
-            appLockManager = appLockManager,
-            onDismiss = { showLockSetup = false }
-        )
-    }
-
     if (showPosterDialog) {
         AnnualPosterDialog(
             posterGenerator = posterGenerator,
@@ -361,6 +349,12 @@ fun SettingsScreen(
         ImportDialog(
             viewModel = viewModel,
             onDismiss = { showImportDialog = false }
+        )
+    }
+
+    if (showBackupManage) {
+        BackupManagementDialog(
+            onDismiss = { showBackupManage = false }
         )
     }
 }
@@ -767,59 +761,6 @@ fun RecurringManagementDialog(
     )
 }
 
-// ======== App Lock ========
-@Composable
-fun AppLockSetupDialog(appLockManager: AppLockManager, onDismiss: () -> Unit) {
-    val isEnabled = appLockManager.isLockEnabled
-    val bioAvailable = appLockManager.canUseBiometric()
-    val bioEnabled = appLockManager.isBiometricEnabled
-    var showPinInput by remember { mutableStateOf(false) }
-    var pin by remember { mutableStateOf("") }
-    var confirmPin by remember { mutableStateOf("") }
-    var pinStep by remember { mutableStateOf(0) } // 0=not entered, 1=enter, 2=confirm
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("App 锁") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("启用应用锁", style = MaterialTheme.typography.bodyLarge)
-                    Switch(checked = isEnabled, onCheckedChange = { appLockManager.enableLock(it); if (!it) pinStep = 0 })
-                }
-                if (isEnabled && bioAvailable) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("指纹/面部解锁", style = MaterialTheme.typography.bodyLarge)
-                        Switch(checked = bioEnabled, onCheckedChange = { appLockManager.setBiometricEnabled(it) })
-                    }
-                }
-                if (isEnabled && !showPinInput) {
-                    TextButton(onClick = { showPinInput = true; pinStep = 1 }) {
-                        Text(if (appLockManager.hasPin) "修改密码" else "设置密码")
-                    }
-                }
-                if (isEnabled && showPinInput) {
-                    if (pinStep == 1) {
-                        OutlinedTextField(value = pin, onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) pin = it },
-                            label = { Text("输入4-6位数字密码") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        Button(onClick = { if (pin.length >= 4) pinStep = 2 }) { Text("下一步") }
-                    } else if (pinStep == 2) {
-                        OutlinedTextField(value = confirmPin, onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) confirmPin = it },
-                            label = { Text("确认密码") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        Button(onClick = {
-                            if (pin == confirmPin) {
-                                appLockManager.setPin(pin); showPinInput = false; pinStep = 0; pin = ""; confirmPin = ""
-                            }
-                        }, enabled = confirmPin.length >= 4) { Text("确认设置") }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
-    )
-}
-
 // ======== Annual Poster ========
 @Composable
 fun AnnualPosterDialog(
@@ -1021,6 +962,71 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
                 ) { Text("确定恢复") }
             },
             dismissButton = { TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") } }
+        )
+    }
+}
+
+@Composable
+fun BackupManagementDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var backups by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
+    var toDelete by remember { mutableStateOf<BackupFileEntry?>(null) }
+
+    fun refresh() { backups = BackupStorage.list(context) }
+    LaunchedEffect(Unit) { refresh() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("管理备份") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("下载目录中的备份文件，可删除不再需要的旧备份", style = MaterialTheme.typography.bodyMedium)
+                if (backups.isEmpty()) {
+                    Text("暂无备份文件", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).padding(4.dp)) {
+                        items(backups) { entry ->
+                            val sizeKb = (entry.size / 1024.0).let { if (it < 1) "<1" else "%.1f".format(it) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(entry.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                Text("${sizeKb}KB", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                IconButton(onClick = { toDelete = entry }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+
+    if (toDelete != null) {
+        AlertDialog(
+            onDismissRequest = { toDelete = null },
+            title = { Text("确认删除") },
+            text = { Text("确定删除备份「${toDelete!!.name}」？删除后不可恢复。") },
+            confirmButton = {
+                Button(onClick = {
+                    val entry = toDelete!!
+                    try {
+                        BackupStorage.delete(context, entry.uri)
+                        Toast.makeText(context, "已删除: ${entry.name}", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    toDelete = null
+                    refresh()
+                }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("删除") }
+            },
+            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("取消") } }
         )
     }
 }

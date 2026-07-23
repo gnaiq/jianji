@@ -1,22 +1,17 @@
 package com.example.jianji.utils
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.coroutines.resume
 
 class UpdateManager(private val context: Context) {
 
@@ -110,47 +105,35 @@ class UpdateManager(private val context: Context) {
     }
 
     /**
-     * 通过 DownloadManager 下载 APK，下载完成后自动触发安装。
-     * 返回下载 ID，可用于查询进度。
+     * 通过 HttpURLConnection 直接下载 APK（绕过 DownloadManager 的 file:// URI 暴露问题），
+     * 下载完成后用 FileProvider 触发安装。下载与检查更新走同一网络通路。
      */
-    fun downloadAndInstall(url: String): Long {
+    suspend fun downloadAndInstall(url: String) = withContext(Dispatchers.IO) {
         val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
         if (apkFile.exists()) apkFile.delete()
 
-        val request = DownloadManager.Request(Uri.parse(url)).apply {
-            setTitle("简记更新")
-            setDescription("正在下载新版本...")
-            setDestinationUri(Uri.fromFile(apkFile))
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 30_000
+            setRequestProperty("User-Agent", "jianji-android")
+            instanceFollowRedirects = true
         }
-
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val downloadId = dm.enqueue(request)
-
-        // 注册广播监听下载完成
-        val onComplete = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
-                if (id != downloadId) return
-
-                context.unregisterReceiver(this)
-
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = dm.query(query)
-                if (cursor.moveToFirst()) {
-                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                    cursor.close()
-                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                        installApk(apkFile)
-                    } else {
-                        Toast.makeText(context, "下载失败，请稍后重试", Toast.LENGTH_SHORT).show()
-                    }
-                }
+        try {
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw Exception("下载服务器返回错误码 ${connection.responseCode}")
             }
+            connection.inputStream.use { input ->
+                apkFile.outputStream().use { output -> input.copyTo(output) }
+            }
+        } finally {
+            connection.disconnect()
         }
 
-        context.registerReceiver(onComplete, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
-        return downloadId
+        if (apkFile.length() == 0L) {
+            throw Exception("下载内容为空，可能网络被拦截")
+        }
+
+        withContext(Dispatchers.Main) { installApk(apkFile) }
     }
 
     /** 本机是否已存在此前下载好的更新安装包 */
