@@ -214,10 +214,10 @@ class PosterGenerator(private val context: Context) {
             textAlign = Paint.Align.LEFT; isAntiAlias = true
         }
         val highlights = listOf(
-            "🔥 最大支出分类: ${stats.topExpenseCategory.first} (¥${df.format(stats.topExpenseCategory.second)})",
-            "💰 最大收入分类: ${stats.topIncomeCategory.first} (¥${df.format(stats.topIncomeCategory.second)})",
-            "📅 最高单日支出: ${stats.maxDailyExpense.first} (¥${df.format(stats.maxDailyExpense.second)})",
-            "📊 日均支出: ¥${df.format(stats.averageDailyExpense)}"
+            "最大支出分类: ${stats.topExpenseCategory.first}  ¥${df.format(stats.topExpenseCategory.second)}",
+            "最大收入分类: ${stats.topIncomeCategory.first}  ¥${df.format(stats.topIncomeCategory.second)}",
+            "最高单日支出: ${stats.maxDailyExpense.first}  ¥${df.format(stats.maxDailyExpense.second)}",
+            "日均支出: ¥${df.format(stats.averageDailyExpense)}"
         )
         for (h in highlights) {
             canvas.drawText(h, cardLeft + 20f, y, statValuePaint)
@@ -238,6 +238,7 @@ class PosterGenerator(private val context: Context) {
         val file = File(posterDir, "简记_${stats.year}年度账单.png")
         FileOutputStream(file).use { fos ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+            fos.flush()
         }
         bitmap.recycle()
         return file

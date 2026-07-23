@@ -114,10 +114,9 @@ fun SettingsScreen(
                                 return@launch
                             }
                             val json = DataImportManager().generateExportJson(all, categories)
-                            val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
-                            val file = java.io.File(dir, "简记备份_${LocalDate.now()}.json")
-                            file.writeText(json)
-                            Toast.makeText(context, "备份成功: ${file.name}", Toast.LENGTH_SHORT).show()
+                            val fileName = "简记备份_${LocalDate.now()}.json"
+                            val savedName = BackupStorage.save(context, fileName, "application/json", json)
+                            Toast.makeText(context, "备份成功: $savedName", Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
                             Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -154,9 +153,9 @@ fun SettingsScreen(
                                     appendLine("${tx.id},${tx.date},${tx.type},${tx.categoryId},${tx.amount},${tx.description}")
                                 }
                             }
-                            val file = java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "简记备份_${LocalDate.now()}.csv")
-                            file.writeText(csv)
-                            Toast.makeText(context, "备份成功: ${file.name}", Toast.LENGTH_SHORT).show()
+                            val fileName = "简记备份_${LocalDate.now()}.csv"
+                            val savedName = BackupStorage.save(context, fileName, "text/csv", csv)
+                            Toast.makeText(context, "备份成功: $savedName", Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
                             Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -596,6 +595,24 @@ fun TemplateManagementDialog(
     )
 }
 
+// 计算周期交易的下次执行时间（供预览与保存复用，避免两处逻辑不一致）
+private fun computeRecurringNextRun(
+    freq: RecurringFrequency,
+    dayOfMonth: Int,
+    interval: Int
+): LocalDateTime {
+    val dom = dayOfMonth.coerceIn(1, 28)
+    val iv = maxOf(1, interval)
+    return when (freq) {
+        RecurringFrequency.DAILY -> LocalDate.now().plusDays(iv.toLong()).atStartOfDay()
+        RecurringFrequency.WEEKLY -> LocalDate.now().plusWeeks(iv.toLong()).atStartOfDay()
+        RecurringFrequency.MONTHLY -> YearMonth.now().atDay(dom).atStartOfDay()
+            .let { if (it.isBefore(LocalDateTime.now())) it.plusMonths(iv.toLong()) else it }
+        RecurringFrequency.YEARLY -> LocalDate.of(YearMonth.now().year, 1, dom).atStartOfDay()
+            .let { if (it.isBefore(LocalDateTime.now())) it.plusYears(iv.toLong()) else it }
+    }
+}
+
 // ======== Recurring Dialog ========
 @Composable
 fun RecurringManagementDialog(
@@ -647,7 +664,7 @@ fun RecurringManagementDialog(
                 if (showAdd) {
                     OutlinedTextField(value = rAmount, onValueChange = { rAmount = it }, label = { Text("金额") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = rDesc, onValueChange = { rDesc = it }, label = { Text("描述") },
+                    OutlinedTextField(value = rDesc, onValueChange = { rDesc = it }, label = { Text("描述（可选）") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { rType = TransactionType.INCOME }, modifier = Modifier.weight(1f),
@@ -657,6 +674,7 @@ fun RecurringManagementDialog(
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (rType == TransactionType.EXPENSE) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant)) { Text("支出") }
                     }
+                    Text("周期", style = MaterialTheme.typography.labelMedium)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         RecurringFrequency.entries.forEach { freq ->
                             FilterChip(
@@ -666,12 +684,24 @@ fun RecurringManagementDialog(
                             )
                         }
                     }
-                    if (rFreq == RecurringFrequency.MONTHLY || rFreq == RecurringFrequency.YEARLY) {
-                        OutlinedTextField(value = rDayOfMonth, onValueChange = { rDayOfMonth = it },
-                            label = { Text("每月几号") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    val unitLabel = when (rFreq) {
+                        RecurringFrequency.DAILY -> "天"
+                        RecurringFrequency.WEEKLY -> "周"
+                        RecurringFrequency.MONTHLY -> "月"
+                        RecurringFrequency.YEARLY -> "年"
                     }
-                    OutlinedTextField(value = rInterval, onValueChange = { rInterval = it },
-                        label = { Text("间隔（每N个周期一次）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    if (rFreq == RecurringFrequency.MONTHLY || rFreq == RecurringFrequency.YEARLY) {
+                        OutlinedTextField(value = rDayOfMonth, onValueChange = {
+                            if (it.all { c -> c.isDigit() }) rDayOfMonth = it
+                        }, label = { Text(if (rFreq == RecurringFrequency.YEARLY) "每年几号" else "每月几号") },
+                            modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                    }
+                    OutlinedTextField(value = rInterval, onValueChange = {
+                        if (it.all { c -> c.isDigit() }) rInterval = it
+                    }, label = { Text("间隔（每 N 个${unitLabel}执行一次）") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
                     Text("选择分类", style = MaterialTheme.typography.labelMedium)
                     LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
                         val rCt = if (rType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
@@ -685,6 +715,14 @@ fun RecurringManagementDialog(
                             ) { Text("${cat.icon} ${cat.name}", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium) }
                         }
                     }
+                    val previewNext = computeRecurringNextRun(
+                        rFreq, rDayOfMonth.toIntOrNull() ?: 1, rInterval.toIntOrNull() ?: 1
+                    )
+                    Text(
+                        "下次记账: ${previewNext.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"))}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 } else {
                     TextButton(onClick = { showAdd = true }) { Text("+ 添加周期交易") }
                 }
@@ -697,14 +735,7 @@ fun RecurringManagementDialog(
                     val catId = rCatId ?: return@Button
                     val dom = rDayOfMonth.toIntOrNull() ?: 1
                     val interval = rInterval.toIntOrNull() ?: 1
-                    val nextRun = when (rFreq) {
-                        RecurringFrequency.DAILY -> LocalDate.now().plusDays(1).atStartOfDay()
-                        RecurringFrequency.WEEKLY -> LocalDate.now().plusWeeks(1).atStartOfDay()
-                        RecurringFrequency.MONTHLY -> YearMonth.now().atDay(dom.coerceIn(1,28)).atStartOfDay()
-                            .let { if (it.isBefore(LocalDateTime.now())) it.plusMonths(1) else it }
-                        RecurringFrequency.YEARLY -> LocalDate.of(YearMonth.now().year, 1, dom.coerceIn(1,28)).atStartOfDay()
-                            .let { if (it.isBefore(LocalDateTime.now())) it.plusYears(1) else it }
-                    }
+                    val nextRun = computeRecurringNextRun(rFreq, dom, interval)
                     viewModel?.addRecurring(RecurringTransaction(
                         categoryId = catId, amount = amt, type = rType, description = rDesc,
                         frequency = rFreq, interval = interval, dayOfMonth = dom, nextRunDate = nextRun
@@ -780,7 +811,7 @@ fun AnnualPosterDialog(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var year by remember { mutableStateOf(LocalDate.now().year) }
+    var yearText by remember { mutableStateOf(LocalDate.now().year.toString()) }
     var isGenerating by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -790,18 +821,24 @@ fun AnnualPosterDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("选择年份生成年度账单分享海报", style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(
-                    value = year.toString(),
-                    onValueChange = { it.toIntOrNull()?.let { y -> if (y in 2000..2099) year = y } },
-                    label = { Text("年份") },
+                    value = yearText,
+                    onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 4) yearText = it },
+                    label = { Text("年份（如 2025）") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                 )
                 Button(
                     onClick = {
                         isGenerating = true
                         scope.launch {
-                            try {
-                                val file = posterGenerator.generatePoster(transactions, categories, year)
+                        try {
+                            val y = yearText.toIntOrNull()
+                            if (y == null || y !in 2000..2099) {
+                                Toast.makeText(context, "请输入有效年份（2000-2099）", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val file = posterGenerator.generatePoster(transactions, categories, y)
                                 try {
                                     posterGenerator.sharePoster(file)
                                     onDismiss()
@@ -841,17 +878,12 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var jsonText by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
-    var backups by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var backups by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
-    // 自动检测下载目录中的备份文件
+    // 自动检测共享下载目录中的备份文件（卸载后保留）
     LaunchedEffect(Unit) {
-        val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
-        val list = dir?.listFiles { f -> f.isFile && f.name.matches(Regex("简记备份_.*\\.json")) }
-            ?.sortedByDescending { it.lastModified() }
-            ?.take(10)
-            ?: emptyList()
-        backups = list
+        backups = BackupStorage.list(context)
     }
 
     val filePicker = rememberLauncherForActivityResult(
@@ -881,12 +913,12 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp).padding(4.dp)
                         ) {
-                            items(backups) { file ->
-                                val sizeKb = (file.length() / 1024.0).let { if (it < 1) "<1" else "%.1f".format(it) }
+                            items(backups) { entry ->
+                                val sizeKb = (entry.size / 1024.0).let { if (it < 1) "<1" else "%.1f".format(it) }
                                 Row(
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
-                                            jsonText = file.readText()
+                                            jsonText = BackupStorage.read(context, entry.uri)
                                         } catch (e: Exception) {
                                             Toast.makeText(context, "读取失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                         }
@@ -894,7 +926,7 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(file.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                    Text(entry.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                                     Text("${sizeKb}KB", style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                                 }
@@ -902,7 +934,7 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
                         }
                     }
                 } else {
-                    Text("未检测到本地备份，可手动选择文件或粘贴 JSON 数据",
+                    Text("未检测到备份，可手动选择文件或粘贴 JSON 数据",
                         style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(onClick = { filePicker.launch("application/json") }) {

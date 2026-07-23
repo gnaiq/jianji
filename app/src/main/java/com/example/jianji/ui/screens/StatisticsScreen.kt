@@ -29,6 +29,8 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
+import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.listener.OnChartClickListener
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -104,6 +106,14 @@ private fun TrendLineChart(
     if (expense.none { it > 0f } && income.none { it > 0f }) return
 
     var expanded by remember { mutableStateOf(true) }
+    var showValues by remember { mutableStateOf(true) }
+
+    val valueFormatter = remember {
+        object : ValueFormatter() {
+            override fun getFormattedValue(value: Float): String =
+                if (value >= 10000f) "¥%.0f".format(value) else "¥%.1f".format(value)
+        }
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
@@ -139,6 +149,7 @@ private fun TrendLineChart(
                         axisRight.isEnabled = false
                         axisLeft.setDrawGridLines(true)
                         axisLeft.axisMinimum = 0f
+                        setOnChartClickListener(OnChartClickListener { showValues.value = !showValues.value })
                     }
                 },
                 update = { chart ->
@@ -152,7 +163,10 @@ private fun TrendLineChart(
                             lineWidth = 2f
                             circleRadius = 3f
                             setDrawCircles(false)
-                            setDrawValues(false)
+                            setDrawValues(showValues)
+                            setValueTextSize(9f)
+                            setValueTextColor(android.graphics.Color.parseColor("#B71C1C"))
+                            setValueFormatter(valueFormatter)
                             mode = LineDataSet.Mode.CUBIC_BEZIER
                         }
                         dataSets.add(ds)
@@ -166,7 +180,10 @@ private fun TrendLineChart(
                             lineWidth = 2f
                             circleRadius = 3f
                             setDrawCircles(false)
-                            setDrawValues(false)
+                            setDrawValues(showValues)
+                            setValueTextSize(9f)
+                            setValueTextColor(android.graphics.Color.parseColor("#1B5E20"))
+                            setValueFormatter(valueFormatter)
                             mode = LineDataSet.Mode.CUBIC_BEZIER
                         }
                         dataSets.add(ds)
@@ -176,6 +193,12 @@ private fun TrendLineChart(
                     chart.invalidate()
                 }
             )
+                Text(
+                    if (showValues) "轻点图表可隐藏数值" else "轻点图表显示费用数值",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
         }
     }
     }
