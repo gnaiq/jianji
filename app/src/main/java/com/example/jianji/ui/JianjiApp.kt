@@ -108,7 +108,7 @@ fun JianjiApp(
                     showAddDialog = false
                     editingTransaction = null
                 },
-                onSave = { categoryId, amount, type, description, date ->
+                onConfirm = { categoryId, amount, type, description, date ->
                     if (editingTransaction != null) {
                         viewModel.updateTransaction(
                             editingTransaction!!.copy(
