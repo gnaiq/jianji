@@ -67,7 +67,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         val start = ym.atDay(1).atStartOfDay()
         val end = ym.plusMonths(1).atDay(1).atStartOfDay()
         val spent = if (categoryId != null) {
-            transactionDao.getSumByCategoryAndType(categoryId, TransactionType.EXPENSE, start, end)
+            transactionDao.getSumByCategoryAndType(categoryId, TransactionType.EXPENSE, start, end) ?: 0.0
         } else {
             transactionDao.getSumByType(TransactionType.EXPENSE, start, end) ?: 0.0
         }

@@ -99,7 +99,7 @@ fun HomeScreen(
     val monthYear = YearMonth.now()
     val budgetTotal = monthlyExpense
     // 估算预算（如果没有设定，则显示无限制）
-    val budgetProgress = remember(monthlyExpense) { monthExp ->
+    val budgetProgress = remember(monthlyExpense) {
         // 简单的硬编码默认预算展示（用户设定后会覆盖）
         if (monthExp > 0) monthExp / 5000.0 else 0.0
     }

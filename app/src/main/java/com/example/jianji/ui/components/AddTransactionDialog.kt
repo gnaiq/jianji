@@ -47,13 +47,15 @@ fun AddTransactionDialog(
     // 自动选择默认分类
     LaunchedEffect(categories, selectedType) {
         if (categories.isEmpty()) return@LaunchedEffect
+        val ct = if (selectedType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
         val current = categories.find { it.id == selectedCategoryId }
-        if (current == null || current.type != selectedType) {
-            selectedCategoryId = categories.firstOrNull { it.type == selectedType }?.id
+        if (current == null || current.type != ct) {
+            selectedCategoryId = categories.firstOrNull { it.type == ct }?.id
         }
     }
 
-    val filteredCategories = categories.filter { it.type == selectedType }
+    val ct = if (selectedType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+    val filteredCategories = categories.filter { it.type == ct }
     val filteredTemplates = templates.filter { it.type == selectedType }
     val selectedCategory = categories.find { it.id == selectedCategoryId }
     val parsedAmount = amount.toDoubleOrNull() ?: 0.0

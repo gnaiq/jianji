@@ -10,4 +10,5 @@ class RecurringTransactionRepository(private val dao: RecurringTransactionDao) {
     suspend fun insert(tx: RecurringTransaction): Long = dao.insert(tx)
     suspend fun update(tx: RecurringTransaction) = dao.update(tx)
     suspend fun delete(tx: RecurringTransaction) = dao.delete(tx)
+    suspend fun deleteAll() = dao.deleteAll()
 }

@@ -24,4 +24,7 @@ interface RecurringTransactionDao {
 
     @Delete
     suspend fun delete(tx: RecurringTransaction)
+
+    @Query("DELETE FROM recurring_transactions")
+    suspend fun deleteAll()
 }

@@ -56,9 +56,9 @@ class PosterGenerator(private val context: Context) {
             .groupBy { it.categoryId }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
         val topExpense = expenseByCat.maxByOrNull { it.value }
-            ?.let { catMap[it.key]?.name to it.value } ?: ("无" to 0.0)
+            ?.let { (catMap[it.key]?.name ?: "未知") to it.value } ?: ("无" to 0.0)
         val topIncome = incomeByCat.maxByOrNull { it.value }
-            ?.let { catMap[it.key]?.name to it.value } ?: ("无" to 0.0)
+            ?.let { (catMap[it.key]?.name ?: "未知") to it.value } ?: ("无" to 0.0)
 
         val monthlyBreakdown = (1..12).map { month ->
             month to yearTxs.filter { it.date.monthValue == month && it.type == TransactionType.EXPENSE }

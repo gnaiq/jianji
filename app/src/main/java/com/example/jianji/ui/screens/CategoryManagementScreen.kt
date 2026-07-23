@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.Category
+import com.example.jianji.data.CategoryType
 import com.example.jianji.data.TransactionType
 
 @Composable
@@ -74,7 +75,8 @@ fun CategoryManagementScreen(
             ) { Text("支出分类") }
         }
 
-        val filtered = categories.filter { it.type == selectedType }
+        val ct = if (selectedType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+        val filtered = categories.filter { it.type == ct }
         if (filtered.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text("暂无分类，点击右下角 + 添加", style = MaterialTheme.typography.bodyMedium,

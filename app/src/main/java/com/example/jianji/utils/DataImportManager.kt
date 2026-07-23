@@ -55,7 +55,8 @@ class DataImportManager {
                 catNameMap[ci.name] = existing.id
             } else {
                 val type = if (ci.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE
-                val id = categoryRepo.insertCategory(Category(name = ci.name, type = type, icon = ci.icon))
+                val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                val id = categoryRepo.insertCategory(Category(name = ci.name, type = ct, icon = ci.icon))
                 catNameMap[ci.name] = id
             }
         }

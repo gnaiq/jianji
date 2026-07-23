@@ -174,7 +174,7 @@ fun SettingsScreen(
 
         item {
             SettingsCard(
-                icon = Icons.Default.Cycle,
+                icon = Icons.Default.Sync,
                 title = "周期交易",
                 subtitle = "自动记账（房租/工资/订阅等）",
                 onClick = { showRecurringDialog = true }
@@ -215,14 +215,15 @@ fun SettingsScreen(
                     updateStatus = "检查中..."
                     scope.launch {
                         try {
-                            val hasUpdate = updateManager.checkUpdate()
-                            updateStatus = if (hasUpdate) {
-                                updateManager.downloadAndInstall(context)
-                                "有更新"
-                            } else "已是最新"
-                        } catch (e: Exception) {
-                            updateStatus = "检查失败"
-                        }
+                            updateManager.checkForUpdate()
+                                .onSuccess { info ->
+                                    if (info != null) {
+                                        updateManager.downloadAndInstall(info.downloadUrl)
+                                        updateStatus = "发现 v${info.versionName}"
+                                    } else updateStatus = "已是最新"
+                                }
+                                .onFailure { updateStatus = "检查失败" }
+                        } catch (_: Exception) { updateStatus = "检查失败" }
                     }
                 }
             )
@@ -476,7 +477,8 @@ fun TemplateManagementDialog(
     var tmpDesc by remember { mutableStateOf("") }
     var tmpCatId by remember { mutableStateOf<Long?>(null) }
     var tmpType by remember { mutableStateOf(TransactionType.EXPENSE) }
-    val filteredCats = categories.filter { it.type == tmpType }
+    val tmpCt = if (tmpType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+    val filteredCats = categories.filter { it.type == tmpCt }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -633,7 +635,8 @@ fun RecurringManagementDialog(
                         label = { Text("间隔（每N个周期一次）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Text("选择分类", style = MaterialTheme.typography.labelMedium)
                     LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
-                        items(categories.filter { it.type == rType }) { cat ->
+                        val rCt = if (rType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                        items(categories.filter { it.type == rCt }) { cat ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { rCatId = cat.id },
                                 colors = CardDefaults.cardColors(

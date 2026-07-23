@@ -121,13 +121,14 @@ fun JianjiApp() {
                 Tab.CATEGORIES -> CategoryManagementScreen(
                     categories = categories,
                     onAddCategory = { name, icon, type ->
-                        viewModel.addCategory(name, icon, type)
+                        val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                        viewModel.addCategory(name, icon, ct)
                     },
                     onDeleteCategory = { viewModel.deleteCategory(it) },
                     onUpdateCategory = { viewModel.updateCategory(it) },
                     showAddCategoryDialog = showAddCategoryDialogTab,
                     onDismissAddDialog = { showAddCategoryDialogTab = false },
-                    onTypeChanged = { categoryTabType = it }
+                    onTypeChanged = { categoryTabType = if (it == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME }
                 )
                 Tab.SETTINGS -> SettingsScreen(
                     transactions = transactions,
