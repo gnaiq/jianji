@@ -132,49 +132,98 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 日期选择
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            val cal = Calendar.getInstance().apply {
-                                set(
-                                    selectedDate.year,
-                                    selectedDate.monthValue - 1,
-                                    selectedDate.dayOfMonth
-                                )
-                            }
-                            android.app.DatePickerDialog(
-                                context,
-                                { _, y, m, d ->
-                                    selectedDate = selectedDate
-                                        .withYear(y)
-                                        .withMonth(m + 1)
-                                        .withDayOfMonth(d)
-                                },
-                                cal.get(Calendar.YEAR),
-                                cal.get(Calendar.MONTH),
-                                cal.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                // 日期时间选择
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
+                    // 日期
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .clickable {
+                                val cal = Calendar.getInstance().apply {
+                                    set(
+                                        selectedDate.year,
+                                        selectedDate.monthValue - 1,
+                                        selectedDate.dayOfMonth
+                                    )
+                                }
+                                android.app.DatePickerDialog(
+                                    context,
+                                    { _, y, m, d ->
+                                        selectedDate = selectedDate
+                                            .withYear(y)
+                                            .withMonth(m + 1)
+                                            .withDayOfMonth(d)
+                                    },
+                                    cal.get(Calendar.YEAR),
+                                    cal.get(Calendar.MONTH),
+                                    cal.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Text(
-                            text = "日期",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            text = selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "日期",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            Text(
+                                text = selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                    // 时间
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val cal = Calendar.getInstance().apply {
+                                    set(Calendar.HOUR_OF_DAY, selectedDate.hour)
+                                    set(Calendar.MINUTE, selectedDate.minute)
+                                }
+                                android.app.TimePickerDialog(
+                                    context,
+                                    { _, h, m ->
+                                        selectedDate = selectedDate
+                                            .withHour(h)
+                                            .withMinute(m)
+                                            .withSecond(0)
+                                            .withNano(0)
+                                    },
+                                    cal.get(Calendar.HOUR_OF_DAY),
+                                    cal.get(Calendar.MINUTE),
+                                    true
+                                ).show()
+                            },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "时间",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            Text(
+                                text = selectedDate.format(DateTimeFormatter.ofPattern("HH:mm")),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
                     }
                 }
 

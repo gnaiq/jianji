@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -85,10 +86,14 @@ fun JianjiApp() {
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                editingTransaction = null
-                showAddDialog = true
-            }) {
+            FloatingActionButton(
+                onClick = {
+                    editingTransaction = null
+                    showAddDialog = true
+                },
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Transaction")
             }
         }
