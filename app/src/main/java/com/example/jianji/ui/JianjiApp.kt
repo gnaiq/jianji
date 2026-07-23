@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FloatingActionButton
@@ -24,7 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.jianji.data.CategoryType
+import com.example.jianji.data.Transaction
 import com.example.jianji.ui.components.AddTransactionDialog
+import com.example.jianji.ui.screens.AddCategoryDialog
+import com.example.jianji.ui.screens.CategoryManagementScreen
 import com.example.jianji.ui.screens.HomeScreen
 import com.example.jianji.ui.screens.SettingsScreen
 import com.example.jianji.ui.screens.StatisticsScreen
@@ -35,6 +40,9 @@ import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
 fun JianjiApp() {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var addCategoryType by remember { mutableStateOf(CategoryType.EXPENSE) }
 
     val context = LocalContext.current
     val viewModel: TransactionViewModel = viewModel(
@@ -65,13 +73,22 @@ fun JianjiApp() {
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Default.Category, contentDescription = "Category") },
+                    label = { Text("分类") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("设置") }
                 )
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = {
+                editingTransaction = null
+                showAddDialog = true
+            }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Transaction")
             }
         }
@@ -87,27 +104,69 @@ fun JianjiApp() {
                     categories = categories,
                     monthlyIncome = monthlyIncome,
                     monthlyExpense = monthlyExpense,
-                    onEdit = { transaction -> /* TODO: edit dialog */ },
+                    onEdit = { transaction ->
+                        editingTransaction = transaction
+                        showAddDialog = true
+                    },
                     onDelete = { transaction -> viewModel.deleteTransaction(transaction) }
                 )
                 1 -> StatisticsScreen(
                     transactions = transactions,
                     categories = categories
                 )
-                2 -> SettingsScreen(viewModel = viewModel)
+                2 -> CategoryManagementScreen(
+                    categories = categories,
+                    onAddCategory = { name, icon, type -> viewModel.addCategory(name, icon, type) },
+                    onDeleteCategory = { viewModel.deleteCategory(it) },
+                    onEditCategory = { }
+                )
+                3 -> SettingsScreen(viewModel = viewModel)
             }
         }
     }
 
-    // Add Transaction Dialog
+    // 添加 / 编辑交易
     if (showAddDialog) {
         AddTransactionDialog(
             categories = categories,
-            onDismiss = { showAddDialog = false },
-            onConfirm = { categoryId, amount, type, description, date ->
-                viewModel.addTransaction(categoryId, amount, type, description, date)
+            editingTransaction = editingTransaction,
+            onDismiss = {
                 showAddDialog = false
+                editingTransaction = null
+            },
+            onRequestAddCategory = { type ->
+                addCategoryType = type
+                showAddCategoryDialog = true
+            },
+            onConfirm = { categoryId, amount, type, description, date ->
+                if (editingTransaction != null) {
+                    viewModel.updateTransaction(
+                        editingTransaction.copy(
+                            categoryId = categoryId,
+                            amount = amount,
+                            type = type,
+                            description = description,
+                            date = date
+                        )
+                    )
+                } else {
+                    viewModel.addTransaction(categoryId, amount, type, description, date)
+                }
+                showAddDialog = false
+                editingTransaction = null
             }
+        )
+    }
+
+    // 在添加交易时快速新建分类
+    if (showAddCategoryDialog) {
+        AddCategoryDialog(
+            categoryType = addCategoryType,
+            onAdd = { name, icon ->
+                viewModel.addCategory(name, icon, addCategoryType)
+                showAddCategoryDialog = false
+            },
+            onDismiss = { showAddCategoryDialog = false }
         )
     }
 }

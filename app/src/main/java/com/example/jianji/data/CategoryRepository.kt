@@ -22,5 +22,12 @@ class CategoryRepository(private val categoryDao: CategoryDao) {
 
     suspend fun deleteAll() = categoryDao.deleteAll()
 
+    /**
+     * 重新种植默认分类。clearAllData() 之后调用，保证清库后仍能继续记账。
+     */
+    suspend fun seedDefaults() {
+        createDefaultCategories().forEach { insertCategory(it) }
+    }
+
     suspend fun getCount(): Int = categoryDao.getCount()
 }

@@ -47,25 +47,7 @@ abstract class JianjiDatabase : RoomDatabase() {
             CoroutineScope(Dispatchers.IO).launch {
                 val categoryDao = database.categoryDao()
 
-                val defaultCategories = listOf(
-                    // Income categories
-                    Category(name = "工资", icon = "💼", type = CategoryType.INCOME, isDefault = true),
-                    Category(name = "奖金", icon = "🎁", type = CategoryType.INCOME, isDefault = true),
-                    Category(name = "投资收益", icon = "📈", type = CategoryType.INCOME, isDefault = true),
-                    Category(name = "其他收入", icon = "💰", type = CategoryType.INCOME, isDefault = true),
-                    // Expense categories
-                    Category(name = "食物", icon = "🍔", type = CategoryType.EXPENSE, isDefault = true),
-                    Category(name = "交通", icon = "🚗", type = CategoryType.EXPENSE, isDefault = true),
-                    Category(name = "娱乐", icon = "🎮", type = CategoryType.EXPENSE, isDefault = true),
-                    Category(name = "购物", icon = "🛍️", type = CategoryType.EXPENSE, isDefault = true),
-                    Category(name = "医疗", icon = "🏥", type = CategoryType.EXPENSE, isDefault = true),
-                    Category(name = "教育", icon = "📚", type = CategoryType.EXPENSE, isDefault = true),
-                    Category(name = "其他支出", icon = "💸", type = CategoryType.EXPENSE, isDefault = true)
-                )
-
-                for (category in defaultCategories) {
-                    categoryDao.insert(category)
-                }
+                createDefaultCategories().forEach { categoryDao.insert(it) }
             }
         }
     }
