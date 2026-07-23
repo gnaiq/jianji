@@ -1,6 +1,5 @@
 package com.example.jianji.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,14 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -64,14 +59,20 @@ fun AddTransactionDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { selectedType = TransactionType.INCOME },
+                        onClick = {
+                            selectedType = TransactionType.INCOME
+                            selectedCategory = null
+                        },
                         modifier = Modifier.weight(1f),
                         enabled = selectedType != TransactionType.INCOME
                     ) {
                         Text("收入")
                     }
                     Button(
-                        onClick = { selectedType = TransactionType.EXPENSE },
+                        onClick = {
+                            selectedType = TransactionType.EXPENSE
+                            selectedCategory = null
+                        },
                         modifier = Modifier.weight(1f),
                         enabled = selectedType != TransactionType.EXPENSE
                     ) {
@@ -107,7 +108,12 @@ fun AddTransactionDialog(
                 // Amount Input
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { amount = it },
+                    onValueChange = { newValue ->
+                        // 只允许数字和一个小数点
+                        if (newValue.isEmpty() || newValue.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            amount = newValue
+                        }
+                    },
                     label = { Text("金额") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -116,7 +122,7 @@ fun AddTransactionDialog(
                 // Description Input
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
+                    onValueChange = { if (it.length <= 100) description = it },
                     label = { Text("描述（可选）") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -136,18 +142,21 @@ fun AddTransactionDialog(
             }
         },
         confirmButton = {
+            val parsedAmount = amount.toDoubleOrNull() ?: 0.0
             Button(
                 onClick = {
-                    if (selectedCategory != null && amount.isNotEmpty()) {
+                    val category = selectedCategory
+                    if (category != null && parsedAmount > 0) {
                         onConfirm(
-                            selectedCategory!!.id,
-                            amount.toDoubleOrNull() ?: 0.0,
+                            category.id,
+                            parsedAmount,
                             selectedType,
                             description,
                             LocalDateTime.now()
                         )
                     }
-                }
+                },
+                enabled = selectedCategory != null && (amount.toDoubleOrNull() ?: 0.0) > 0
             ) {
                 Text("确认")
             }

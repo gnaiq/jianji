@@ -1,7 +1,6 @@
 package com.example.jianji.utils
 
 import android.content.Context
-import android.os.Environment
 import com.example.jianji.data.Category
 import com.example.jianji.data.Transaction
 import org.apache.commons.csv.CSVFormat
@@ -17,8 +16,12 @@ import java.util.Locale
 
 class DataExportManager(private val context: Context) {
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    private val dateFormatShort = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val dateFormat = ThreadLocal<SimpleDateFormat>().apply {
+        set(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()))
+    }
+    private val dateFormatShort = ThreadLocal<SimpleDateFormat>().apply {
+        set(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()))
+    }
 
     /**
      * 导出为 CSV 格式
@@ -29,16 +32,16 @@ class DataExportManager(private val context: Context) {
         fileName: String = "jianji_export_${System.currentTimeMillis()}.csv"
     ): Result<File> {
         return try {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!downloadsDir.exists()) {
-                downloadsDir.mkdirs()
+            val exportDir = File(context.filesDir, "exports")
+            if (!exportDir.exists()) {
+                exportDir.mkdirs()
             }
 
-            val file = File(downloadsDir, fileName)
+            val file = File(exportDir, fileName)
             FileWriter(file).use { fileWriter ->
-                CSVPrinter(fileWriter, CSVFormat.DEFAULT.withHeader(
+                CSVPrinter(fileWriter, CSVFormat.Builder.create().setHeader(
                     "ID", "分类", "金额", "类型", "描述", "日期", "创建时间"
-                )).use { csvPrinter ->
+                ).build()).use { csvPrinter ->
                     transactions.forEach { transaction ->
                         val category = categories[transaction.categoryId]?.name ?: "未知"
                         csvPrinter.printRecord(
@@ -47,8 +50,8 @@ class DataExportManager(private val context: Context) {
                             transaction.amount,
                             transaction.type.name,
                             transaction.description,
-                            dateFormatShort.format(Date.from(transaction.date.atZone(java.time.ZoneId.systemDefault()).toInstant())),
-                            dateFormat.format(Date.from(transaction.createdAt.atZone(java.time.ZoneId.systemDefault()).toInstant()))
+                            dateFormatShort.get()!!.format(Date.from(transaction.date.atZone(java.time.ZoneId.systemDefault()).toInstant())),
+                            dateFormat.get()!!.format(Date.from(transaction.createdAt.atZone(java.time.ZoneId.systemDefault()).toInstant()))
                         )
                     }
                 }
@@ -68,12 +71,12 @@ class DataExportManager(private val context: Context) {
         fileName: String = "jianji_export_${System.currentTimeMillis()}.xlsx"
     ): Result<File> {
         return try {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!downloadsDir.exists()) {
-                downloadsDir.mkdirs()
+            val exportDir = File(context.filesDir, "exports")
+            if (!exportDir.exists()) {
+                exportDir.mkdirs()
             }
 
-            val file = File(downloadsDir, fileName)
+            val file = File(exportDir, fileName)
             XSSFWorkbook().use { workbook ->
                 val sheet = workbook.createSheet("记账数据")
 

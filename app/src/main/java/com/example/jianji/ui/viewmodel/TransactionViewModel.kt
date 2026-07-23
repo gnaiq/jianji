@@ -34,6 +34,7 @@ class TransactionViewModel(
     init {
         loadTransactions()
         loadCategories()
+        updateMonthlyStats()
     }
 
     private fun loadTransactions() {
@@ -112,14 +113,12 @@ class TransactionViewModel(
         }
     }
 
-    fun getTransactionsByMonth(yearMonth: YearMonth) {
+    fun clearAllData() {
         viewModelScope.launch {
-            val startDate = yearMonth.atDay(1).atStartOfDay()
-            val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59)
-
-            transactionRepository.getTransactionsByDateRange(startDate, endDate).collect {
-                _transactions.value = it
-            }
+            transactionRepository.deleteAll()
+            categoryRepository.deleteAll()
+            _monthlyIncome.value = 0.0
+            _monthlyExpense.value = 0.0
         }
     }
 }

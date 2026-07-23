@@ -1,6 +1,5 @@
 package com.example.jianji.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,13 +10,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -134,10 +131,15 @@ fun CategoryItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Icon with background
+                val parsedColor = try {
+                    Color(android.graphics.Color.parseColor(category.color))
+                } catch (e: IllegalArgumentException) {
+                    MaterialTheme.colorScheme.primary
+                }
                 Card(
                     modifier = Modifier.padding(0.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(android.graphics.Color.parseColor(category.color)).copy(alpha = 0.2f)
+                        containerColor = parsedColor.copy(alpha = 0.2f)
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {

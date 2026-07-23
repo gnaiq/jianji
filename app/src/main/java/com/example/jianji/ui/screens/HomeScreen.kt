@@ -1,7 +1,5 @@
 package com.example.jianji.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,11 +24,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.jianji.data.Category
+import com.example.jianji.data.Transaction
+import com.example.jianji.data.TransactionType
 import com.example.jianji.ui.theme.ExpenseRed
 import com.example.jianji.ui.theme.IncomeGreen
+import java.time.format.DateTimeFormatter
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    transactions: List<Transaction> = emptyList(),
+    categories: List<Category> = emptyList(),
+    monthlyIncome: Double = 0.0,
+    monthlyExpense: Double = 0.0,
+    onEdit: (Transaction) -> Unit = {},
+    onDelete: (Transaction) -> Unit = {}
+) {
+    val balance = monthlyIncome - monthlyExpense
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -51,13 +62,13 @@ fun HomeScreen() {
         ) {
             SummaryCard(
                 title = "本月收入",
-                amount = "¥5,000.00",
+                amount = "¥${String.format("%,.2f", monthlyIncome)}",
                 color = IncomeGreen,
                 modifier = Modifier.weight(1f)
             )
             SummaryCard(
                 title = "本月支出",
-                amount = "¥2,500.00",
+                amount = "¥${String.format("%,.2f", monthlyExpense)}",
                 color = ExpenseRed,
                 modifier = Modifier.weight(1f)
             )
@@ -78,9 +89,9 @@ fun HomeScreen() {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "¥2,500.00",
+                    text = "¥${String.format("%,.2f", balance)}",
                     style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
-                    color = IncomeGreen,
+                    color = if (balance >= 0) IncomeGreen else ExpenseRed,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -93,19 +104,55 @@ fun HomeScreen() {
             fontWeight = FontWeight.Bold
         )
 
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(5) { index ->
-                TransactionItem(
-                    category = "食物",
-                    description = "午餐",
-                    amount = "-¥50.00",
-                    date = "2024-01-15",
-                    onEdit = { /* TODO */ },
-                    onDelete = { /* TODO */ }
-                )
+        if (transactions.isEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "暂无交易记录",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "点击右下角 + 添加",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(transactions, key = { it.id }) { transaction ->
+                    val category = categories.find { it.id == transaction.categoryId }
+                    val amountStr = if (transaction.type == TransactionType.EXPENSE) {
+                        "-¥${String.format("%,.2f", transaction.amount)}"
+                    } else {
+                        "+¥${String.format("%,.2f", transaction.amount)}"
+                    }
+                    TransactionItem(
+                        category = category?.name ?: "未分类",
+                        description = transaction.description.ifEmpty { category?.name ?: "" },
+                        amount = amountStr,
+                        date = transaction.date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
+                        onEdit = { onEdit(transaction) },
+                        onDelete = { onDelete(transaction) }
+                    )
+                }
             }
         }
     }
