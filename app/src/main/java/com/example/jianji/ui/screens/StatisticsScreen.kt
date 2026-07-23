@@ -107,7 +107,7 @@ private fun TrendLineChart(
     if (expense.none { it > 0f } && income.none { it > 0f }) return
 
     var expanded by remember { mutableStateOf(true) }
-    var showValues by remember { mutableStateOf(true) }
+    val showValues = remember { mutableStateOf(true) }
 
     val valueFormatter = remember {
         object : ValueFormatter() {
@@ -171,7 +171,7 @@ private fun TrendLineChart(
                             lineWidth = 2f
                             circleRadius = 3f
                             setDrawCircles(false)
-                            setDrawValues(showValues)
+                            setDrawValues(showValues.value)
                             setValueTextSize(9f)
                             setValueTextColor(android.graphics.Color.parseColor("#B71C1C"))
                             setValueFormatter(valueFormatter)
@@ -188,7 +188,7 @@ private fun TrendLineChart(
                             lineWidth = 2f
                             circleRadius = 3f
                             setDrawCircles(false)
-                            setDrawValues(showValues)
+                            setDrawValues(showValues.value)
                             setValueTextSize(9f)
                             setValueTextColor(android.graphics.Color.parseColor("#1B5E20"))
                             setValueFormatter(valueFormatter)
@@ -202,7 +202,7 @@ private fun TrendLineChart(
                 }
             )
                 Text(
-                    if (showValues) "轻点空白处可隐藏数值" else "轻点折线上的数据点显示费用数值",
+                    if (showValues.value) "轻点空白处可隐藏数值" else "轻点折线上的数据点显示费用数值",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
