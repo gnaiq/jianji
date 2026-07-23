@@ -1,217 +1,174 @@
-# 简记 (Jianji) - 安卓记账本应用
+# 简记 (Jianji) — 安卓记账本
 
-一个使用 **Kotlin** 和 **Jetpack Compose** 开发的现代化安卓记账应用。
+使用 **Kotlin** 和 **Jetpack Compose** 开发的现代化安卓记账应用，Material Design 3 风格。
 
 ## 功能特性
 
-- ✅ **记账功能**：支持收入和支出记录
-- ✅ **分类管理**：预设分类，支持自定义分类
-- ✅ **周/月/年统计**：可视化统计图表
-- ✅ **本地数据库**：使用 Room 数据库存储数据
-- ✅ **数据备份与恢复**：本地备份功能
-- ✅ **数据导出**：支持 CSV 和 Excel 格式导出
-- ✅ **现代 UI**：基于 Jetpack Compose 和 Material Design 3
-- ✅ **自动构建**：GitHub Actions 自动化构建和发布
+- **记账核心**：支持收入/支出记录，含分类、金额、日期、备注
+- **分类管理**：11 个预设分类 + 自定义分类，图标/颜色/名称均可编辑
+- **统计分析**：周/月/年三 Tab 切换，分类占比、收支趋势可视化
+- **首页仪表盘**：今日收支概览、近 7 天收支趋势、月结余
+- **搜索筛选**：按分类名称或备注关键词实时过滤当日记录
+- **滑动删除**：首页列表支持 SwipeToDismiss 手势快速删除
+- **本地存储**：基于 Room 数据库，离线可用
+- **自动构建**：GitHub Actions 打 tag 自动构建 Release APK
 
 ## 技术栈
 
-- **语言**：Kotlin 1.9.24
-- **UI 框架**：Jetpack Compose 1.6.8
-- **数据库**：Room 2.6.1
-- **导航**：Jetpack Navigation Compose 2.7.7
-- **图表**：MPAndroidChart 3.1.0
-- **数据导出**：Apache Commons CSV, Apache POI
-- **最低 API 级别**：24
-- **目标 API 级别**：34
+| 组件 | 版本 |
+|------|------|
+| Kotlin | 1.9.24 |
+| Jetpack Compose | 1.6.8 |
+| Material Design 3 | 1.2.1 |
+| Room Database | 2.6.1 |
+| Navigation Compose | 2.7.7 |
+| MPAndroidChart | 3.1.0 |
+| Gradle | 8.9 |
+| JDK | 17 |
+| minSdk / targetSdk | 24 / 34 |
+
+## 屏幕截图
+
+> 截图待补充 — 欢迎提交 PR。
 
 ## 项目结构
 
 ```
 jianji/
 ├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/example/jianji/
-│   │   │   │   ├── data/              # 数据层 (Entity, DAO, Database, Repository)
-│   │   │   │   ├── ui/                # UI 层 (Compose screens, theme)
-│   │   │   │   ├── ui/viewmodel/      # ViewModel 层
-│   │   │   │   └── MainActivity.kt    # 主入口
-│   │   │   └── res/                   # 资源文件
-│   │   ├── androidTest/               # 安卓测试
-│   │   └── test/                      # 单元测试
-│   ├── build.gradle.kts               # App 级别构建配置
-│   └── proguard-rules.pro             # ProGuard 混淆规则
-├── build.gradle.kts                   # 项目级别构建配置
-├── settings.gradle.kts                # 项目设置
-├── gradle.properties                  # Gradle 属性
-├── .github/workflows/                 # GitHub Actions 工作流
-└── README.md                          # 本文件
+│   ├── src/main/java/com/example/jianji/
+│   │   ├── data/                         # 数据层
+│   │   │   ├── Transaction.kt            #   交易实体
+│   │   │   ├── Category.kt               #   分类实体
+│   │   │   ├── TransactionDao.kt         #   交易 DAO
+│   │   │   ├── CategoryDao.kt            #   分类 DAO
+│   │   │   ├── TransactionRepository.kt  #   交易仓库
+│   │   │   ├── CategoryRepository.kt     #   分类仓库
+│   │   │   ├── JianjiDatabase.kt         #   Room 数据库
+│   │   │   ├── DefaultCategories.kt      #   默认分类定义
+│   │   │   └── Converters.kt             #   类型转换器
+│   │   ├── ui/
+│   │   │   ├── JianjiApp.kt              #   导航图 & 主入口 Composable
+│   │   │   ├── screens/
+│   │   │   │   ├── HomeScreen.kt         #   首页（今日概览 + 列表 + 搜索）
+│   │   │   │   ├── StatisticsScreen.kt   #   统计（周/月/年 + 分类占比）
+│   │   │   │   ├── CategoryManagementScreen.kt  # 分类管理
+│   │   │   │   └── SettingsScreen.kt     #   设置（清除数据 / 关于）
+│   │   │   ├── components/
+│   │   │   │   └── AddTransactionDialog.kt  # 新增/编辑记录弹窗
+│   │   │   ├── viewmodel/
+│   │   │   │   ├── TransactionViewModel.kt
+│   │   │   │   └── TransactionViewModelFactory.kt
+│   │   │   └── theme/
+│   │   │       ├── Color.kt / Theme.kt / Typography.kt
+│   │   └── utils/
+│   │       ├── DateUtils.kt
+│   │       ├── StatisticsCalculator.kt
+│   │       └── DataExportManager.kt       # 导出工具（功能开发中）
+│   └── build.gradle.kts
+├── .github/workflows/build-apk.yml        # CI：打 tag 自动构建 Release
+├── build.gradle.kts
+├── settings.gradle.kts
+└── gradle.properties
 ```
 
 ## 快速开始
 
 ### 环境要求
 
-- Android Studio 2023.1 或更高版本
-- JDK 17 或更高版本
-- Android SDK 34 或更高版本
+- Android Studio 2023.1+
+- JDK 17+
+- Android SDK 34+
 
-### 构建项目
+### 构建
 
 ```bash
-# 克隆仓库
 git clone https://github.com/gnaiq/jianji.git
 cd jianji
 
-# 构建 Debug APK
+# Debug APK
 ./gradlew assembleDebug
 
-# 构建 Release APK
+# Release APK
 ./gradlew assembleRelease
-
-# 运行测试
-./gradlew test
-
-# 安装到设备
-./gradlew installDebug
 ```
 
-## 数据库架构
+## 数据库模型
 
-### Transaction 表
-- `id`：主键
-- `categoryId`：分类 ID（外键）
-- `amount`：金额
-- `type`：类型（INCOME/EXPENSE）
-- `description`：描述
-- `date`：交易日期
-- `createdAt`：创建时间
-- `updatedAt`：更新时间
+### Transaction（交易）
 
-### Category 表
-- `id`：主键
-- `name`：分类名称
-- `icon`：图标（Emoji）
-- `color`：颜色（十六进制）
-- `type`：类型（INCOME/EXPENSE）
-- `isDefault`：是否为默认分类
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | Long (PK) | 自增主键 |
+| categoryId | Long (FK) | 关联分类 |
+| amount | Double | 金额 |
+| type | TransactionType | INCOME / EXPENSE |
+| description | String? | 备注 |
+| date | LocalDateTime | 交易日期 |
+| createdAt | LocalDateTime | 创建时间 |
+| updatedAt | LocalDateTime | 更新时间 |
 
-## 功能详解
+### Category（分类）
 
-### 1. 记账功能
-- 快速添加收入/支出记录
-- 支持选择分类、金额、日期、描述
-- 编辑和删除已有记录
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | Long (PK) | 自增主键 |
+| name | String | 分类名称 |
+| icon | String | 图标（Emoji） |
+| color | String | 颜色（十六进制） |
+| type | CategoryType | INCOME / EXPENSE |
+| isDefault | Boolean | 是否系统预设 |
 
-### 2. 分类管理
-- 预设 11 个常用分类（收入 4 个，支出 7 个）
-- 支持自定义分类
-- 分类支持自定义图标和颜色
+## 默认分类
 
-### 3. 统计分析
-- 周统计：显示本周收入/支出总额
-- 月统计：显示本月收入/支出总额及分类占比
-- 年统计：显示全年收入/支出趋势
-- 支持柱状图、饼图等可视化展示
+**收入（4 个）**：💼 工资 · 🎁 奖金 · 📈 投资收益 · 💰 其他收入
 
-### 4. 数据备份与恢复
-- 支持本地数据库备份
-- 支持从备份恢复数据
-- 备份文件存储在应用私有目录
-
-### 5. 数据导出
-- **CSV 导出**：导出为 CSV 格式，可在 Excel 中打开
-- **Excel 导出**：直接导出为 .xlsx 格式
+**支出（7 个）**：🍔 食物 · 🚗 交通 · 🎮 娱乐 · 🛍️ 购物 · 🏥 医疗 · 📚 教育 · 💸 其他支出
 
 ## GitHub Actions 自动化
 
-### 工作流配置
+打 `v*` 标签或手动触发 `workflow_dispatch` 时自动：
 
-项目包含自动化构建和发布工作流：
+1. 检出代码 → 设置 JDK 17 → 构建 Release APK
+2. 按 `jianji-{tag}.apk` 命名并上传为 Artifact
+3. 自动创建 GitHub Release 并附上 APK
 
-- **触发条件**：推送到 `main` 分支或创建 Release
-- **构建步骤**：
-  1. 检出代码
-  2. 设置 JDK 17
-  3. 构建 Release APK
-  4. 上传 APK 到 Release
-- **输出**：Release APK 安装包
-
-### 手动触发构建
+### 手动触发
 
 ```bash
-# 创建 Release 标签
-git tag v1.0.0
-git push origin v1.0.0
-
-# GitHub Actions 会自动构建并发布 APK
+# 创建并推送 annotated tag
+git tag -a v1.0.0 -m "Release v1.0.0"
+# 推送到 GitHub 后 CI 自动构建发布
 ```
 
-## 安装应用
+## 安装
 
-### 方式 1：从 GitHub Release 下载
-
-1. 访问 [Releases](https://github.com/gnaiq/jianji/releases)
-2. 下载最新的 APK 文件
-3. 在 Android 设备上安装
-
-### 方式 2：从源码构建
+从 [GitHub Releases](https://github.com/gnaiq/jianji/releases) 下载最新 APK，或从源码构建：
 
 ```bash
 ./gradlew assembleRelease
-# APK 位于 app/build/outputs/apk/release/
+# APK: app/build/outputs/apk/release/
 ```
 
-## 开发指南
+## 贡献
 
-### 添加新功能
-
-1. 在 `data/` 中定义数据模型和 DAO
-2. 在 `data/` 中创建 Repository
-3. 在 `ui/viewmodel/` 中创建 ViewModel
-4. 在 `ui/screens/` 中创建 Compose 屏幕
-5. 在 `JianjiApp.kt` 中注册导航
-
-### 代码风格
-
-- 遵循 Kotlin 官方代码风格指南
-- 使用 Compose 最佳实践
-- 添加必要的注释和文档
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request。
 
 ## 许可证
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
-## 作者
-
-- **gnaiq** - 项目创建者
+MIT License
 
 ## 更新日志
 
+### v1.1.4 (2026-07-23)
+
+- **首页**：今日收支概览 + 近 7 天趋势 + 月结余显示
+- **搜索**：首页按分类名称/备注实时过滤
+- **滑动删除**：SwipeToDismiss 手势快速删除记录
+- **分类管理**：新增/编辑/删除自定义分类，支持图标与颜色编辑
+- **统计页**：周/月/年三 Tab，分类占比 drill-down，月度收支趋势
+- **版本号统一**：设置页 `BuildConfig.VERSION_NAME` 动态读取
+
 ### v1.0.0 (2024-01-15)
-- 初始版本发布
-- 实现核心记账功能
-- 支持分类管理
-- 支持周/月/年统计
-- 支持数据备份导出
-- 配置 GitHub Actions 自动构建
 
-## 常见问题
-
-### Q: 如何导出数据？
-A: 在设置页面选择"导出为 CSV"或"导出为 Excel"，数据将保存到设备的下载文件夹。
-
-### Q: 如何备份数据？
-A: 在设置页面点击"备份数据"，备份文件将保存到应用私有目录。
-
-### Q: 支持云同步吗？
-A: 当前版本仅支持本地存储，未来版本可能添加云同步功能。
-
-## 联系方式
-
-- GitHub: [@gnaiq](https://github.com/gnaiq)
-- Issues: [提交 Issue](https://github.com/gnaiq/jianji/issues)
+- 初始版本：核心记账、预设分类、周/月/年统计、GitHub Actions CI
