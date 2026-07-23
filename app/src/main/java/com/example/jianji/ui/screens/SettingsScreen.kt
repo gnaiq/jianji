@@ -21,8 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.input.KeyboardOptions
-import androidx.compose.foundation.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
@@ -696,14 +694,12 @@ fun RecurringManagementDialog(
                         OutlinedTextField(value = rDayOfMonth, onValueChange = {
                             if (it.all { c -> c.isDigit() }) rDayOfMonth = it
                         }, label = { Text(if (rFreq == RecurringFrequency.YEARLY) "每年几号" else "每月几号") },
-                            modifier = Modifier.fillMaxWidth(), singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                            modifier = Modifier.fillMaxWidth(), singleLine = true)
                     }
                     OutlinedTextField(value = rInterval, onValueChange = {
                         if (it.all { c -> c.isDigit() }) rInterval = it
                     }, label = { Text("间隔（每 N 个${unitLabel}执行一次）") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Text("选择分类", style = MaterialTheme.typography.labelMedium)
                     LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
                         val rCt = if (rType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
@@ -827,8 +823,7 @@ fun AnnualPosterDialog(
                     onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 4) yearText = it },
                     label = { Text("年份（如 2025）") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    singleLine = true
                 )
                 Button(
                     onClick = {
