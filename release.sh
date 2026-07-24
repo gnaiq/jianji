@@ -66,7 +66,10 @@ cmd_cut(){
   old_vn=$(echo "$txt" | grep -oE 'versionName = "[^"]+"' | sed -E 's/.*"([^"]+)".*/\1/' | head -1)
   [ -n "$old_vc" ] && [ -n "$old_vn" ] || die "无法解析 versionCode/versionName"
   new_vc=$((old_vc+1))
-  new_vn=$(echo "$old_vn" | awk -F. '{$NF=$NF+1; OFS="."; print}')
+  # 用 bash 数组做 patch+1（避免某些环境 awk -F. 把点号重建成空格）
+  IFS='.' read -r -a _p <<< "$old_vn"
+  _p[${#_p[@]}-1]=$(( ${_p[${#_p[@]}-1]} + 1 ))
+  new_vn=$(IFS='.'; echo "${_p[*]}")
   echo "版本: $old_vn (vc=$old_vc) -> $new_vn (vc=$new_vc)"
   newtxt=$(echo "$txt" \
     | sed -E "s/versionCode = [0-9]+/versionCode = $new_vc/" \
