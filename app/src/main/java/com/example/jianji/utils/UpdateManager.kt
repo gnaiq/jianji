@@ -40,6 +40,7 @@ class UpdateManager(private val context: Context) {
             val connection = URL(GITHUB_API).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github+json")
             connection.setRequestProperty("User-Agent", "jianji-android")
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store")
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
 
@@ -182,12 +183,13 @@ class UpdateManager(private val context: Context) {
                             "Android 不允许不同签名的覆盖安装。请先卸载当前应用，再到 GitHub 安装正式版。"
                 }
             }
-            // 2) 版本降级：versionCode 必须严格递增，且以成功读取到的为准（apkVc>0 才参与判断）
+            // 2) 版本降级/同版本：versionCode 必须严格递增，且以成功读取到的为准（apkVc>0 才参与判断）
             val installedVc = PackageInfoCompat.getLongVersionCode(installed)
             val apkVc = PackageInfoCompat.getLongVersionCode(archive)
-            if (apkVc > 0 && apkVc < installedVc) {
-                return "下载的安装包版本(code $apkVc) 低于已安装版本(code $installedVc)，系统禁止降级安装。\n" +
-                        "可能是设备上装的是本地测试版（versionCode 更高）。请先卸载当前应用，再安装正式版。"
+            if (apkVc > 0 && apkVc <= installedVc) {
+                val reason = if (apkVc < installedVc) "低于" else "不高于（同版本）"
+                return "下载的安装包版本(code $apkVc) $reason 已安装版本(code $installedVc)，系统禁止降级或同版本覆盖安装。\n" +
+                        "可能是设备上装的是本地测试版（versionCode 更高），或上次更新的安装包残留。请先卸载当前应用，再安装正式版。"
             }
         }
         return null
@@ -202,10 +204,19 @@ class UpdateManager(private val context: Context) {
         return certs.map { md.digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }.toSet()
     }
 
-    /** 本机是否已存在此前下载好的更新安装包 */
+    /** 本机是否已存在此前下载好的**真正新于当前版本**的安装包（防止上次更新残留的同级/旧包被误判） */
     fun hasLocalApk(): Boolean {
         val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
-        return f.exists() && f.length() > 0
+        if (!f.exists() || f.length() == 0L) return false
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0) ?: return false
+        val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
+        if (apkVc <= 0) return false
+        val installedVc = try {
+            PackageInfoCompat.getLongVersionCode(
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            )
+        } catch (_: Exception) { 0L }
+        return apkVc > installedVc
     }
 
     /** 安装本机已下载好的更新安装包（检查更新失败但仍已下好包时复用） */
@@ -214,6 +225,24 @@ class UpdateManager(private val context: Context) {
         if (!f.exists()) {
             Toast.makeText(context, "未找到本地安装包", Toast.LENGTH_SHORT).show()
             return
+        }
+        // 自检：本地 APK 版本是否真正新于已装版本（防止上次更新残留的同级/旧包被误装）
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0)
+        if (archiveInfo != null) {
+            val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
+            val installedVc = try {
+                PackageInfoCompat.getLongVersionCode(
+                    context.packageManager.getPackageInfo(context.packageName, 0)
+                )
+            } catch (_: Exception) { 0L }
+            if (apkVc > 0 && apkVc <= installedVc) {
+                f.delete()
+                Toast.makeText(context,
+                    "本地安装包版本不新于当前已装版本，已自动清理残留文件",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
         }
         val reason = installBlockedReason(f)
         if (reason != null) {
