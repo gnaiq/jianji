@@ -136,9 +136,10 @@ cd jianji
 ### 手动触发
 
 ```bash
-# 创建并推送 annotated tag
+# 创建 annotated tag
 git tag -a v1.0.0 -m "Release v1.0.0"
-# 推送到 GitHub 后 CI 自动构建发布
+# 推送 tag 到 GitHub 后 CI 自动构建发布（只建本地 tag 不会触发 CI）
+git push origin v1.0.0
 ```
 
 ### 版本号纪律（防止升级失败）
