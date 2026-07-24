@@ -1,6 +1,9 @@
 package com.example.jianji.data
 
+import kotlinx.coroutines.flow.Flow
+
 class QuickTemplateRepository(private val dao: QuickTemplateDao) {
+    fun observeAll(): Flow<List<QuickTemplate>> = dao.observeAll()
     suspend fun getAll(): List<QuickTemplate> = dao.getAll()
     suspend fun getByType(type: TransactionType): List<QuickTemplate> = dao.getByType(type)
     suspend fun getById(id: Long): QuickTemplate? = dao.getById(id)

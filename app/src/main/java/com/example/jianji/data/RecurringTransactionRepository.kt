@@ -1,8 +1,10 @@
 package com.example.jianji.data
 
 import java.time.LocalDateTime
+import kotlinx.coroutines.flow.Flow
 
 class RecurringTransactionRepository(private val dao: RecurringTransactionDao) {
+    fun observeAll(): Flow<List<RecurringTransaction>> = dao.observeAll()
     suspend fun getActive(): List<RecurringTransaction> = dao.getActive()
     suspend fun getAll(): List<RecurringTransaction> = dao.getAll()
     suspend fun getById(id: Long): RecurringTransaction? = dao.getById(id)

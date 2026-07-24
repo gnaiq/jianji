@@ -1,11 +1,15 @@
 package com.example.jianji.data
 
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface QuickTemplateDao {
     @Query("SELECT * FROM quick_templates ORDER BY sortOrder ASC, useCount DESC")
     suspend fun getAll(): List<QuickTemplate>
+
+    @Query("SELECT * FROM quick_templates ORDER BY sortOrder ASC, useCount DESC")
+    fun observeAll(): Flow<List<QuickTemplate>>
 
     @Query("SELECT * FROM quick_templates WHERE type = :type ORDER BY sortOrder ASC, useCount DESC")
     suspend fun getByType(type: TransactionType): List<QuickTemplate>

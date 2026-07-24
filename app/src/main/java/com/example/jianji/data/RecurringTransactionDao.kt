@@ -1,11 +1,15 @@
 package com.example.jianji.data
 
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RecurringTransactionDao {
     @Query("SELECT * FROM recurring_transactions WHERE isActive = 1 ORDER BY nextRunDate ASC")
     suspend fun getActive(): List<RecurringTransaction>
+
+    @Query("SELECT * FROM recurring_transactions ORDER BY nextRunDate ASC")
+    fun observeAll(): Flow<List<RecurringTransaction>>
 
     @Query("SELECT * FROM recurring_transactions ORDER BY nextRunDate ASC")
     suspend fun getAll(): List<RecurringTransaction>

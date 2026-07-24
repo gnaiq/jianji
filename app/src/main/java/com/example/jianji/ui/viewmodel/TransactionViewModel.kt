@@ -38,10 +38,10 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     val incomeCategories: StateFlow<List<Category>> = categoryRepository.getCategoriesByType(TransactionType.INCOME)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allTemplates: StateFlow<List<QuickTemplate>> = flow { emit(templateRepo.getAll()) }
+    val allTemplates: StateFlow<List<QuickTemplate>> = templateRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val recurringTransactions: StateFlow<List<RecurringTransaction>> = flow { emit(recurringRepo.getAll()) }
+    val recurringTransactions: StateFlow<List<RecurringTransaction>> = recurringRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // 当月收支

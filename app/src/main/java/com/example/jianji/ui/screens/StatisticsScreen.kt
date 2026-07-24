@@ -606,17 +606,17 @@ private fun StatisticsContent(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    "+¥ %.0f".format(inc),
+                                    "+¥ %.2f".format(inc),
                                     color = Color(0xFF4CAF50),
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    "-¥ %.0f".format(exp),
+                                    "-¥ %.2f".format(exp),
                                     color = Color(0xFFF44336),
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    "%.0f".format(inc - exp),
+                                    "%.2f".format(inc - exp),
                                     color = rowColor,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(0.7f)
