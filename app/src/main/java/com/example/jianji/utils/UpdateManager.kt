@@ -153,20 +153,24 @@ class UpdateManager(private val context: Context) {
     /**
      * 安装前自检：读取下载 APK 的包名 / versionCode / 签名，与已装应用比对。
      * 返回 null 表示可以安装；否则返回需要提示给用户的原因。
-     * 作用：把系统含糊的“已安装更高版本 / 应用未安装”转成明确、可执行的提示，
-     * 避免发起注定失败的覆盖安装（Android 禁止 versionCode 降级，也不同签名覆盖）。
+     *
+     * 关键修复（修复“已安装更高版本”反复出现）：
+     * versionCode 必须用「不带签名标志」的方式读取（flags=0）。
+     * 旧实现用 GET_SIGNING_CERTIFICATES 一次性读取，在部分 Android 版本上
+     * getLongVersionCode() 会返回 0，导致下面的降级守卫被 `apkVc > 0` 静默绕过，
+     * 最终把降级请求发给系统、由系统弹出“已安装更高版本”。
+     * 改为 fail-safe：读不到版本号也禁止安装，绝不让降级请求到达系统。
      */
     private fun installBlockedReason(apk: File): String? {
         val pm = context.packageManager
-        val archiveFlags = PackageManager.GET_META_DATA or
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                PackageManager.GET_SIGNING_CERTIFICATES else 0
-        val archive = pm.getPackageArchiveInfo(apk.absolutePath, archiveFlags)
-            ?: return "无法读取安装包信息，请到下载目录手动安装"
 
-        if (archive.packageName != context.packageName) {
-            return "安装包包名(${archive.packageName})与当前应用不一致，无法覆盖安装"
+        // 1) 轻量读取包名 + versionCode（不带签名标志，确保 versionCode 可靠）
+        val light = pm.getPackageArchiveInfo(apk.absolutePath, 0)
+            ?: return "无法读取安装包信息，请到下载目录手动安装"
+        if (light.packageName != context.packageName) {
+            return "安装包包名(${light.packageName})与当前应用不一致，无法覆盖安装"
         }
+        val apkVc = PackageInfoCompat.getLongVersionCode(light)
 
         val installedFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
             PackageManager.GET_SIGNING_CERTIFICATES else 0
@@ -175,21 +179,30 @@ class UpdateManager(private val context: Context) {
         } catch (_: Exception) { null }
 
         if (installed != null) {
-            // 1) 签名一致性：设备上若是调试/本地构建，与发布版签名不同，系统禁止覆盖安装
+            val installedVc = PackageInfoCompat.getLongVersionCode(installed)
+
+            // 2) 版本守卫（fail-safe：读不到版本号也禁止安装，避免触发系统降级报错）
+            if (apkVc <= 0 || apkVc <= installedVc) {
+                val reason = when {
+                    apkVc <= 0 -> "版本号无法读取"
+                    apkVc < installedVc -> "低于"
+                    else -> "不高于（同版本）"
+                }
+                return "下载的安装包版本(code $apkVc) $reason 已安装版本(code $installedVc)，系统禁止降级或同版本覆盖安装。\n" +
+                        "可能原因：设备上装的是本地测试版（versionCode 更高），或上次更新的安装包残留。请先卸载当前应用，再安装正式版。"
+            }
+
+            // 3) 签名一致性（单独读取签名，不干扰 versionCode 的可靠读取）
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val archive = pm.getPackageArchiveInfo(
+                    apk.absolutePath,
+                    PackageManager.GET_SIGNING_CERTIFICATES
+                ) ?: return "无法读取安装包签名信息，请到下载目录手动安装"
                 val same = certSet(installed.signingInfo) == certSet(archive.signingInfo)
                 if (!same) {
                     return "下载的安装包与已安装应用签名不一致（设备上装的可能是调试/本地构建版）。\n" +
                             "Android 不允许不同签名的覆盖安装。请先卸载当前应用，再到 GitHub 安装正式版。"
                 }
-            }
-            // 2) 版本降级/同版本：versionCode 必须严格递增，且以成功读取到的为准（apkVc>0 才参与判断）
-            val installedVc = PackageInfoCompat.getLongVersionCode(installed)
-            val apkVc = PackageInfoCompat.getLongVersionCode(archive)
-            if (apkVc > 0 && apkVc <= installedVc) {
-                val reason = if (apkVc < installedVc) "低于" else "不高于（同版本）"
-                return "下载的安装包版本(code $apkVc) $reason 已安装版本(code $installedVc)，系统禁止降级或同版本覆盖安装。\n" +
-                        "可能是设备上装的是本地测试版（versionCode 更高），或上次更新的安装包残留。请先卸载当前应用，再安装正式版。"
             }
         }
         return null
