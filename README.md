@@ -141,6 +141,17 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 # 推送到 GitHub 后 CI 自动构建发布
 ```
 
+### 版本号纪律（防止升级失败）
+
+> 曾在 v1.4.10→v1.4.11 踩坑：设备上装了**本地/调试构建**的高 `versionCode` 包，应用内更新下载正式版后因系统判定“已安装更高版本（降级）”而安装失败。
+
+防再次发生，发布务必遵守：
+
+1. **`versionCode` 只能递增、绝不回退**。每次发版 `+1`。`build-apk.yml` 已加守卫：若本次 `versionCode` 不大于上一个 release tag，CI 直接失败，阻断发布降级版本。
+2. **APK 只能由 CI 构建发布**（`gradle assembleRelease` 仅允许在 GitHub Actions 跑）。本地 `./gradlew assembleRelease|Debug` 产出的包若被侧载安装，其 `versionCode`/签名可能与正式版冲突，导致后续升级失败。**严禁把本地构建的 APK 安装到日常使用的设备**。
+3. 若设备上已装了本地/调试包导致升级报“已安装更高版本”：先在系统设置里**卸载**该应用，再从 GitHub Releases 安装正式版（应用内更新也会在 v1.4.11+ 检测“签名不一致/降级”并给出明确提示）。
+4. `versionCode` 唯一来源是 `app/build.gradle.kts`，不要在任何脚本里另设。
+
 ## 安装
 
 从 [GitHub Releases](https://github.com/gnaiq/jianji/releases) 下载最新 APK，或从源码构建：
