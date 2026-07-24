@@ -109,7 +109,7 @@ private fun TrendLineChart(
     if (labels.isEmpty()) return
     if (expense.none { it > 0f } && income.none { it > 0f }) return
 
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(false) }
     val selectedPoint = remember { mutableStateOf<ChartPoint?>(null) }
 
     val valueFormatter = remember {
@@ -153,21 +153,6 @@ private fun TrendLineChart(
                         axisRight.isEnabled = false
                         axisLeft.setDrawGridLines(true)
                         axisLeft.axisMinimum = 0f
-                        setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
-                            override fun onValueSelected(e: Entry?, h: Highlight?) {
-                                val idx = e?.x?.toInt() ?: return
-                                if (idx in labels.indices) {
-                                    selectedPoint.value = ChartPoint(
-                                        labels[idx],
-                                        expense.getOrElse(idx) { 0f },
-                                        income.getOrElse(idx) { 0f }
-                                    )
-                                }
-                            }
-                            override fun onNothingSelected() {
-                                selectedPoint.value = null
-                            }
-                        })
                     }
                 },
                 update = { chart ->
@@ -208,6 +193,21 @@ private fun TrendLineChart(
                     }
                     chart.data = LineData(dataSets)
                     chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
+                    chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
+                        override fun onValueSelected(e: Entry?, h: Highlight?) {
+                            val idx = e?.x?.toInt() ?: return
+                            if (idx in labels.indices) {
+                                selectedPoint.value = ChartPoint(
+                                    labels[idx],
+                                    expense.getOrElse(idx) { 0f },
+                                    income.getOrElse(idx) { 0f }
+                                )
+                            }
+                        }
+                        override fun onNothingSelected() {
+                            selectedPoint.value = null
+                        }
+                    })
                     chart.invalidate()
                 }
             )
@@ -581,6 +581,15 @@ private fun StatisticsContent(
                             .sorted()
                             .takeLast(14) // show last 14 days at most
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("日期", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                            Text("收入", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50), modifier = Modifier.weight(1f))
+                            Text("支出", style = MaterialTheme.typography.labelSmall, color = Color(0xFFF44336), modifier = Modifier.weight(1f))
+                            Text("净额", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(0.7f))
+                        }
                         allDates.forEach { date ->
                             val exp = dailyExpense.firstOrNull { it.key == date }?.value ?: 0.0
                             val inc = dailyIncome.firstOrNull { it.key == date }?.value ?: 0.0

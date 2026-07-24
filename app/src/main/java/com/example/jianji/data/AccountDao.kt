@@ -1,11 +1,15 @@
 package com.example.jianji.data
 
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AccountDao {
     @Query("SELECT * FROM accounts ORDER BY isDefault DESC, id ASC")
     suspend fun getAll(): List<Account>
+
+    @Query("SELECT * FROM accounts ORDER BY isDefault DESC, id ASC")
+    fun observeAll(): Flow<List<Account>>
 
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getById(id: Long): Account?

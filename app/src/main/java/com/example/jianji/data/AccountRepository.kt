@@ -1,6 +1,9 @@
 package com.example.jianji.data
 
+import kotlinx.coroutines.flow.Flow
+
 class AccountRepository(private val dao: AccountDao) {
+    fun observeAll(): Flow<List<Account>> = dao.observeAll()
     suspend fun getAll(): List<Account> = dao.getAll()
     suspend fun getById(id: Long): Account? = dao.getById(id)
     suspend fun getDefault(): Account? = dao.getDefault()

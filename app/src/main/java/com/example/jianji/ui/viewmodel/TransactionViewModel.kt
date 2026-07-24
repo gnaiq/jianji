@@ -29,7 +29,7 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     val categories: StateFlow<List<Category>> = categoryRepository.getAllCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allAccounts: StateFlow<List<Account>> = flow { emit(accountRepo.getAll()) }
+    val allAccounts: StateFlow<List<Account>> = accountRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val expenseCategories: StateFlow<List<Category>> = categoryRepository.getCategoriesByType(TransactionType.EXPENSE)
