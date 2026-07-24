@@ -40,6 +40,7 @@ class UpdateManager(private val context: Context) {
             val connection = URL(GITHUB_API).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github+json")
             connection.setRequestProperty("User-Agent", "jianji-android")
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store")
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
 
