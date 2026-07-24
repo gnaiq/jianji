@@ -35,3 +35,12 @@ Thumbs.db
 
 # Dependencies
 .m2/
+
+# Local signing key (never commit; CI uses KEYSTORE_BASE64 secret)
+release.keystore
+*.keystore
+*.jks
+
+# Local build outputs (produced by ./gradlew assembleRelease|Debug on dev machines)
+app/build/
+captures/
