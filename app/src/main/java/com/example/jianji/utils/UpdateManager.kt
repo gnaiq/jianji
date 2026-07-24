@@ -153,10 +153,19 @@ class UpdateManager(private val context: Context) {
         return downloadId
     }
 
-    /** 本机是否已存在此前下载好的更新安装包 */
+    /** 本机是否已存在此前下载好的**真正新于当前版本**的安装包（防止上次更新残留的同级/旧包被误判） */
     fun hasLocalApk(): Boolean {
         val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
-        return f.exists() && f.length() > 0
+        if (!f.exists() || f.length() == 0L) return false
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0) ?: return false
+        val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
+        if (apkVc <= 0) return false
+        val installedVc = try {
+            PackageInfoCompat.getLongVersionCode(
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            )
+        } catch (_: Exception) { 0L }
+        return apkVc > installedVc
     }
 
     /** 安装本机已下载好的更新安装包（检查更新失败但仍已下好包时复用） */
