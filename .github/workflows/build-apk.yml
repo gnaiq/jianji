@@ -13,6 +13,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -40,6 +42,27 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease
+
+      # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag。
+      # 否则已装用户（含本地高 versionCode 调试包）升级时会触发系统“已安装更高版本”
+      # 而失败。此步在打包后、上传前拦截，避免发布降级版本。
+      - name: Guard versionCode strictly increases
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          NEW_VC=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
+          PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
+          if [ -z "$PREV_TAG" ]; then
+            echo "无历史 tag，跳过 versionCode 守卫"
+            exit 0
+          fi
+          PREV_VC=$(git show "$PREV_TAG:app/build.gradle.kts" | grep -oE 'versionCode = [0-9]+' | grep -oE '[0-9]+')
+          echo "上一个发布: $PREV_TAG (versionCode=$PREV_VC) | 本次: ${GITHUB_REF_NAME} (versionCode=$NEW_VC)"
+          if [ "$NEW_VC" -le "$PREV_VC" ]; then
+            echo "::error::versionCode $NEW_VC 未严格大于上一个发布 $PREV_TAG ($PREV_VC)。发布降级会导致已装用户升级时提示“已安装更高版本”而失败。请提高 versionCode 后重试。"
+            exit 1
+          fi
+          echo "OK: versionCode 单调递增，可安全发布"
 
       - name: Find and rename APK
         if: startsWith(github.ref, 'refs/tags/')
