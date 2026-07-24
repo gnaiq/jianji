@@ -36,6 +36,7 @@ class UpdateManager(private val context: Context) {
             val connection = URL(GITHUB_API).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github+json")
             connection.setRequestProperty("User-Agent", "jianji-android")
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store")
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
 
@@ -175,10 +176,19 @@ class UpdateManager(private val context: Context) {
         return null
     }
 
-    /** 本机是否已存在此前下载好的更新安装包 */
+    /** 本机是否已存在此前下载好的**真正新于当前版本**的安装包（防止上次更新残留的同级/旧包被误判） */
     fun hasLocalApk(): Boolean {
         val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
-        return f.exists() && f.length() > 0
+        if (!f.exists() || f.length() == 0L) return false
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0) ?: return false
+        val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
+        if (apkVc <= 0) return false
+        val installedVc = try {
+            PackageInfoCompat.getLongVersionCode(
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            )
+        } catch (_: Exception) { 0L }
+        return apkVc > installedVc
     }
 
     /** 安装本机已下载好的更新安装包（检查更新失败但仍已下好包时复用） */
@@ -187,6 +197,24 @@ class UpdateManager(private val context: Context) {
         if (!f.exists()) {
             Toast.makeText(context, "未找到本地安装包", Toast.LENGTH_SHORT).show()
             return
+        }
+        // 自检：本地 APK 版本是否真正新于已装版本（防止上次更新残留的同级/旧包被误装）
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0)
+        if (archiveInfo != null) {
+            val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
+            val installedVc = try {
+                PackageInfoCompat.getLongVersionCode(
+                    context.packageManager.getPackageInfo(context.packageName, 0)
+                )
+            } catch (_: Exception) { 0L }
+            if (apkVc > 0 && apkVc <= installedVc) {
+                f.delete()
+                Toast.makeText(context,
+                    "本地安装包版本不新于当前已装版本，已自动清理残留文件",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
         }
         val reason = installBlockedReason(f)
         if (reason != null) {
