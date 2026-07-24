@@ -51,6 +51,7 @@ fun CategoryManagementScreen(
     onTypeChanged: (TransactionType) -> Unit = {}
 ) {
     var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
 
     remember(selectedType) { onTypeChanged(selectedType) }
 
@@ -84,7 +85,13 @@ fun CategoryManagementScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filtered) { category -> CategoryItemCard(category = category) }
+                items(filtered) { category ->
+                    CategoryItemCard(
+                        category = category,
+                        onEdit = { editingCategory = category },
+                        onDelete = { onDeleteCategory(category) }
+                    )
+                }
             }
         }
     }
@@ -98,6 +105,21 @@ fun CategoryManagementScreen(
                 onDismissAddDialog()
             },
             onDismiss = onDismissAddDialog
+        )
+    }
+
+    val editCat = editingCategory
+    if (editCat != null) {
+        RichCategoryFormDialog(
+            title = "编辑分类",
+            categoryType = selectedType,
+            initialName = editCat.name,
+            initialIcon = editCat.icon,
+            onConfirm = { name, icon ->
+                onUpdateCategory(editCat.copy(name = name, icon = icon))
+                editingCategory = null
+            },
+            onDismiss = { editingCategory = null }
         )
     }
 }

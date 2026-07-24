@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -285,46 +287,61 @@ fun HomeScreen(
         // === 快捷模板 ===
         if (templates.isNotEmpty() && !isSearching) {
             item {
+                var templateExpanded by remember { mutableStateOf(false) }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                        Text("快捷模板", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(templates.take(8)) { template ->
-                                val cat = categoryMap[template.categoryId]
-                                Card(
-                                    modifier = Modifier.clickable { onUseTemplate(template) },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (template.type == TransactionType.EXPENSE)
-                                            Color(0xFFF44336).copy(alpha = 0.08f)
-                                        else Color(0xFF4CAF50).copy(alpha = 0.08f)
-                                    ),
-                                    shape = RoundedCornerShape(20.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { templateExpanded = !templateExpanded },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("快捷模板", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Icon(
+                                imageVector = if (templateExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (templateExpanded) "收起" else "展开"
+                            )
+                        }
+                        if (templateExpanded) {
+                            Spacer(Modifier.height(8.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(templates.take(8)) { template ->
+                                    val cat = categoryMap[template.categoryId]
+                                    Card(
+                                        modifier = Modifier.clickable { onUseTemplate(template) },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (template.type == TransactionType.EXPENSE)
+                                                Color(0xFFF44336).copy(alpha = 0.08f)
+                                            else Color(0xFF4CAF50).copy(alpha = 0.08f)
+                                        ),
+                                        shape = RoundedCornerShape(20.dp)
                                     ) {
-                                        Text(cat?.icon ?: "📁", style = MaterialTheme.typography.bodyLarge)
-                                        Column {
-                                            Text(
-                                                template.description.ifEmpty { cat?.name ?: "" },
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1
-                                            )
-                                            Text(
-                                                (if (template.type == TransactionType.EXPENSE) "-" else "+") +
-                                                    "¥${template.amount.toInt()}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (template.type == TransactionType.EXPENSE)
-                                                    Color(0xFFF44336) else Color(0xFF4CAF50)
-                                            )
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(cat?.icon ?: "📁", style = MaterialTheme.typography.bodyLarge)
+                                            Column {
+                                                Text(
+                                                    template.description.ifEmpty { cat?.name ?: "" },
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    (if (template.type == TransactionType.EXPENSE) "-" else "+") +
+                                                        "¥${template.amount.toInt()}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (template.type == TransactionType.EXPENSE)
+                                                        Color(0xFFF44336) else Color(0xFF4CAF50)
+                                                )
+                                            }
                                         }
                                     }
                                 }
