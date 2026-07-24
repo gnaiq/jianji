@@ -2,9 +2,13 @@ package com.example.jianji.utils
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.SigningInfo
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.Dispatchers
@@ -146,33 +150,56 @@ class UpdateManager(private val context: Context) {
     }
 
     /**
-     * 安装前自检：读取下载 APK 的包名 / versionCode，与已装应用比对。
+     * 安装前自检：读取下载 APK 的包名 / versionCode / 签名，与已装应用比对。
      * 返回 null 表示可以安装；否则返回需要提示给用户的原因。
      * 作用：把系统含糊的“已安装更高版本 / 应用未安装”转成明确、可执行的提示，
-     * 避免发起注定失败的覆盖安装（Android 禁止 versionCode 降级）。
+     * 避免发起注定失败的覆盖安装（Android 禁止 versionCode 降级，也不同签名覆盖）。
      */
     private fun installBlockedReason(apk: File): String? {
         val pm = context.packageManager
-        val archive = pm.getPackageArchiveInfo(apk.absolutePath, 0)
+        val archiveFlags = PackageManager.GET_META_DATA or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                PackageManager.GET_SIGNING_CERTIFICATES else 0
+        val archive = pm.getPackageArchiveInfo(apk.absolutePath, archiveFlags)
             ?: return "无法读取安装包信息，请到下载目录手动安装"
 
         if (archive.packageName != context.packageName) {
             return "安装包包名(${archive.packageName})与当前应用不一致，无法覆盖安装"
         }
 
+        val installedFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            PackageManager.GET_SIGNING_CERTIFICATES else 0
         val installed = try {
-            pm.getPackageInfo(context.packageName, 0)
+            pm.getPackageInfo(context.packageName, installedFlags)
         } catch (_: Exception) { null }
 
         if (installed != null) {
+            // 1) 签名一致性：设备上若是调试/本地构建，与发布版签名不同，系统禁止覆盖安装
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val same = certSet(installed.signingInfo) == certSet(archive.signingInfo)
+                if (!same) {
+                    return "下载的安装包与已安装应用签名不一致（设备上装的可能是调试/本地构建版）。\n" +
+                            "Android 不允许不同签名的覆盖安装。请先卸载当前应用，再到 GitHub 安装正式版。"
+                }
+            }
+            // 2) 版本降级：versionCode 必须严格递增，且以成功读取到的为准（apkVc>0 才参与判断）
             val installedVc = PackageInfoCompat.getLongVersionCode(installed)
             val apkVc = PackageInfoCompat.getLongVersionCode(archive)
-            if (apkVc <= installedVc) {
-                return "下载的安装包版本(${archive.versionName}, code $apkVc) 不高于已安装版本(code $installedVc)，无法覆盖安装。\n" +
-                        "通常是设备上装的是调试包/旧版（versionCode 更高）。请先卸载当前应用，再安装正式版。"
+            if (apkVc > 0 && apkVc < installedVc) {
+                return "下载的安装包版本(code $apkVc) 低于已安装版本(code $installedVc)，系统禁止降级安装。\n" +
+                        "可能是设备上装的是本地测试版（versionCode 更高）。请先卸载当前应用，再安装正式版。"
             }
         }
         return null
+    }
+
+    /** 提取签名证书 SHA-256 集合，用于判断两个 APK 是否同源签名 */
+    @RequiresApi(Build.VERSION_CODES.P)
+    private fun certSet(info: SigningInfo?): Set<String> {
+        if (info == null) return emptySet()
+        val certs = if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        return certs.map { md.digest(it.encoded).joinToString("") { b -> "%02x".format(b) } }.toSet()
     }
 
     /** 本机是否已存在此前下载好的更新安装包 */
