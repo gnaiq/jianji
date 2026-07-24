@@ -152,6 +152,27 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 3. 若设备上已装了本地/调试包导致升级报“已安装更高版本”：先在系统设置里**卸载**该应用，再从 GitHub Releases 安装正式版（应用内更新也会在 v1.4.11+ 检测“签名不一致/降级”并给出明确提示）。
 4. `versionCode` 唯一来源是 `app/build.gradle.kts`，不要在任何脚本里另设。
 
+### 一键发版脚本 `release.sh`
+
+> 本仓库已附带 `release.sh`，把上面 4 条纪律封装成可重复执行的一条命令（自动 `versionCode+1`、`versionName` 同步、annotated tag 两步法、触发 CI、字节级校验）。**本机 `git push` 被 TLS 代理拦截**时，用它绕过，照常发版。
+
+```bash
+# 1) 把本地改动推到 main（替代不可用的 git push，走 GitHub Contents API，自动乐观锁）
+./release.sh push <file>...
+
+# 2) 一键发版：自动 patch+1 提版本 → 打 annotated tag → 触发 CI → 验证 Release
+./release.sh cut
+
+# 3) 发完后字节级校验 APK 的 versionCode（防止降级包被发出）
+./release.sh verify v1.4.12
+```
+
+- `push <file>...`：逐个文件 PUT 到 `main`，自动区分新建/更新（拿 blob sha 做乐观锁）；多文件用空格分隔。
+- `cut`：读取 `app/build.gradle.kts`，将 `versionCode` 与 `versionName` 自动 `+1`，创建 **annotated tag**（两步法 `POST /git/tags` → `POST /git/refs`，非 lightweight）触发 CI，轮询至 `success` 后输出 Release 资产清单。
+- `verify <vX.Y.Z>`：下载指定 tag 的 APK，字节级确认 `versionCode`，与第 1 条纪律相互兜底。
+
+> 能正常 `git push` 的环境无需脚本，直接 `git tag -a v1.x.y -m "..." && git push origin v1.x.y` 即可，二者等价（CI 守卫与 Release 流程相同）。
+
 ## 安装
 
 从 [GitHub Releases](https://github.com/gnaiq/jianji/releases) 下载最新 APK，或从源码构建：
