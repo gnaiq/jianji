@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -133,7 +134,45 @@ class UpdateManager(private val context: Context) {
             throw Exception("下载内容为空，可能网络被拦截")
         }
 
+        val blocked = installBlockedReason(apkFile)
+        if (blocked != null) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, blocked, Toast.LENGTH_LONG).show()
+            }
+            return@withContext
+        }
+
         withContext(Dispatchers.Main) { installApk(apkFile) }
+    }
+
+    /**
+     * 安装前自检：读取下载 APK 的包名 / versionCode，与已装应用比对。
+     * 返回 null 表示可以安装；否则返回需要提示给用户的原因。
+     * 作用：把系统含糊的“已安装更高版本 / 应用未安装”转成明确、可执行的提示，
+     * 避免发起注定失败的覆盖安装（Android 禁止 versionCode 降级）。
+     */
+    private fun installBlockedReason(apk: File): String? {
+        val pm = context.packageManager
+        val archive = pm.getPackageArchiveInfo(apk.absolutePath, 0)
+            ?: return "无法读取安装包信息，请到下载目录手动安装"
+
+        if (archive.packageName != context.packageName) {
+            return "安装包包名(${archive.packageName})与当前应用不一致，无法覆盖安装"
+        }
+
+        val installed = try {
+            pm.getPackageInfo(context.packageName, 0)
+        } catch (_: Exception) { null }
+
+        if (installed != null) {
+            val installedVc = PackageInfoCompat.getLongVersionCode(installed)
+            val apkVc = PackageInfoCompat.getLongVersionCode(archive)
+            if (apkVc <= installedVc) {
+                return "下载的安装包版本(${archive.versionName}, code $apkVc) 不高于已安装版本(code $installedVc)，无法覆盖安装。\n" +
+                        "通常是设备上装的是调试包/旧版（versionCode 更高）。请先卸载当前应用，再安装正式版。"
+            }
+        }
+        return null
     }
 
     /** 本机是否已存在此前下载好的更新安装包 */
@@ -145,8 +184,16 @@ class UpdateManager(private val context: Context) {
     /** 安装本机已下载好的更新安装包（检查更新失败但仍已下好包时复用） */
     fun installLocalApk() {
         val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
-        if (f.exists()) installApk(f)
-        else Toast.makeText(context, "未找到本地安装包", Toast.LENGTH_SHORT).show()
+        if (!f.exists()) {
+            Toast.makeText(context, "未找到本地安装包", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val reason = installBlockedReason(f)
+        if (reason != null) {
+            Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
+            return
+        }
+        installApk(f)
     }
 
     /** 手动下载地址 */
