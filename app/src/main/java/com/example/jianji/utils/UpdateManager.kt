@@ -199,7 +199,7 @@ class UpdateManager(private val context: Context) {
         if (info == null) return emptySet()
         val certs = if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
         val md = java.security.MessageDigest.getInstance("SHA-256")
-        return certs.map { md.digest(it.encoded).joinToString("") { b -> "%02x".format(b) } }.toSet()
+        return certs.map { md.digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }.toSet()
     }
 
     /** 本机是否已存在此前下载好的更新安装包 */
