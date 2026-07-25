@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
+import com.example.jianji.utils.BackupScheduler
 import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.components.CategoryFormDialog
 import com.example.jianji.ui.screens.*
@@ -40,6 +41,9 @@ fun JianjiApp() {
     val allRecurring by viewModel.recurringTransactions.collectAsState()
 
     // 自动备份：数据变化时写入共享目录（卸载后仍可恢复）
+    LaunchedEffect(Unit) {
+        BackupScheduler.ensureScheduled(context)
+    }
     LaunchedEffect(transactions) {
         viewModel.autoBackup()
     }
@@ -129,8 +133,13 @@ fun JianjiApp() {
                         val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
                         viewModel.addCategory(name, icon, ct)
                     },
+                    onAddSubCategory = { name, icon, color, type, parentId ->
+                        val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                        viewModel.addCategory(name, icon, ct, parentId, color)
+                    },
                     onDeleteCategory = { viewModel.deleteCategory(it) },
                     onUpdateCategory = { viewModel.updateCategory(it) },
+                    onMoveCategory = { category, delta -> viewModel.moveCategory(category, delta) },
                     showAddCategoryDialog = showAddCategoryDialogTab,
                     onDismissAddDialog = { showAddCategoryDialogTab = false },
                     onTypeChanged = { categoryTabType = if (it == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME }

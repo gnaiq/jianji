@@ -134,6 +134,55 @@ fun SettingsScreen(
             )
         }
 
+        // === 自动备份 ===
+        item {
+            var autoBackupDays by remember { mutableIntStateOf(BackupScheduler.getIntervalDays(context)) }
+            val autoBackupEnabled = autoBackupDays > 0
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Schedule, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                        Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
+                            Text("自动备份", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (autoBackupEnabled) "已启用：每${
+                                    when (autoBackupDays) { 1 -> "天"; 7 -> "周"; 30 -> "月"; else -> "$autoBackupDays 天" }
+                                }自动备份一次" else "未启用（数据变更时仍会即时备份）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Switch(checked = autoBackupEnabled, onCheckedChange = { on ->
+                            autoBackupDays = if (on) BackupScheduler.DEFAULT_DAYS else 0
+                            BackupScheduler.saveIntervalDays(context, autoBackupDays)
+                        })
+                    }
+                    if (autoBackupEnabled) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(1 to "每天", 7 to "每周", 30 to "每月").forEach { (days, label) ->
+                                FilterChip(
+                                    selected = autoBackupDays == days,
+                                    onClick = {
+                                        autoBackupDays = days
+                                        BackupScheduler.saveIntervalDays(context, days)
+                                    },
+                                    label = { Text(label) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             SettingsCard(
                 icon = Icons.Default.Backup,

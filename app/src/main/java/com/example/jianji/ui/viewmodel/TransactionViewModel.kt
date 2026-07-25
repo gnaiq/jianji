@@ -4,8 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.jianji.data.*
+import com.example.jianji.utils.AutoBackup
 import com.example.jianji.utils.BackupStorage
-import com.example.jianji.utils.DataImportManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -98,15 +98,22 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // -- Category CRUD --
-    fun addCategory(name: String, icon: String = "📁", type: CategoryType) {
+    fun addCategory(name: String, icon: String = "📁", type: CategoryType, parentId: Long = 0, color: String = "#6200EE") {
         viewModelScope.launch {
-            val maxOrder = categoryRepository.getMaxSortOrder()
-            categoryRepository.insertCategory(Category(name = name, type = type, icon = icon, sortOrder = maxOrder + 1))
+            val siblings = categoryRepository.getSiblings(type, parentId)
+            val order = siblings.maxOfOrNull { it.sortOrder }?.plus(1) ?: 0
+            categoryRepository.insertCategory(
+                Category(name = name, type = type, icon = icon, sortOrder = order, parentId = parentId, color = color)
+            )
         }
     }
 
     fun updateCategory(category: Category) {
         viewModelScope.launch { categoryRepository.updateCategory(category) }
+    }
+
+    fun moveCategory(category: Category, delta: Int) {
+        viewModelScope.launch { categoryRepository.moveCategory(category, delta) }
     }
 
     fun deleteCategory(category: Category) {
@@ -223,11 +230,7 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     fun autoBackup() {
         viewModelScope.launch {
             try {
-                val all = transactionRepository.getAllSnapshot()
-                if (all.isEmpty()) return@launch
-                val cats = categoryRepository.getAllCategories().first()
-                val json = DataImportManager().generateExportJson(all, cats)
-                BackupStorage.saveAutoBackup(getApplication(), json)
+                AutoBackup.run(getApplication())
             } catch (_: Exception) { }
         }
     }

@@ -24,6 +24,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE type = :type ORDER BY sortOrder ASC, name ASC")
     fun getCategoriesByType(type: CategoryType): Flow<List<Category>>
 
+    @Query("SELECT * FROM categories WHERE type = :type AND parentId = :parentId ORDER BY sortOrder ASC, name ASC")
+    suspend fun getSiblings(type: CategoryType, parentId: Long): List<Category>
+
     @Query("SELECT * FROM categories ORDER BY type ASC, sortOrder ASC, name ASC")
     fun getAllCategories(): Flow<List<Category>>
 

@@ -52,7 +52,8 @@ fun AddTransactionDialog(
         val ct = if (selectedType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
         val current = categories.find { it.id == selectedCategoryId }
         if (current == null || current.type != ct) {
-            selectedCategoryId = categories.firstOrNull { it.type == ct }?.id
+            selectedCategoryId = (categories.firstOrNull { it.type == ct && !it.isMajor }
+                ?: categories.firstOrNull { it.type == ct })?.id
         }
     }
 
@@ -361,9 +362,38 @@ fun CategoryPickerDialog(
         title = { Text("选择分类") },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(categories) { category ->
+                val majors = categories.filter { it.isMajor }.sortedBy { it.sortOrder }
+                val majorIds = majors.map { it.id }
+                val orphans = categories.filter { !it.isMajor && it.parentId !in majorIds }
+                items(majors, key = { it.id }) { major ->
+                    val subs = categories.filter { it.parentId == major.id }.sortedBy { it.sortOrder }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            major.name,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        (if (subs.isEmpty()) listOf(major) else subs).forEach { cat ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { onSelect(cat) },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(cat.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    Text(cat.icon, style = MaterialTheme.typography.bodyLarge)
+                                }
+                            }
+                        }
+                    }
+                }
+                items(orphans, key = { it.id }) { cat ->
                     Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onSelect(category) },
+                        modifier = Modifier.fillMaxWidth().clickable { onSelect(cat) },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Row(
@@ -371,8 +401,8 @@ fun CategoryPickerDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(category.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                            Text(category.icon, style = MaterialTheme.typography.bodyLarge)
+                            Text(cat.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                            Text(cat.icon, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }

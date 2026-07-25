@@ -54,5 +54,16 @@
                 android:resource="@xml/jianji_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".utils.AutoBackupReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.jianji.ACTION_AUTO_BACKUP" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
