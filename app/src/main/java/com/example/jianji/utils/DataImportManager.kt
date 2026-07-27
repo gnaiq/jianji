@@ -189,7 +189,7 @@ class DataImportManager {
                 Category(
                     id = c.id ?: 0,
                     name = c.name,
-                    type = if (c.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                    type = if (c.type == "INCOME") CategoryType.INCOME else CategoryType.EXPENSE,
                     icon = c.icon,
                     color = c.color,
                     parentId = c.parentId,

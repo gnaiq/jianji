@@ -74,16 +74,16 @@ fun SettingsScreen(
     val ensureStoragePermission: (() -> Unit) -> Unit = { action ->
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             action()
-            return@ensureStoragePermission
-        }
-        val needed = arrayOf(
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        ).filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
-        if (needed.isEmpty()) action()
-        else {
-            pendingStorageAction = action
-            storagePermissionLauncher.launch(needed.toTypedArray())
+        } else {
+            val needed = arrayOf(
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ).filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+            if (needed.isEmpty()) action()
+            else {
+                pendingStorageAction = action
+                storagePermissionLauncher.launch(needed.toTypedArray())
+            }
         }
     }
 
