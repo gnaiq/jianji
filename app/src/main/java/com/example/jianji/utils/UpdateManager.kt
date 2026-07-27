@@ -191,15 +191,18 @@ class UpdateManager(private val context: Context) {
     }
 
     /**
-     * 安装前自检：读取下载 APK 的包名 / versionCode / 签名，与已装应用比对。
+     * 安装前自检：读取下载 APK 的包名 / versionName / versionCode / 签名，与已装应用比对。
      * 返回 null 表示可以安装；否则返回需要提示给用户的原因。
      *
-     * 关键修复（修复“已安装更高版本”反复出现）：
-     * versionCode 必须用「不带签名标志」的方式读取（flags=0）。
-     * 旧实现用 GET_SIGNING_CERTIFICATES 一次性读取，在部分 Android 版本上
-     * getLongVersionCode() 会返回 0，导致下面的降级守卫被 `apkVc > 0` 静默绕过，
-     * 最终把降级请求发给系统、由系统弹出“已安装更高版本”。
-     * 改为 fail-safe：读不到版本号也禁止安装，绝不让降级请求到达系统。
+     * 根因（反复出现“已安装更高版本”的真正原因）：
+     * 1) 判定口径不统一——“检查更新”用 versionName 比较，这里却用 versionCode 比较，
+     *    二者在本地/调试构建上容易脱节，造成误拦截或把问题甩给系统。
+     * 2) Android 硬性规则：已装应用 versionCode 高于待装 APK 时，系统直接拒绝
+     *    （INSTALL_FAILED_VERSION_DOWNGRADE），提示“已安装更高版本”。当设备上装的是
+     *    本地/调试构建且 versionCode 高于发布版时，每次应用内更新都会触发此拦截——
+     *    这不是正式版 bug，而是本地版本号偏高所致。
+     * 本函数与“检查更新”统一用 versionName 语义比较；仅在下载包 versionName 不新于
+     * 已装版本时才拦截，并给出精确定位（本地构建偏高 / 真实降级）与可执行建议。
      */
     private fun installBlockedReason(apk: File): String? {
         val pm = context.packageManager
@@ -223,22 +226,27 @@ class UpdateManager(private val context: Context) {
             val installedVc = PackageInfoCompat.getLongVersionCode(installed)
             val installedName = installed.versionName ?: ""
 
-            // 3) 版本守卫：versionCode 可读时以它为准；读不出时退化为 versionName 语义比较
-            val downgrade = if (apkVer.code > 0) {
-                apkVer.code <= installedVc
-            } else {
+            // 3) 与“检查更新”保持同一判定口径：以 versionName 语义比较为准。
+            //    下载包 versionName 比已装更新 → 视为合法更新，放行（最终交由系统校验）。
+            //    仅当下载包 versionName 不新于已装时，才判定为降级/同版本而拦截。
+            val downgrade = if (apkVer.name.isNotEmpty() && installedName.isNotEmpty()) {
                 !isNewerVersion(installedName, apkVer.name)
+            } else {
+                apkVer.code > 0 && apkVer.code <= installedVc
             }
             if (downgrade) {
-                val reason = when {
-                    apkVer.code > 0 && apkVer.code < installedVc -> "低于"
-                    apkVer.code > 0 -> "不高于（同版本）"
-                    else -> "无法确认比已安装版本更新"
+                val apkTag = if (apkVer.name.isNotEmpty()) "v${apkVer.name}" else "code ${apkVer.code}"
+                val insTag = if (installedName.isNotEmpty()) "v$installedName" else "code $installedVc"
+                // 精确定位：是“发布版确实更旧”，还是“设备上是本地/调试构建且版本号偏高”
+                val higherLocal = apkVer.code > 0 && installedVc > apkVer.code
+                return if (higherLocal) {
+                    "无法安装：你设备当前版本 versionCode($installedVc) 高于要安装的发布版(${apkVer.code})。\n" +
+                            "这通常是因为设备上装的是本地/调试构建（versionCode 偏高），并非正式版 bug。\n" +
+                            "解决方法：先卸载当前应用，再安装正式版；或本地开发时不要把 versionCode 设得高于已发布版本。"
+                } else {
+                    "无法安装：下载的安装包($apkTag) 不高于已安装版本($insTag)，系统禁止降级或同版本覆盖安装。\n" +
+                            "请先卸载当前应用，再安装正式版；或前往 GitHub 手动下载：${releasesUrl()}"
                 }
-                val apkTag = if (apkVer.code > 0) "code ${apkVer.code}" else "v${apkVer.name}"
-                val insTag = if (apkVer.code > 0) "code $installedVc" else "v$installedName"
-                return "下载的安装包版本($apkTag) $reason 已安装版本($insTag)，系统禁止降级或同版本覆盖安装。\n" +
-                        "可能原因：设备上装的是本地测试版（versionCode 更高），或上次更新的安装包残留。请先卸载当前应用，再安装正式版。"
             }
 
             // 4) 签名一致性（单独读取签名，不干扰版本号的可靠读取）

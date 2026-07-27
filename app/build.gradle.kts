@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.jianji"
         minSdk = 24
         targetSdk = 34
-        versionCode = 26
-        versionName = "1.4.18"
+        versionCode = 27
+        versionName = "1.4.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,12 +22,23 @@ android {
     }
 
     signingConfigs {
-        getByName("debug")
         create("release") {
             storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
             storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
             keyAlias = System.getenv("KEY_ALIAS") ?: ""
             keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        }
+        // 关键修复：CI 环境下让 debug 与 release 使用同一份密钥，
+        // 使本地用 Android Studio 安装的调试包与 GitHub 发布的正式包“同签名”，
+        // 避免覆盖安装时因签名不一致失败；同时让“同版本号重装”也能通过。
+        // 本地未配置 KEYSTORE_FILE 时保留默认 debug 密钥，不影响日常开发。
+        getByName("debug") {
+            if (System.getenv("KEYSTORE_FILE") != null) {
+                storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+                storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            }
         }
     }
 

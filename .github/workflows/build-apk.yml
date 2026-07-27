@@ -64,6 +64,21 @@ jobs:
           fi
           echo "OK: versionCode 单调递增，可安全发布"
 
+      # 一致性守卫：versionName 必须与 tag 完全一致，避免“检查更新(versionName)”
+      # 与“安装守卫(versionCode)”口径脱节，导致误拦截或把问题甩给系统。
+      - name: Guard versionName matches tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          NEW_VN=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | grep -oE '[0-9]+(\.[0-9]+)*')
+          EXPECTED_VN="${GITHUB_REF_NAME#v}"
+          echo "tag=$EXPECTED_VN | versionName=$NEW_VN"
+          if [ "$NEW_VN" != "$EXPECTED_VN" ]; then
+            echo "::error::build.gradle 的 versionName($NEW_VN) 与 tag($EXPECTED_VN) 不一致，会导致检查更新与安装守卫口径冲突。"
+            exit 1
+          fi
+          echo "OK: versionName 与 tag 一致"
+
       - name: Find and rename APK
         if: startsWith(github.ref, 'refs/tags/')
         run: |
