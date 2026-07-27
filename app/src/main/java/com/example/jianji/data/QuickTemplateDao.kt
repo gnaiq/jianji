@@ -23,6 +23,9 @@ interface QuickTemplateDao {
     @Insert
     suspend fun insert(template: QuickTemplate): Long
 
+    @Insert
+    suspend fun insertAll(templates: List<QuickTemplate>): List<Long>
+
     @Update
     suspend fun update(template: QuickTemplate)
 

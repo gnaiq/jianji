@@ -101,7 +101,8 @@ object BackupStorage {
                 }
             }
         } else {
-            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            // pre-Q：与 save() 写入同一公共 Download 目录，避免「写公共目录、读私有目录」的不一致（P0-3）
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             dir?.listFiles { f -> f.isFile && f.name.startsWith(PREFIX) }
                 ?.sortedByDescending { it.lastModified() }
                 ?.forEach { result.add(BackupFileEntry(Uri.fromFile(it), it.name, it.length())) }

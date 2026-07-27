@@ -1,9 +1,13 @@
 package com.example.jianji.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -27,6 +31,7 @@ import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.utils.*
 import com.example.jianji.BuildConfig
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -55,6 +60,32 @@ fun SettingsScreen(
     var showPosterDialog by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
     var showExportProgress by remember { mutableStateOf(false) }
+
+    // 备份/恢复在 Android 6–9（<Q）需要运行时存储权限；Q+ 走 MediaStore 无需权限（P0-3）
+    var pendingStorageAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val granted = results.entries.all { it.value }
+        if (granted) pendingStorageAction?.invoke()
+        else Toast.makeText(context, "需要存储权限才能读写备份文件", Toast.LENGTH_SHORT).show()
+        pendingStorageAction = null
+    }
+    val ensureStoragePermission: (() -> Unit) -> Unit = { action ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            action()
+            return@ensureStoragePermission
+        }
+        val needed = arrayOf(
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        ).filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+        if (needed.isEmpty()) action()
+        else {
+            pendingStorageAction = action
+            storagePermissionLauncher.launch(needed.toTypedArray())
+        }
+    }
 
     val updateManager = remember { UpdateManager(context) }
     val excelExportManager = remember { ExcelExportManager(context) }
@@ -107,19 +138,24 @@ fun SettingsScreen(
                 title = "备份数据库",
                 subtitle = "导出完整数据(JSON)到下载目录",
                 onClick = {
-                    scope.launch {
-                        try {
-                            val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
-                            if (all.isEmpty()) {
-                                Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
-                                return@launch
+                    ensureStoragePermission {
+                        scope.launch {
+                            try {
+                                val db = JianjiDatabase.getDatabase(context.applicationContext)
+                                val hasData = db.transactionDao().getAllSnapshot().isNotEmpty()
+                                    || db.categoryDao().getAllCategories().first().isNotEmpty()
+                                    || db.accountDao().getAll().isNotEmpty()
+                                if (!hasData) {
+                                    Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                                val json = DataImportManager().generateExportJson(db)
+                                val fileName = "简记备份_${LocalDate.now()}.json"
+                                val savedName = BackupStorage.save(context, fileName, "application/json", json)
+                                Toast.makeText(context, "备份成功: $savedName", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
-                            val json = DataImportManager().generateExportJson(all, categories)
-                            val fileName = "简记备份_${LocalDate.now()}.json"
-                            val savedName = BackupStorage.save(context, fileName, "application/json", json)
-                            Toast.makeText(context, "备份成功: $savedName", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -206,14 +242,15 @@ fun SettingsScreen(
                 title = "CSV 备份",
                 subtitle = "导出 CSV 格式到下载目录",
                 onClick = {
-                    scope.launch {
-                        try {
-                            val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
-                            if (all.isEmpty()) {
-                                Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
-                                return@launch
-                            }
-                            val csv = buildString {
+                    ensureStoragePermission {
+                        scope.launch {
+                            try {
+                                val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
+                                if (all.isEmpty()) {
+                                    Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                                val csv = buildString {
                                 appendLine("ID,日期,类型,分类ID,金额,描述")
                                 all.sortedByDescending { it.date }.forEach { tx ->
                                     appendLine("${tx.id},${tx.date},${tx.type},${tx.categoryId},${tx.amount},${tx.description}")
@@ -227,8 +264,8 @@ fun SettingsScreen(
                         }
                     }
                 }
-            )
-        }
+            }
+        )
 
         item {
             SettingsCard(
@@ -429,6 +466,7 @@ fun SettingsScreen(
     if (showImportDialog) {
         ImportDialog(
             viewModel = viewModel,
+            ensureStoragePermission = ensureStoragePermission,
             onDismiss = { showImportDialog = false }
         )
     }
@@ -923,7 +961,11 @@ fun AnnualPosterDialog(
 
 // ======== Import Dialog ========
 @Composable
-fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
+fun ImportDialog(
+    viewModel: TransactionViewModel?,
+    ensureStoragePermission: (() -> Unit) -> Unit,
+    onDismiss: () -> Unit
+) {
     val context = LocalContext.current
     var jsonText by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
@@ -933,24 +975,28 @@ fun ImportDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
 
     // 执行恢复：清空现有交易并按备份重新写入（替换语义）
     val doImport: () -> Unit = {
-        if (jsonText.isNotBlank() && viewModel != null) {
-        importing = true
-        scope.launch {
-            try {
-                val importer = DataImportManager()
-                val count = importer.importFromJson(jsonText, viewModel.transactionRepository, viewModel.categoryRepository)
-                importing = false
-                if (count > 0) {
-                    Toast.makeText(context, "恢复成功，导入 ${count} 条", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                } else {
-                    Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
+        if (jsonText.isNotBlank()) {
+            ensureStoragePermission {
+                importing = true
+                scope.launch {
+                    try {
+                        val importer = DataImportManager()
+                        val count = importer.importFromJson(
+                            jsonText, JianjiDatabase.getDatabase(context.applicationContext)
+                        )
+                        importing = false
+                        if (count > 0) {
+                            Toast.makeText(context, "恢复成功，导入 ${count} 条", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        } else {
+                            Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        importing = false
+                        Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
-            } catch (e: Exception) {
-                importing = false
-                Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
-        }
         }
     }
 

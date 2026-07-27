@@ -23,6 +23,9 @@ interface RecurringTransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(tx: RecurringTransaction): Long
 
+    @Insert
+    suspend fun insertAll(transactions: List<RecurringTransaction>): List<Long>
+
     @Update
     suspend fun update(tx: RecurringTransaction)
 

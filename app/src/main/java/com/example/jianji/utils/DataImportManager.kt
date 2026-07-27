@@ -1,5 +1,7 @@
 package com.example.jianji.utils
 
+import android.content.Context
+import androidx.room.withTransaction
 import com.example.jianji.data.*
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -7,27 +9,83 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
-data class ImportData(
-    val transactions: List<TransactionImport> = emptyList(),
-    val categories: List<CategoryImport> = emptyList()
-)
+// ===== 备份 JSON 结构（version=2：全量 6 张表；version 缺省视为旧格式，仅含交易+分类）=====
 
 data class TransactionImport(
-    val categoryId: Long,
-    val amount: Double,
-    val type: String,
+    val id: Long? = null,
+    val categoryId: Long = 0,
+    val accountId: Long? = null,
+    val amount: Double = 0.0,
+    val type: String = "EXPENSE",
     val description: String = "",
-    val date: String
+    val date: String = "",
+    val createdAt: String? = null,
+    val updatedAt: String? = null
 )
 
 data class CategoryImport(
-    val id: Long = 0,
-    val name: String,
-    val type: String,
-    val icon: String = "📁",
+    val id: Long? = null,
+    val name: String = "",
+    val type: String = "EXPENSE",
+    val icon: String = "💰",
     val color: String = "#6200EE",
     val parentId: Long = 0,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val isDefault: Boolean = false
+)
+
+data class AccountImport(
+    val id: Long? = null,
+    val name: String = "",
+    val icon: String = "💳",
+    val balance: Double = 0.0,
+    val isDefault: Boolean = false
+)
+
+data class BudgetImport(
+    val id: Long? = null,
+    val categoryId: Long? = null,
+    val amount: Double = 0.0,
+    val period: String = "MONTHLY",
+    val year: Int = 0,
+    val month: Int = 0
+)
+
+data class RecurringImport(
+    val id: Long? = null,
+    val categoryId: Long = 0,
+    val accountId: Long? = null,
+    val amount: Double = 0.0,
+    val type: String = "EXPENSE",
+    val description: String = "",
+    val frequency: String = "MONTHLY",
+    val interval: Int = 1,
+    val dayOfMonth: Int = 1,
+    val dayOfWeek: Int = 1,
+    val nextRunDate: String = "",
+    val isActive: Boolean = true,
+    val createdAt: String? = null
+)
+
+data class TemplateImport(
+    val id: Long? = null,
+    val categoryId: Long = 0,
+    val accountId: Long? = null,
+    val amount: Double = 0.0,
+    val type: String = "EXPENSE",
+    val description: String = "",
+    val sortOrder: Int = 0,
+    val useCount: Int = 0
+)
+
+data class ImportData(
+    val version: Int? = null,
+    val transactions: List<TransactionImport> = emptyList(),
+    val categories: List<CategoryImport> = emptyList(),
+    val accounts: List<AccountImport>? = null,
+    val budgets: List<BudgetImport>? = null,
+    val recurringTransactions: List<RecurringImport>? = null,
+    val quickTemplates: List<TemplateImport>? = null
 )
 
 class DataImportManager {
@@ -39,105 +97,170 @@ class DataImportManager {
         }
     }
 
-    suspend fun importFromJson(
-        json: String,
-        transactionRepo: TransactionRepository,
-        categoryRepo: CategoryRepository
-    ): Int = withContext(Dispatchers.IO) {
-        val data = parseJson(json) ?: return@withContext 0
-        var count = 0
+    /**
+     * 全量备份：读取全部 6 张表并序列化为 JSON（version=2）。
+     * 旧备份（仅交易+分类）恢复时仍能兼容（见 importFromJson）。
+     */
+    suspend fun generateExportJson(db: JianjiDatabase): String = withContext(Dispatchers.IO) {
+        val transactions = db.transactionDao().getAllSnapshot()
+        val categories = db.categoryDao().getAllCategories().first()
+        val accounts = db.accountDao().getAll()
+        val budgets = db.budgetDao().getAll()
+        val recurring = db.recurringTransactionDao().getAll()
+        val templates = db.quickTemplateDao().getAll()
 
-        // 是否为新格式备份（含真实 id，可精确映射层级与交易分类引用）
-        val hasIds = data.categories.any { it.id != 0L }
-        // 旧 id -> 名称（用于交易分类 id 重新映射）
-        val oldIdToName = data.categories.associate { it.id to it.name }
-
-        val oldToNew = mutableMapOf<Long, Long>()
-        val nameToNew = mutableMapOf<String, Long>()
-        val pendingParent = mutableListOf<Pair<Long, Long>>() // (newId, oldParentId)
-
-        for (ci in data.categories) {
-            val type = if (ci.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE
-            val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-            val existing = categoryRepo.getAllCategories().first()
-                .firstOrNull { it.name == ci.name && it.type == ct }
-            val newId = if (existing != null) {
-                existing.id
-            } else {
-                categoryRepo.insertCategory(
-                    Category(
-                        name = ci.name, type = ct, icon = ci.icon,
-                        color = ci.color, sortOrder = ci.sortOrder, parentId = 0
-                    )
+        val data = ImportData(
+            version = 2,
+            transactions = transactions.map { t ->
+                TransactionImport(
+                    id = t.id, categoryId = t.categoryId, accountId = t.accountId,
+                    amount = t.amount, type = t.type.name, description = t.description,
+                    date = t.date.toString(),
+                    createdAt = t.createdAt.toString(), updatedAt = t.updatedAt.toString()
+                )
+            },
+            categories = categories.map { c ->
+                CategoryImport(
+                    id = c.id, name = c.name, type = c.type.name, icon = c.icon,
+                    color = c.color, parentId = c.parentId, sortOrder = c.sortOrder,
+                    isDefault = c.isDefault
+                )
+            },
+            accounts = accounts.map { a ->
+                AccountImport(id = a.id, name = a.name, icon = a.icon, balance = a.balance, isDefault = a.isDefault)
+            },
+            budgets = budgets.map { b ->
+                BudgetImport(
+                    id = b.id, categoryId = b.categoryId, amount = b.amount,
+                    period = b.period.name, year = b.year, month = b.month
+                )
+            },
+            recurringTransactions = recurring.map { r ->
+                RecurringImport(
+                    id = r.id, categoryId = r.categoryId, accountId = r.accountId, amount = r.amount,
+                    type = r.type.name, description = r.description, frequency = r.frequency.name,
+                    interval = r.interval, dayOfMonth = r.dayOfMonth, dayOfWeek = r.dayOfWeek,
+                    nextRunDate = r.nextRunDate.toString(), isActive = r.isActive,
+                    createdAt = r.createdAt.toString()
+                )
+            },
+            quickTemplates = templates.map { t ->
+                TemplateImport(
+                    id = t.id, categoryId = t.categoryId, accountId = t.accountId, amount = t.amount,
+                    type = t.type.name, description = t.description, sortOrder = t.sortOrder,
+                    useCount = t.useCount
                 )
             }
-            oldToNew[ci.id] = newId
-            nameToNew[ci.name] = newId
-            if (existing == null && ci.parentId != 0L) {
-                pendingParent.add(newId to ci.parentId)
-            }
-        }
-
-        // 解析小类的 parentId（仅新格式需映射；旧格式父级为 0，保持扁平）
-        if (hasIds) {
-            for ((newId, oldParentId) in pendingParent) {
-                val parentName = oldIdToName[oldParentId]
-                val newParentId = if (parentName != null) nameToNew[parentName] else null
-                if (newParentId != null) {
-                    val cat = categoryRepo.getAllCategories().first().first { it.id == newId }
-                    categoryRepo.updateCategory(cat.copy(parentId = newParentId))
-                }
-            }
-        }
-
-        // 恢复 = 替换：先清空现有交易，再按备份重新写入，避免重复叠加
-        transactionRepo.deleteAll()
-
-        for (ti in data.transactions) {
-            try {
-                val date = LocalDateTime.parse(ti.date)
-                val type = if (ti.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE
-                // 新格式按 id 映射；旧格式沿用原 id（依赖同名分类已存在）
-                val categoryId = if (hasIds) oldToNew[ti.categoryId] ?: ti.categoryId else ti.categoryId
-                transactionRepo.insertTransaction(
-                    Transaction(
-                        categoryId = categoryId,
-                        amount = ti.amount,
-                        type = type,
-                        description = ti.description,
-                        date = date
-                    )
-                )
-                count++
-            } catch (_: Exception) { }
-        }
-        count
+        )
+        Gson().toJson(data)
     }
 
-    fun generateExportJson(
-        transactions: List<Transaction>,
-        categories: List<Category>
-    ): String {
-        val txs = transactions.map { tx ->
-            TransactionImport(
-                categoryId = tx.categoryId,
-                amount = tx.amount,
-                type = tx.type.name,
-                description = tx.description,
-                date = tx.date.toString()
-            )
+    /**
+     * 恢复备份：在单一 Room 事务内「清空 → 按原 id 整体重写」，保证原子性——
+     * 任意一步失败整笔回滚，绝不会出现「清完账却没有写回」的永久丢失（P0-4）。
+     *
+     * 兼容策略：
+     *  - 全量备份（version==2）：清空并恢复全部 6 张表。
+     *  - 旧格式备份（无 accounts 等字段）：仅恢复交易+分类，保留账户/预算/周期/模板，
+     *    避免恢复旧备份时意外清空这些表。
+     *
+     * @return 导入的交易条数；解析失败或为空返回 0
+     */
+    suspend fun importFromJson(json: String, db: JianjiDatabase): Int = withContext(Dispatchers.IO) {
+        val data = parseJson(json) ?: return@withContext 0
+        val txs = data.transactions ?: emptyList()
+        val cats = data.categories ?: emptyList()
+        if (txs.isEmpty() && cats.isEmpty()) return@withContext 0
+
+        val isFull = data.version == 2
+
+        db.withTransaction {
+            db.transactionDao().deleteAll()
+            db.categoryDao().deleteAll()
+            if (isFull) {
+                db.accountDao().deleteAll()
+                db.budgetDao().deleteAll()
+                db.recurringTransactionDao().deleteAll()
+                db.quickTemplateDao().deleteAll()
+            }
+
+            // 分类（父级优先，保证父->子引用成立）
+            db.categoryDao().insertAll(cats.map { c ->
+                Category(
+                    id = c.id ?: 0,
+                    name = c.name,
+                    type = if (c.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                    icon = c.icon,
+                    color = c.color,
+                    parentId = c.parentId,
+                    sortOrder = c.sortOrder,
+                    isDefault = c.isDefault
+                )
+            })
+
+            if (isFull) {
+                (data.accounts ?: emptyList()).map { a ->
+                    Account(id = a.id ?: 0, name = a.name, icon = a.icon, balance = a.balance, isDefault = a.isDefault)
+                }.let { db.accountDao().insertAll(it) }
+
+                (data.budgets ?: emptyList()).map { b ->
+                    Budget(
+                        id = b.id ?: 0,
+                        categoryId = b.categoryId,
+                        amount = b.amount,
+                        period = if (b.period == "YEARLY") BudgetPeriod.YEARLY else BudgetPeriod.MONTHLY,
+                        year = b.year,
+                        month = b.month
+                    )
+                }.let { db.budgetDao().insertAll(it) }
+
+                (data.recurringTransactions ?: emptyList()).map { r ->
+                    RecurringTransaction(
+                        id = r.id ?: 0,
+                        categoryId = r.categoryId,
+                        accountId = r.accountId,
+                        amount = r.amount,
+                        type = if (r.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                        description = r.description,
+                        frequency = RecurringFrequency.valueOf(r.frequency),
+                        interval = r.interval,
+                        dayOfMonth = r.dayOfMonth,
+                        dayOfWeek = r.dayOfWeek,
+                        nextRunDate = LocalDateTime.parse(r.nextRunDate),
+                        isActive = r.isActive,
+                        createdAt = r.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now()
+                    )
+                }.let { db.recurringTransactionDao().insertAll(it) }
+
+                (data.quickTemplates ?: emptyList()).map { t ->
+                    QuickTemplate(
+                        id = t.id ?: 0,
+                        categoryId = t.categoryId,
+                        accountId = t.accountId,
+                        amount = t.amount,
+                        type = if (t.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                        description = t.description,
+                        sortOrder = t.sortOrder,
+                        useCount = t.useCount
+                    )
+                }.let { db.quickTemplateDao().insertAll(it) }
+            }
+
+            // 交易（最后写入，引用分类/账户已就位）
+            db.transactionDao().insertAll(txs.map { t ->
+                Transaction(
+                    id = t.id ?: 0,
+                    categoryId = t.categoryId,
+                    accountId = t.accountId,
+                    amount = t.amount,
+                    type = if (t.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                    description = t.description,
+                    date = LocalDateTime.parse(t.date),
+                    createdAt = t.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now(),
+                    updatedAt = t.updatedAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now()
+                )
+            })
         }
-        val cats = categories.map { cat ->
-            CategoryImport(
-                id = cat.id,
-                name = cat.name,
-                type = cat.type.name,
-                icon = cat.icon,
-                color = cat.color,
-                parentId = cat.parentId,
-                sortOrder = cat.sortOrder
-            )
-        }
-        return Gson().toJson(ImportData(transactions = txs, categories = cats))
+        txs.size
     }
 }
