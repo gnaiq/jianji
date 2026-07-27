@@ -11,6 +11,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.utils.BackupScheduler
 import com.example.jianji.widget.JianjiWidget
+import androidx.glance.GlanceId
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.components.CategoryFormDialog
 import com.example.jianji.ui.screens.*
@@ -53,7 +55,12 @@ fun JianjiApp() {
         }
         // 数据变化时刷新桌面小组件（P1-6）
         LaunchedEffect(transactions) {
-            try { JianjiWidget().updateAll(context) } catch (_: Exception) { }
+            try {
+                val manager = GlanceAppWidgetManager(context)
+                manager.getGlanceIds(JianjiWidget::class.java).forEach { id: GlanceId ->
+                    JianjiWidget().update(context, id)
+                }
+            } catch (_: Exception) { }
         }
 
     var selectedTab by remember { mutableStateOf(Tab.HOME) }

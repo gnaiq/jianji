@@ -20,7 +20,7 @@ fun computeRecurringNextRun(
 ): LocalDateTime {
     val iv = maxOf(1, interval)
     return when (freq) {
-        RecurringFrequency.DAILY -> now.plusDays(iv.toLong()).atStartOfDay()
+        RecurringFrequency.DAILY -> now.toLocalDate().plusDays(iv.toLong()).atStartOfDay()
 
         RecurringFrequency.WEEKLY -> {
             val target = DayOfWeek.of(dayOfWeek.coerceIn(1, 7))
