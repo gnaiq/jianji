@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -305,7 +306,6 @@ private fun MajorCategoryCard(
     }
 }
 
-@Composable
 // 分类可选图标（150 种），emoji 字符串与原有数据模型完全兼容，无需迁移
 private val CATEGORY_ICONS = listOf(
     "🍔","🍕","🍟","🌭","🍿","🥓","🥞","🧇","🥐","🍞",
@@ -325,6 +325,7 @@ private val CATEGORY_ICONS = listOf(
     "🎣","🎿","⛷️","🏂","🛷","🥊","🥋","🎽","⛸️","🛹"
 )
 
+@Composable
 fun RichCategoryFormDialog(
     title: String,
     categoryType: TransactionType,
