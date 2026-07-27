@@ -95,4 +95,8 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     suspend fun getAllSnapshot(): List<Transaction>
+
+    // 删除账户前把其交易解绑（accountId 置 NULL），避免悬空外键引用
+    @Query("UPDATE transactions SET accountId = NULL WHERE accountId = :accountId")
+    suspend fun clearAccount(accountId: Long)
 }

@@ -1,5 +1,7 @@
 package com.example.jianji.data
 
+import kotlinx.coroutines.flow.Flow
+
 class BudgetRepository(private val dao: BudgetDao) {
     suspend fun getForMonth(year: Int, month: Int): List<Budget> = dao.getForMonth(year, month)
     suspend fun getForYear(year: Int): List<Budget> = dao.getForYear(year)
@@ -7,6 +9,7 @@ class BudgetRepository(private val dao: BudgetDao) {
         dao.getCategoryBudget(categoryId, year, month)
 
     suspend fun getTotalBudget(year: Int, month: Int): Budget? = dao.getTotalBudget(year, month)
+    fun observeTotalBudget(year: Int, month: Int): Flow<Budget?> = dao.observeTotalBudget(year, month)
     suspend fun setBudget(budget: Budget) = dao.insert(budget)
     suspend fun update(budget: Budget) = dao.update(budget)
     suspend fun delete(budget: Budget) = dao.delete(budget)

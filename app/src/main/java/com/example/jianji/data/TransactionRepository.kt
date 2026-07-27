@@ -48,6 +48,9 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     suspend fun deleteAll() = transactionDao.deleteAll()
 
+    // 删除账户前，将该账户下的交易 accountId 置空（解绑），避免悬空引用
+    suspend fun reassignAccountToNull(accountId: Long) = transactionDao.clearAccount(accountId)
+
     suspend fun getCount(): Int = transactionDao.getCount()
 
     suspend fun getByDateRangeSnapshot(startDate: LocalDateTime, endDate: LocalDateTime): List<Transaction> =

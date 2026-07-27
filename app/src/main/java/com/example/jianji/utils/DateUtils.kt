@@ -54,6 +54,18 @@ object DateUtils {
         return LocalDateTime.of(year, 12, 31, 23, 59, 59)
     }
 
+    /** 当前自然月的起止区间 [月初, 下月初)，每次调用重新计算，避免跨月后统计不刷新 */
+    fun currentMonthRange(): Pair<LocalDateTime, LocalDateTime> {
+        val ym = YearMonth.now()
+        return ym.atDay(1).atStartOfDay() to ym.plusMonths(1).atDay(1).atStartOfDay()
+    }
+
+    /** 今日 [00:00, 次日 00:00)，每次调用重新计算 */
+    fun todayRange(): Pair<LocalDateTime, LocalDateTime> {
+        val t = LocalDate.now()
+        return t.atStartOfDay() to t.plusDays(1).atStartOfDay()
+    }
+
     fun isToday(date: LocalDateTime): Boolean {
         return date.toLocalDate() == LocalDate.now()
     }

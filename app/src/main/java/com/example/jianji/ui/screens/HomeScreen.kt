@@ -52,6 +52,7 @@ fun HomeScreen(
     monthlyIncome: Double = 0.0,
     monthlyExpense: Double = 0.0,
     dailyExpense: Double = 0.0,
+    monthlyBudget: Double = 0.0,
     accounts: List<Account> = emptyList(),
     templates: List<QuickTemplate> = emptyList(),
     recurringTransactions: List<RecurringTransaction> = emptyList(),
@@ -98,12 +99,9 @@ fun HomeScreen(
         todayTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     }
 
-    // 预算计算
-    val monthYear = YearMonth.now()
-    val budgetTotal = monthlyExpense
-    // 估算预算（如果没有设定，则显示无限制）
-    val budgetProgress = remember(monthlyExpense) {
-        if (monthlyExpense > 0) monthlyExpense / 5000.0 else 0.0
+    // 预算计算（使用真实设置的月度预算；未设置则为 0，表示不限）
+    val budgetProgress = remember(monthlyExpense, monthlyBudget) {
+        if (monthlyBudget > 0) (monthlyExpense / monthlyBudget).coerceIn(0.0, 1.0) else 0.0
     }
 
     val last7Days = remember(today) {
@@ -210,41 +208,51 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("月度预算", style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            "¥${numberFormat.format(monthlyExpense)} / ¥5,000",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (monthlyExpense > 5000) Color(0xFFF44336)
+                        if (monthlyBudget > 0) {
+                            Text(
+                                "¥${numberFormat.format(monthlyExpense)} / ¥${numberFormat.format(monthlyBudget)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (monthlyExpense > monthlyBudget) Color(0xFFF44336)
                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
+                            )
+                        } else {
+                            Text(
+                                "未设置预算",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    val progress = (monthlyExpense / 5000.0).coerceIn(0.0, 1.0)
-                    val barColor = when {
-                        progress > 1.0 -> Color(0xFFF44336)
-                        progress > 0.8 -> Color(0xFFFF9800)
-                        else -> Color(0xFF4CAF50)
-                    }
-                    LinearProgressIndicator(
-                        progress = { progress.toFloat() },
-                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                        color = barColor,
-                        trackColor = barColor.copy(alpha = 0.12f),
-                        strokeCap = StrokeCap.Round,
-                    )
-                    if (monthlyExpense > 5000) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "已超支 ¥${numberFormat.format(monthlyExpense - 5000)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFF44336)
+                    if (monthlyBudget > 0) {
+                        Spacer(Modifier.height(6.dp))
+                        val progress = (monthlyExpense / monthlyBudget).coerceIn(0.0, 1.0)
+                        val barColor = when {
+                            progress > 1.0 -> Color(0xFFF44336)
+                            progress > 0.8 -> Color(0xFFFF9800)
+                            else -> Color(0xFF4CAF50)
+                        }
+                        LinearProgressIndicator(
+                            progress = { progress.toFloat() },
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                            color = barColor,
+                            trackColor = barColor.copy(alpha = 0.12f),
+                            strokeCap = StrokeCap.Round,
                         )
-                    } else if (progress > 0.8) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "剩余 ¥${numberFormat.format(5000 - monthlyExpense)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFFF9800)
-                        )
+                        if (monthlyExpense > monthlyBudget) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "已超支 ¥${numberFormat.format(monthlyExpense - monthlyBudget)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFF44336)
+                            )
+                        } else if (progress > 0.8) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "剩余 ¥${numberFormat.format(monthlyBudget - monthlyExpense)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFFF9800)
+                            )
+                        }
                     }
                 }
             }

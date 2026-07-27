@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.jianji.data.*
 import com.example.jianji.utils.AutoBackup
 import com.example.jianji.utils.BackupStorage
+import com.example.jianji.utils.DateUtils
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -44,24 +45,33 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     val recurringTransactions: StateFlow<List<RecurringTransaction>> = recurringRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 当月收支
-    private val thisMonthStart = YearMonth.now().atDay(1).atStartOfDay()
-    private val nextMonthStart = YearMonth.now().plusMonths(1).atDay(1).atStartOfDay()
-
-    val monthlyIncome: StateFlow<Double> = transactionRepository.getTransactionsByDateRange(thisMonthStart, nextMonthStart)
-        .map { txs -> txs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount } }
+    // 当月收支（每次发射重新计算当月区间，跨月后自动刷新；统一日期源）
+    val monthlyIncome: StateFlow<Double> = transactions
+        .map { txs ->
+            val (s, e) = DateUtils.currentMonthRange()
+            txs.filter { it.date >= s && it.date < e && it.type == TransactionType.INCOME }.sumOf { it.amount }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val monthlyExpense: StateFlow<Double> = transactionRepository.getTransactionsByDateRange(thisMonthStart, nextMonthStart)
-        .map { txs -> txs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount } }
+    val monthlyExpense: StateFlow<Double> = transactions
+        .map { txs ->
+            val (s, e) = DateUtils.currentMonthRange()
+            txs.filter { it.date >= s && it.date < e && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    // 今日支出
-    private val todayStart = LocalDate.now().atStartOfDay()
-    private val tomorrowStart = LocalDate.now().plusDays(1).atStartOfDay()
+    // 今日支出（每次发射重新计算今日区间）
+    val dailyExpense: StateFlow<Double> = transactions
+        .map { txs ->
+            val (s, e) = DateUtils.todayRange()
+            txs.filter { it.date >= s && it.date < e && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val dailyExpense: StateFlow<Double> = transactionRepository.getTransactionsByDateRange(todayStart, tomorrowStart)
-        .map { txs -> txs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount } }
+    // 当月预算（设置页保存后由 Room Flow 自动刷新）
+    val monthlyBudget: StateFlow<Double> = budgetRepo.observeTotalBudget(
+        YearMonth.now().year, YearMonth.now().monthValue
+    ).map { it?.amount ?: 0.0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // -- Transaction CRUD --
@@ -142,6 +152,14 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { accountRepo.delete(account) }
     }
 
+    // 删除账户前先解绑其交易（accountId 置空），防止悬空引用（P1-4 账户删除治理）
+    fun deleteAccountCascade(account: Account) {
+        viewModelScope.launch {
+            transactionRepository.reassignAccountToNull(account.id)
+            accountRepo.delete(account)
+        }
+    }
+
     fun setDefaultAccount(id: Long) {
         viewModelScope.launch { accountRepo.setDefault(id) }
     }
@@ -191,29 +209,45 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
 
     fun processRecurringDue() {
         viewModelScope.launch {
-            val due = recurringRepo.getDue(LocalDateTime.now())
+            val now = LocalDateTime.now()
+            val due = recurringRepo.getDue(now)
             val defaultAcc = accountRepo.getDefault()?.id
             for (rtx in due) {
-                transactionRepository.insertTransaction(
-                    Transaction(
-                        categoryId = rtx.categoryId,
-                        amount = rtx.amount,
-                        type = rtx.type,
-                        description = rtx.description,
-                        date = LocalDateTime.now(),
-                        accountId = rtx.accountId ?: defaultAcc
-                    )
-                )
-                val next = rtx.nextRunDate.let { cur ->
-                    when (rtx.frequency) {
-                        RecurringFrequency.DAILY -> cur.plusDays(rtx.interval.toLong())
-                        RecurringFrequency.WEEKLY -> cur.plusWeeks(rtx.interval.toLong())
-                        RecurringFrequency.MONTHLY -> cur.plusMonths(rtx.interval.toLong())
-                        RecurringFrequency.YEARLY -> cur.plusYears(rtx.interval.toLong())
-                    }
+                // 生成本次及错过的所有周期（补账），交易日期 = 各自执行日
+                val occurrences = mutableListOf<LocalDateTime>()
+                var cur = rtx.nextRunDate
+                var guard = 0
+                while (cur <= now && guard < 1000) {
+                    occurrences.add(cur)
+                    cur = advance(cur, rtx)
+                    guard++
                 }
-                recurringRepo.update(rtx.copy(nextRunDate = next))
+                occurrences.forEach { date ->
+                    transactionRepository.insertTransaction(
+                        Transaction(
+                            categoryId = rtx.categoryId,
+                            amount = rtx.amount,
+                            type = rtx.type,
+                            description = rtx.description,
+                            date = date,
+                            accountId = rtx.accountId ?: defaultAcc
+                        )
+                    )
+                }
+                // 将下次执行日推进到未来，避免重复生成
+                var next = rtx.nextRunDate
+                while (next <= now) next = advance(next, rtx)
+                if (next != rtx.nextRunDate) recurringRepo.update(rtx.copy(nextRunDate = next))
             }
+        }
+    }
+
+    private fun advance(date: LocalDateTime, rtx: RecurringTransaction): LocalDateTime {
+        return when (rtx.frequency) {
+            RecurringFrequency.DAILY -> date.plusDays(rtx.interval.toLong())
+            RecurringFrequency.WEEKLY -> date.plusWeeks(rtx.interval.toLong())
+            RecurringFrequency.MONTHLY -> date.plusMonths(rtx.interval.toLong())
+            RecurringFrequency.YEARLY -> date.plusYears(rtx.interval.toLong())
         }
     }
 

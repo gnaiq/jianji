@@ -16,6 +16,9 @@ interface BudgetDao {
     @Query("SELECT * FROM budgets WHERE categoryId IS NULL AND year = :year AND month = :month LIMIT 1")
     suspend fun getTotalBudget(year: Int, month: Int): Budget?
 
+    @Query("SELECT * FROM budgets WHERE categoryId IS NULL AND year = :year AND month = :month LIMIT 1")
+    fun observeTotalBudget(year: Int, month: Int): Flow<Budget?>
+
     @Query("SELECT * FROM budgets")
     suspend fun getAll(): List<Budget>
 

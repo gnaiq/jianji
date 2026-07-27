@@ -565,6 +565,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
     var showAdd by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newIcon by remember { mutableStateOf("💳") }
+    var pendingDelete by remember { mutableStateOf<Account?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -596,7 +597,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
                                     TextButton(onClick = { viewModel?.setDefaultAccount(acc.id) }) { Text("默认") }
                                 }
                                 if (accounts.size > 1 && !acc.isDefault) {
-                                    TextButton(onClick = { viewModel?.deleteAccount(acc) },
+                                    TextButton(onClick = { pendingDelete = acc },
                                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
                                 }
                             }
@@ -626,6 +627,24 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
     )
+
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除账户") },
+            text = { Text("删除「${pendingDelete?.name}」后，其下的交易将解除账户关联（不再归属任何账户），但交易本身不会被删除。确定继续？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel?.deleteAccountCascade(pendingDelete!!)
+                        pendingDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("删除") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } }
+        )
+    }
 }
 
 // ======== Template Dialog ========
@@ -725,23 +744,7 @@ fun TemplateManagementDialog(
     )
 }
 
-// 计算周期交易的下次执行时间（供预览与保存复用，避免两处逻辑不一致）
-private fun computeRecurringNextRun(
-    freq: RecurringFrequency,
-    dayOfMonth: Int,
-    interval: Int
-): LocalDateTime {
-    val dom = dayOfMonth.coerceIn(1, 28)
-    val iv = maxOf(1, interval)
-    return when (freq) {
-        RecurringFrequency.DAILY -> LocalDate.now().plusDays(iv.toLong()).atStartOfDay()
-        RecurringFrequency.WEEKLY -> LocalDate.now().plusWeeks(iv.toLong()).atStartOfDay()
-        RecurringFrequency.MONTHLY -> YearMonth.now().atDay(dom).atStartOfDay()
-            .let { if (it.isBefore(LocalDateTime.now())) it.plusMonths(iv.toLong()) else it }
-        RecurringFrequency.YEARLY -> LocalDate.of(YearMonth.now().year, 1, dom).atStartOfDay()
-            .let { if (it.isBefore(LocalDateTime.now())) it.plusYears(iv.toLong()) else it }
-    }
-}
+// 下次执行时间计算已抽到 com.example.jianji.utils.computeRecurringNextRun（纯函数，便于测试）
 
 // ======== Recurring Dialog ========
 @Composable
@@ -760,6 +763,7 @@ fun RecurringManagementDialog(
     var rFreq by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
     var rDayOfMonth by remember { mutableStateOf("1") }
     var rInterval by remember { mutableStateOf("1") }
+    var rDayOfWeek by remember { mutableStateOf("1") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -830,6 +834,20 @@ fun RecurringManagementDialog(
                         }, label = { Text(if (rFreq == RecurringFrequency.YEARLY) "每年几号" else "每月几号") },
                             modifier = Modifier.fillMaxWidth(), singleLine = true)
                     }
+                    if (rFreq == RecurringFrequency.WEEKLY) {
+                        Text("每${unitLabel}的星期几", style = MaterialTheme.typography.labelMedium)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val weekLabels = listOf("一", "二", "三", "四", "五", "六", "日")
+                            weekLabels.forEachIndexed { idx, label ->
+                                FilterChip(
+                                    selected = (rDayOfWeek.toIntOrNull() ?: 1) == idx + 1,
+                                    onClick = { rDayOfWeek = (idx + 1).toString() },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                     OutlinedTextField(value = rInterval, onValueChange = {
                         if (it.all { c -> c.isDigit() }) rInterval = it
                     }, label = { Text("间隔（每 N 个${unitLabel}执行一次）") },
@@ -848,7 +866,8 @@ fun RecurringManagementDialog(
                         }
                     }
                     val previewNext = computeRecurringNextRun(
-                        rFreq, rDayOfMonth.toIntOrNull() ?: 1, rInterval.toIntOrNull() ?: 1
+                        rFreq, rDayOfMonth.toIntOrNull() ?: 1, rInterval.toIntOrNull() ?: 1,
+                        rDayOfWeek.toIntOrNull() ?: 1
                     )
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -871,10 +890,12 @@ fun RecurringManagementDialog(
                     val catId = rCatId ?: return@Button
                     val dom = rDayOfMonth.toIntOrNull() ?: 1
                     val interval = rInterval.toIntOrNull() ?: 1
-                    val nextRun = computeRecurringNextRun(rFreq, dom, interval)
+                    val dow = rDayOfWeek.toIntOrNull() ?: 1
+                    val nextRun = computeRecurringNextRun(rFreq, dom, interval, dow)
                     viewModel?.addRecurring(RecurringTransaction(
                         categoryId = catId, amount = amt, type = rType, description = rDesc,
-                        frequency = rFreq, interval = interval, dayOfMonth = dom, nextRunDate = nextRun
+                        frequency = rFreq, interval = interval, dayOfMonth = dom,
+                        dayOfWeek = dow, nextRunDate = nextRun
                     ))
                     showAdd = false; rAmount = ""; rDesc = ""; rCatId = null
                 }, enabled = rAmount.toDoubleOrNull() != null && rCatId != null) { Text("添加") }

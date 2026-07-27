@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.utils.BackupScheduler
+import com.example.jianji.widget.JianjiWidget
 import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.components.CategoryFormDialog
 import com.example.jianji.ui.screens.*
@@ -36,6 +37,7 @@ fun JianjiApp() {
     val monthlyIncome by viewModel.monthlyIncome.collectAsState()
     val monthlyExpense by viewModel.monthlyExpense.collectAsState()
     val dailyExpense by viewModel.dailyExpense.collectAsState()
+    val monthlyBudget by viewModel.monthlyBudget.collectAsState()
     val allAccounts by viewModel.allAccounts.collectAsState()
     val allTemplates by viewModel.allTemplates.collectAsState()
     val allRecurring by viewModel.recurringTransactions.collectAsState()
@@ -48,6 +50,10 @@ fun JianjiApp() {
             if (BackupScheduler.isImmediateBackupEnabled(context)) {
                 viewModel.autoBackup()
             }
+        }
+        // 数据变化时刷新桌面小组件（P1-6）
+        LaunchedEffect(transactions) {
+            try { JianjiWidget().updateAll(context) } catch (_: Exception) { }
         }
 
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
@@ -103,6 +109,7 @@ fun JianjiApp() {
                     monthlyIncome = monthlyIncome,
                     monthlyExpense = monthlyExpense,
                     dailyExpense = dailyExpense,
+                    monthlyBudget = monthlyBudget,
                     accounts = allAccounts,
                     templates = allTemplates,
                     recurringTransactions = allRecurring,
