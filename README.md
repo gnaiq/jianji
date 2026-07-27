@@ -1,19 +1,67 @@
-# 简记 (Jianji) — 安卓记账本
+# 简记 Jianji
 
-使用 **Kotlin** 和 **Jetpack Compose** 开发的现代化安卓记账应用，Material Design 3 风格。
+> 一款用 **Kotlin + Jetpack Compose** 打造的现代化 Android 记账应用，Material Design 3 风格，完全本地存储、离线可用。
 
-## 功能特性
+<p align="center">
+  <a href="https://github.com/gnaiq/jianji/releases"><img alt="Latest Release" src="https://img.shields.io/github/v/release/gnaiq/jianji?label=release&color=green"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84">
+  <img alt="License" src="https://img.shields.io/github/license/gnaiq/jianji">
+  <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/gnaiq/jianji/build-apk.yml?branch=main">
+  <img alt="Kotlin" src="https://img.shields.io/badge/kotlin-1.9.24-blue">
+  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-24%20%2F%20targetSdk-34-blue">
+</p>
 
-- **记账核心**：支持收入/支出记录，含分类、金额、日期、备注
-- **分类管理**：11 个预设分类 + 自定义分类，图标/颜色/名称均可编辑
-- **统计分析**：周/月/年三 Tab 切换，分类占比、收支趋势可视化
-- **首页仪表盘**：今日收支概览、近 7 天收支趋势、月结余
-- **搜索筛选**：按分类名称或备注关键词实时过滤当日记录
-- **滑动删除**：首页列表支持 SwipeToDismiss 手势快速删除
-- **本地存储**：基于 Room 数据库，离线可用
-- **自动构建**：GitHub Actions 打 tag 自动构建 Release APK
+---
 
-## 技术栈
+## 📑 目录
+
+- [简介](#简介)
+- [✨ 功能特性](#-功能特性)
+- [📱 屏幕截图](#-屏幕截图)
+- [🛠 技术栈](#-技术栈)
+- [📂 项目结构](#-项目结构)
+- [🚀 快速开始](#-快速开始)
+- [🗄 数据模型](#-数据模型)
+- [🏷 默认分类](#-默认分类)
+- [🤖 GitHub Actions 自动化](#-github-actions-自动化)
+- [📦 安装](#-安装)
+- [🤝 贡献](#-贡献)
+- [📄 许可证](#-许可证)
+- [📝 更新日志](#-更新日志)
+
+---
+
+## 简介
+
+**简记（Jianji）** 是一款轻量、隐私优先的安卓记账本：所有数据保存在设备本地 Room 数据库，不依赖任何云端账户。它覆盖从日常记账、分类管理、统计分析到年度账单海报、周期交易、数据备份导出的完整闭环，并支持桌面小组件一键记账概览。
+
+---
+
+## ✨ 功能特性
+
+- **记账核心**：收入 / 支出记录，含分类、金额、日期、备注。
+- **分类管理**：11 个预设分类 + 自定义分类，图标（Emoji）/ 颜色 / 名称均可编辑。
+- **统计分析**：周 / 月 / 年三 Tab 切换，分类占比、收支趋势可视化；折线图数据点可点击查看费用数字。
+- **首页仪表盘**：今日收支概览、近 7 天收支趋势、月结余。
+- **搜索筛选**：按分类名称或备注关键词实时过滤记录。
+- **滑动删除**：首页列表支持 `SwipeToDismiss` 手势快速删除。
+- **周期交易**：可设置周期性记账（如房租、工资），突出下次记账日。
+- **年度账单海报**：按年份生成账单海报，写入媒体库公共目录，相册可见、可分享。
+- **应用内更新**：内置「检查更新」，下载与安装全程中文可读提示；签名不一致 / 降级时给出明确告警。
+- **备份与恢复**：支持数据备份 / 导入（CSV 导出、JSON 解析导入）；自动备份到共享目录，卸载后仍可恢复；「管理备份」可清理旧备份文件。
+- **桌面小组件**：Glance AppWidget 在桌面展示记账概览。
+- **本地存储**：基于 Room 数据库，离线可用，隐私不出本机。
+- **自动构建**：GitHub Actions 打 tag 自动构建 Release APK。
+
+---
+
+## 📱 屏幕截图
+
+> 截图待补充 — 欢迎提交 PR 补充应用界面截图，帮助更多用户快速了解简记。
+
+---
+
+## 🛠 技术栈
 
 | 组件 | 版本 |
 |------|------|
@@ -23,15 +71,15 @@
 | Room Database | 2.6.1 |
 | Navigation Compose | 2.7.7 |
 | MPAndroidChart | 3.1.0 |
+| Glance AppWidget | 1.1.0 |
+| Apache Commons CSV | 1.10.0 |
 | Gradle | 8.9 |
 | JDK | 17 |
 | minSdk / targetSdk | 24 / 34 |
 
-## 屏幕截图
+---
 
-> 截图待补充 — 欢迎提交 PR。
-
-## 项目结构
+## 📂 项目结构
 
 ```
 jianji/
@@ -61,10 +109,12 @@ jianji/
 │   │   │   │   └── TransactionViewModelFactory.kt
 │   │   │   └── theme/
 │   │   │       ├── Color.kt / Theme.kt / Typography.kt
+│   │   ├── widget/                       #   桌面小组件
 │   │   └── utils/
 │   │       ├── DateUtils.kt
 │   │       ├── StatisticsCalculator.kt
-│   │       └── DataExportManager.kt       # 导出工具（功能开发中）
+│   │       ├── DataExportManager.kt       # 导出工具
+│   │       └── AutoBackupReceiver.kt      # 自动备份广播接收器
 │   └── build.gradle.kts
 ├── .github/workflows/build-apk.yml        # CI：打 tag 自动构建 Release
 ├── build.gradle.kts
@@ -72,7 +122,9 @@ jianji/
 └── gradle.properties
 ```
 
-## 快速开始
+---
+
+## 🚀 快速开始
 
 ### 环境要求
 
@@ -93,7 +145,9 @@ cd jianji
 ./gradlew assembleRelease
 ```
 
-## 数据库模型
+---
+
+## 🗄 数据模型
 
 ### Transaction（交易）
 
@@ -119,13 +173,17 @@ cd jianji
 | type | CategoryType | INCOME / EXPENSE |
 | isDefault | Boolean | 是否系统预设 |
 
-## 默认分类
+---
+
+## 🏷 默认分类
 
 **收入（4 个）**：💼 工资 · 🎁 奖金 · 📈 投资收益 · 💰 其他收入
 
 **支出（7 个）**：🍔 食物 · 🚗 交通 · 🎮 娱乐 · 🛍️ 购物 · 🏥 医疗 · 📚 教育 · 💸 其他支出
 
-## GitHub Actions 自动化
+---
+
+## 🤖 GitHub Actions 自动化
 
 打 `v*` 标签或手动触发 `workflow_dispatch` 时自动：
 
@@ -174,7 +232,7 @@ git push origin v1.0.0
 
 > 能正常 `git push` 的环境无需脚本，直接 `git tag -a v1.x.y -m "..." && git push origin v1.x.y` 即可，二者等价（CI 守卫与 Release 流程相同）。
 
-## 安装
+## 📦 安装
 
 从 [GitHub Releases](https://github.com/gnaiq/jianji/releases) 下载最新 APK，或从源码构建：
 
@@ -183,15 +241,28 @@ git push origin v1.0.0
 # APK: app/build/outputs/apk/release/
 ```
 
-## 贡献
+> 安装未知来源 APK 时，系统会要求授予「安装未知应用」权限；简记使用 `FileProvider` 安全安装，不暴露明文文件路径。
+
+---
+
+## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request。
 
-## 许可证
+1. Fork 本仓库并创建特性分支（`git checkout -b feature/your-feature`）
+2. 提交改动（`git commit -m "feat: ..."`）
+3. 推送到分支（`git push origin feature/your-feature`）
+4. 发起 Pull Request
 
-MIT License
+---
 
-## 更新日志
+## 📄 许可证
+
+[MIT License](LICENSE)
+
+---
+
+## 📝 更新日志
 
 ### v1.4.6 (2026-07-24)
 
