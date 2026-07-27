@@ -1,6 +1,7 @@
 package com.example.jianji.data
 
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BudgetDao {
