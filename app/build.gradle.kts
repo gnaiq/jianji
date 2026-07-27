@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.jianji"
         minSdk = 24
         targetSdk = 34
-        versionCode = 28
-        versionName = "1.4.20"
+        versionCode = 29
+        versionName = "1.4.21"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -59,6 +59,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // minSdk=24 但项目大量使用 java.time.*（API 26+）；启用脱糖使 Android 7.x 可运行
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -92,6 +94,9 @@ android {
 }
 
 dependencies {
+    // java.time 脱糖（配合 isCoreLibraryDesugaringEnabled，支撑 minSdk 24）
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
     // Core Android
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")

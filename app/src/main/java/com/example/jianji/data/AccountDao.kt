@@ -31,4 +31,7 @@ interface AccountDao {
 
     @Query("SELECT * FROM accounts WHERE isDefault = 1 LIMIT 1")
     suspend fun getDefault(): Account?
+
+    @Query("DELETE FROM accounts")
+    suspend fun deleteAll()
 }

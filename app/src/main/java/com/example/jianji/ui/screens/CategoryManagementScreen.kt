@@ -65,6 +65,7 @@ fun CategoryManagementScreen(
     var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var addingSubFor by remember { mutableStateOf<Category?>(null) }
+    var deletingCategory by remember { mutableStateOf<Category?>(null) }
     var expandedMajors by remember { mutableStateOf(setOf<Long>()) }
 
     remember(selectedType) { onTypeChanged(selectedType) }
@@ -126,11 +127,11 @@ fun CategoryManagementScreen(
                                 expandedMajors = if (expanded) expandedMajors - major.id else expandedMajors + major.id
                             },
                             onEditMajor = { editingCategory = major },
-                            onDeleteMajor = { onDeleteCategory(major) },
+                            onDeleteMajor = { deletingCategory = major },
                             onMoveMajor = { delta -> onMoveCategory(major, delta) },
                             onAddSub = { addingSubFor = major },
                             onEditSub = { editingCategory = it },
-                            onDeleteSub = { onDeleteCategory(it) },
+                            onDeleteSub = { deletingCategory = it },
                             onMoveSub = { sub, delta -> onMoveCategory(sub, delta) }
                         )
                     }
@@ -139,7 +140,7 @@ fun CategoryManagementScreen(
                         CategoryItemCard(
                             category = category,
                             onEdit = { editingCategory = category },
-                            onDelete = { onDeleteCategory(category) },
+                            onDelete = { deletingCategory = category },
                             onMove = { delta -> onMoveCategory(category, delta) }
                         )
                     }
@@ -180,6 +181,35 @@ fun CategoryManagementScreen(
             categoryType = selectedType,
             onConfirm = { name, icon, _ -> onAddSubCategory(name, icon, parent.color, selectedType, parent.id) },
             onDismiss = { addingSubFor = null }
+        )
+    }
+
+    // 删除确认：分类删除会级联删除其下全部交易记录（外键 CASCADE），必须二次确认
+    if (deletingCategory != null) {
+        val dc = deletingCategory!!
+        val subCount = categories.count { it.parentId == dc.id }
+        AlertDialog(
+            onDismissRequest = { deletingCategory = null },
+            title = { Text("删除分类「${dc.icon} ${dc.name}」？") },
+            text = {
+                Text(
+                    buildString {
+                        append("该分类下的所有交易记录将被一并永久删除，无法恢复。")
+                        if (subCount > 0) {
+                            append("\n\n此大类还包含 $subCount 个小类，小类及其交易记录也会同时删除。")
+                        }
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteCategory(dc)
+                    deletingCategory = null
+                }) { Text("确认删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingCategory = null }) { Text("取消") }
+            }
         )
     }
 }

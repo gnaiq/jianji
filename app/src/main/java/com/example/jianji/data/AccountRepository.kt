@@ -10,6 +10,7 @@ class AccountRepository(private val dao: AccountDao) {
     suspend fun insert(account: Account): Long = dao.insert(account)
     suspend fun update(account: Account) = dao.update(account)
     suspend fun delete(account: Account) = dao.delete(account)
+    suspend fun deleteAll() = dao.deleteAll()
     suspend fun setDefault(id: Long) {
         dao.clearDefaults()
         dao.setDefault(id)

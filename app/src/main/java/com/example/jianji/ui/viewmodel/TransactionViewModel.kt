@@ -117,7 +117,16 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun deleteCategory(category: Category) {
-        viewModelScope.launch { categoryRepository.deleteCategory(category) }
+        viewModelScope.launch {
+            // 删除大类时级联删除其子分类（各自交易由外键 CASCADE 一并删除），
+            // 避免子分类 parentId 悬空后在两级 UI 中不可见却仍残留在数据库
+            if (category.parentId == 0L) {
+                categoryRepository.getSiblings(category.type, category.id).forEach {
+                    categoryRepository.deleteCategory(it)
+                }
+            }
+            categoryRepository.deleteCategory(category)
+        }
     }
 
     // -- Account CRUD --
@@ -216,6 +225,7 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
             budgetRepo.deleteAll()
             templateRepo.deleteAll()
             recurringRepo.deleteAll()
+            accountRepo.deleteAll() // 修复：此前漏删账户，自定义账户在"清除所有数据"后残留
             categoryRepository.seedDefaults()
             accountRepo.seedDefaults()
         }
