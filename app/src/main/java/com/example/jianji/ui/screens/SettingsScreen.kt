@@ -265,7 +265,8 @@ fun SettingsScreen(
                     }
                 }
             }
-        )
+            )
+        }
 
         item {
             SettingsCard(
