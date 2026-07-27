@@ -609,7 +609,10 @@ fun TemplateManagementDialog(
         onDismissRequest = onDismiss,
         title = { Text("快捷模板") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (templates.isEmpty() && !showAdd) {
                     Text("暂无模板，点击下方按钮创建", style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
