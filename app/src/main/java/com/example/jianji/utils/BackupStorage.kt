@@ -126,4 +126,9 @@ object BackupStorage {
             if (file.exists()) file.delete()
         }
     }
+
+    /** 删除全部备份文件 */
+    fun deleteAll(context: Context) {
+        list(context).forEach { delete(context, it.uri) }
+    }
 }

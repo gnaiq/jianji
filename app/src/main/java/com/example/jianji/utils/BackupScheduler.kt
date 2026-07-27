@@ -14,10 +14,22 @@ object BackupScheduler {
     const val KEY_INTERVAL_DAYS = "auto_backup_interval_days"
     const val DEFAULT_DAYS = 7
     const val ACTION_AUTO_BACKUP = "com.example.jianji.ACTION_AUTO_BACKUP"
+    const val KEY_IMMEDIATE_BACKUP = "immediate_backup_enabled"
 
     fun getIntervalDays(context: Context): Int {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return if (!p.contains(KEY_INTERVAL_DAYS)) DEFAULT_DAYS else p.getInt(KEY_INTERVAL_DAYS, DEFAULT_DAYS)
+    }
+
+    /** 数据变更时是否即时备份（默认开启，保持原有行为） */
+    fun isImmediateBackupEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_IMMEDIATE_BACKUP, true)
+    }
+
+    fun setImmediateBackupEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_IMMEDIATE_BACKUP, enabled).apply()
     }
 
     fun saveIntervalDays(context: Context, days: Int) {

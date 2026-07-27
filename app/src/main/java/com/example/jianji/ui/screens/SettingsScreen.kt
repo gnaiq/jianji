@@ -60,6 +60,7 @@ fun SettingsScreen(
     val excelExportManager = remember { ExcelExportManager(context) }
     val posterGenerator = remember { PosterGenerator(context) }
     var updateStatus by remember { mutableStateOf("检查更新") }
+    var downloadProgress by remember { mutableIntStateOf(0) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -138,6 +139,7 @@ fun SettingsScreen(
         item {
             var autoBackupDays by remember { mutableIntStateOf(BackupScheduler.getIntervalDays(context)) }
             val autoBackupEnabled = autoBackupDays > 0
+            var immediateBackup by remember { mutableStateOf(BackupScheduler.isImmediateBackupEnabled(context)) }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -178,6 +180,21 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
+                            Text("数据变更即时备份", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (immediateBackup) "已开启：数据变更时自动备份" else "已关闭：数据变更不再自动备份",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Switch(checked = immediateBackup, onCheckedChange = { on ->
+                            immediateBackup = on
+                            BackupScheduler.setImmediateBackupEnabled(context, on)
+                        })
                     }
                 }
             }
@@ -296,12 +313,18 @@ fun SettingsScreen(
                         if (info == null) {
                             updateStatus = "当前已是最新版本"
                         } else {
-                            updateStatus = "发现新版本 v${info.versionName}，正在下载并自动安装…"
+                            updateStatus = "发现新版本 v${info.versionName}，开始下载…"
+                            downloadProgress = 0
                             try {
-                                updateManager.downloadAndInstall(info.downloadUrl)
+                                updateManager.downloadAndInstall(info.downloadUrl) { p ->
+                                    downloadProgress = p
+                                    updateStatus = "正在下载更新：$p%"
+                                }
                                 updateStatus = "下载完成，正在安装…"
+                                downloadProgress = 0
                             } catch (e: Exception) {
                                 updateStatus = "下载失败: ${e.message ?: "未知错误"}"
+                                downloadProgress = 0
                             }
                         }
                     }.onFailure { e ->
@@ -321,6 +344,15 @@ fun SettingsScreen(
                 }
             }
             )
+        }
+
+        if (downloadProgress in 1..99) {
+            item {
+                LinearProgressIndicator(
+                    progress = { downloadProgress / 100f },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
+            }
         }
 
         item {
@@ -1020,6 +1052,9 @@ fun BackupManagementDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     var backups by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
     var toDelete by remember { mutableStateOf<BackupFileEntry?>(null) }
+    var showDeleteAll1 by remember { mutableStateOf(false) }
+    var showDeleteAll2 by remember { mutableStateOf(false) }
+    var verifyText by remember { mutableStateOf("") }
 
     fun refresh() { backups = BackupStorage.list(context) }
     LaunchedEffect(Unit) { refresh() }
@@ -1054,7 +1089,17 @@ fun BackupManagementDialog(onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+        confirmButton = {
+            Row(modifier = Modifier.padding(end = 8.dp)) {
+                if (backups.isNotEmpty()) {
+                    TextButton(
+                        onClick = { showDeleteAll1 = true; verifyText = "" },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text("删除全部") }
+                }
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            }
+        }
     )
 
     if (toDelete != null) {
@@ -1076,6 +1121,56 @@ fun BackupManagementDialog(onDismiss: () -> Unit) {
                 }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("删除") }
             },
             dismissButton = { TextButton(onClick = { toDelete = null }) { Text("取消") } }
+        )
+    }
+
+    if (showDeleteAll1) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAll1 = false },
+            title = { Text("删除全部备份") },
+            text = { Text("确定要删除全部 ${backups.size} 个备份文件吗？此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAll1 = false
+                        showDeleteAll2 = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("继续") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteAll1 = false }) { Text("取消") } }
+        )
+    }
+
+    if (showDeleteAll2) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAll2 = false },
+            title = { Text("二次确认") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("请输入「删除」以确认删除全部备份：")
+                    OutlinedTextField(
+                        value = verifyText,
+                        onValueChange = { verifyText = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        BackupStorage.deleteAll(context)
+                        Toast.makeText(context, "已删除全部 ${backups.size} 个备份", Toast.LENGTH_SHORT).show()
+                        verifyText = ""
+                        showDeleteAll2 = false
+                        refresh()
+                    },
+                    enabled = verifyText == "删除",
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("确认删除") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteAll2 = false }) { Text("取消") } }
         )
     }
 }

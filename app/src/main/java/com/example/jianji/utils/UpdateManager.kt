@@ -114,7 +114,7 @@ class UpdateManager(private val context: Context) {
      * 通过 HttpURLConnection 直接下载 APK（绕过 DownloadManager 的 file:// URI 暴露问题），
      * 下载完成后用 FileProvider 触发安装。下载与检查更新走同一网络通路。
      */
-    suspend fun downloadAndInstall(url: String) = withContext(Dispatchers.IO) {
+    suspend fun downloadAndInstall(url: String, onProgress: (Int) -> Unit = {}) = withContext(Dispatchers.IO) {
         val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
         if (apkFile.exists()) apkFile.delete()
 
@@ -128,9 +128,21 @@ class UpdateManager(private val context: Context) {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw Exception("下载服务器返回错误码 ${connection.responseCode}")
             }
+            val total = connection.contentLengthLong
             connection.inputStream.use { input ->
-                apkFile.outputStream().use { output -> input.copyTo(output) }
+                apkFile.outputStream().use { output ->
+                    val buffer = ByteArray(8192)
+                    var copied = 0L
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        output.write(buffer, 0, read)
+                        copied += read
+                        if (total > 0) onProgress((copied * 100 / total).toInt())
+                    }
+                    output.flush()
+                }
             }
+            onProgress(100)
         } finally {
             connection.disconnect()
         }

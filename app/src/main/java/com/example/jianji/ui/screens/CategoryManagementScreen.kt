@@ -9,8 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -302,6 +306,25 @@ private fun MajorCategoryCard(
 }
 
 @Composable
+// 分类可选图标（150 种），emoji 字符串与原有数据模型完全兼容，无需迁移
+private val CATEGORY_ICONS = listOf(
+    "🍔","🍕","🍟","🌭","🍿","🥓","🥞","🧇","🥐","🍞",
+    "🥪","🥙","🌮","🌯","🥗","🍝","🍜","🍲","🍣","🍱",
+    "🍛","🍚","🍙","🍘","🍥","🍡","🍧","🍨","🍦","🥧",
+    "🍰","🎂","🍫","🍬","🍭","🍩","🍪","☕","🍵","🧃",
+    "🥤","🍺","🍻","🍷","🥂","🍸","🍹","🏠","🏡","🏢",
+    "🏬","🏦","🏥","🏨","🏪","🏫","🏭","🏰","💒","⛪",
+    "🕌","🛕","🗼","🗽","🌋","🏖️","🏝️","🏔️","🌄","🌅",
+    "🌆","🌇","🌃","🌉","🚌","🚏","🚗","🚕","🚙","🚚",
+    "🚛","🚜","🛵","🏍️","🚲","🛴","✈️","🚀","🚁","🚂",
+    "🚆","🚇","⚓","⛵","🚤","🛳️","🚥","🅿️","⛽","🔧",
+    "🔨","🛠️","⚙️","💡","🔌","🔋","📱","💻","⌨️","🖥️",
+    "🖨️","📷","📹","🎥","📺","📻","🎵","🎶","🎤","🎧",
+    "🎮","🕹️","🎲","♟️","🎯","⚽","🏀","🏈","⚾","🎾",
+    "🏐","🏉","🎱","🏓","🏸","🥅","🏒","🏑","🥍","🏹",
+    "🎣","🎿","⛷️","🏂","🛷","🥊","🥋","🎽","⛸️","🛹"
+)
+
 fun RichCategoryFormDialog(
     title: String,
     categoryType: TransactionType,
@@ -334,18 +357,33 @@ fun RichCategoryFormDialog(
                     singleLine = true
                 )
                 Text("选择图标", style = MaterialTheme.typography.labelMedium)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(icons) { icon ->
-                        Card(
-                            modifier = Modifier.clickable { selectedIcon = icon },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selectedIcon == icon)
-                                    MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surface
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(icon, modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.headlineSmall)
+                Box(modifier = Modifier.height(220.dp)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 44.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(icons) { icon ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clickable { selectedIcon = icon },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selectedIcon == icon)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Text(icon, style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
                         }
                     }
                 }

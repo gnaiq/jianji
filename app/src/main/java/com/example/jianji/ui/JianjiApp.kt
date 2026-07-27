@@ -44,9 +44,11 @@ fun JianjiApp() {
     LaunchedEffect(Unit) {
         BackupScheduler.ensureScheduled(context)
     }
-    LaunchedEffect(transactions) {
-        viewModel.autoBackup()
-    }
+        LaunchedEffect(transactions) {
+            if (BackupScheduler.isImmediateBackupEnabled(context)) {
+                viewModel.autoBackup()
+            }
+        }
 
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
     var showAddDialog by remember { mutableStateOf(false) }

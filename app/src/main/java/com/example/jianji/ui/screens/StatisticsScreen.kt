@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,6 +50,9 @@ fun StatisticsScreen(
     var weekOffset by remember { mutableStateOf(0) }
     var monthOffset by remember { mutableStateOf(0) }
     var yearOffset by remember { mutableStateOf(0) }
+    // 手动选日期作为统计基准日（默认今天），不影响原翻页逻辑
+    var baseDate by remember { mutableStateOf(LocalDate.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     val tabs = listOf("周统计", "月统计", "年统计")
 
@@ -72,24 +76,53 @@ fun StatisticsScreen(
             0 -> WeekStatistics(
                 transactions = transactions,
                 categoryNames = categoryNames,
+                baseDate = baseDate,
                 weekOffset = weekOffset,
                 onPrevWeek = { weekOffset-- },
-                onNextWeek = { if (weekOffset < 0) weekOffset++ else weekOffset = 0 }
+                onNextWeek = { if (weekOffset < 0) weekOffset++ else weekOffset = 0 },
+                onPickDate = { showDatePicker = true }
             )
             1 -> MonthStatistics(
                 transactions = transactions,
                 categoryNames = categoryNames,
+                baseDate = baseDate,
                 monthOffset = monthOffset,
                 onPrevMonth = { monthOffset-- },
-                onNextMonth = { if (monthOffset < 0) monthOffset++ else monthOffset = 0 }
+                onNextMonth = { if (monthOffset < 0) monthOffset++ else monthOffset = 0 },
+                onPickDate = { showDatePicker = true }
             )
             2 -> YearStatistics(
                 transactions = transactions,
                 categoryNames = categoryNames,
+                baseDate = baseDate,
                 yearOffset = yearOffset,
                 onPrevYear = { yearOffset-- },
-                onNextYear = { if (yearOffset < 0) yearOffset++ else yearOffset = 0 }
+                onNextYear = { if (yearOffset < 0) yearOffset++ else yearOffset = 0 },
+                onPickDate = { showDatePicker = true }
             )
+        }
+
+        if (showDatePicker) {
+            val pickerState = rememberDatePickerState(
+                initialSelectedDateMillis = baseDate.toEpochDay() * 86_400_000L
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pickerState.selectedDateMillis?.let { millis ->
+                            baseDate = LocalDate.ofEpochDay(millis / 86_400_000L)
+                            weekOffset = 0; monthOffset = 0; yearOffset = 0
+                        }
+                        showDatePicker = false
+                    }) { Text("确定") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                }
+            ) {
+                DatePicker(state = pickerState)
+            }
         }
     }
 }
@@ -237,11 +270,13 @@ private fun TrendLineChart(
 private fun WeekStatistics(
     transactions: List<Transaction>,
     categoryNames: Map<Long, String>,
+    baseDate: LocalDate,
     weekOffset: Int,
     onPrevWeek: () -> Unit,
-    onNextWeek: () -> Unit
+    onNextWeek: () -> Unit,
+    onPickDate: () -> Unit
 ) {
-    val range = getWeekRange(weekOffset)
+    val range = getWeekRange(baseDate, weekOffset)
     val filtered = remember(transactions, range.first, range.second) {
         transactions.filter { t ->
             !t.date.isBefore(range.first) && t.date.isBefore(range.second)
@@ -265,7 +300,8 @@ private fun WeekStatistics(
             label = formatWeekLabel(range.first.toLocalDate()),
             onPrev = onPrevWeek,
             onNext = onNextWeek,
-            allowNext = weekOffset < 0
+            allowNext = weekOffset < 0,
+            onPickDate = onPickDate
         )
         TrendLineChart("本周每日趋势", weekLabels, weekExpense, weekIncome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -278,9 +314,8 @@ private fun WeekStatistics(
     }
 }
 
-private fun getWeekRange(weekOffset: Int): Pair<LocalDateTime, LocalDateTime> {
-    val now = LocalDate.now()
-    val monday = now.plusWeeks(weekOffset.toLong()).with(DayOfWeek.MONDAY)
+private fun getWeekRange(base: LocalDate, weekOffset: Int): Pair<LocalDateTime, LocalDateTime> {
+    val monday = base.plusWeeks(weekOffset.toLong()).with(DayOfWeek.MONDAY)
     return Pair(monday.atStartOfDay(), monday.plusWeeks(1).atStartOfDay())
 }
 
@@ -297,11 +332,13 @@ private fun formatWeekLabel(monday: LocalDate): String {
 private fun MonthStatistics(
     transactions: List<Transaction>,
     categoryNames: Map<Long, String>,
+    baseDate: LocalDate,
     monthOffset: Int,
     onPrevMonth: () -> Unit,
-    onNextMonth: () -> Unit
+    onNextMonth: () -> Unit,
+    onPickDate: () -> Unit
 ) {
-    val range = getMonthRange(monthOffset)
+    val range = getMonthRange(baseDate, monthOffset)
     val filtered = remember(transactions, range.first, range.second) {
         transactions.filter { t ->
             !t.date.isBefore(range.first) && t.date.isBefore(range.second)
@@ -326,7 +363,8 @@ private fun MonthStatistics(
             label = range.first.toLocalDate().run { "${year}年 ${monthValue}月" },
             onPrev = onPrevMonth,
             onNext = onNextMonth,
-            allowNext = monthOffset < 0
+            allowNext = monthOffset < 0,
+            onPickDate = onPickDate
         )
         TrendLineChart("本月每日趋势（日）", monthLabels, monthExpense, monthIncome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -339,9 +377,8 @@ private fun MonthStatistics(
     }
 }
 
-private fun getMonthRange(monthOffset: Int): Pair<LocalDateTime, LocalDateTime> {
-    val now = LocalDate.now()
-    val firstDay = now.plusMonths(monthOffset.toLong()).withDayOfMonth(1)
+private fun getMonthRange(base: LocalDate, monthOffset: Int): Pair<LocalDateTime, LocalDateTime> {
+    val firstDay = base.plusMonths(monthOffset.toLong()).withDayOfMonth(1)
     return Pair(firstDay.atStartOfDay(), firstDay.plusMonths(1).atStartOfDay())
 }
 
@@ -351,11 +388,13 @@ private fun getMonthRange(monthOffset: Int): Pair<LocalDateTime, LocalDateTime> 
 private fun YearStatistics(
     transactions: List<Transaction>,
     categoryNames: Map<Long, String>,
+    baseDate: LocalDate,
     yearOffset: Int,
     onPrevYear: () -> Unit,
-    onNextYear: () -> Unit
+    onNextYear: () -> Unit,
+    onPickDate: () -> Unit
 ) {
-    val range = getYearRange(yearOffset)
+    val range = getYearRange(baseDate, yearOffset)
     val filtered = remember(transactions, range.first, range.second) {
         transactions.filter { t ->
             !t.date.isBefore(range.first) && t.date.isBefore(range.second)
@@ -384,7 +423,8 @@ private fun YearStatistics(
             label = "${range.first.year}年",
             onPrev = onPrevYear,
             onNext = onNextYear,
-            allowNext = yearOffset < 0
+            allowNext = yearOffset < 0,
+            onPickDate = onPickDate
         )
         TrendLineChart("本年各月趋势（月）", monthLabels, monthExpense, monthIncome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -399,9 +439,8 @@ private fun YearStatistics(
     }
 }
 
-private fun getYearRange(yearOffset: Int): Pair<LocalDateTime, LocalDateTime> {
-    val now = LocalDate.now()
-    val firstDay = now.plusYears(yearOffset.toLong()).withDayOfYear(1)
+private fun getYearRange(base: LocalDate, yearOffset: Int): Pair<LocalDateTime, LocalDateTime> {
+    val firstDay = base.plusYears(yearOffset.toLong()).withDayOfYear(1)
     return Pair(firstDay.atStartOfDay(), firstDay.plusYears(1).atStartOfDay())
 }
 
@@ -412,7 +451,8 @@ private fun PeriodNavigator(
     label: String,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    allowNext: Boolean
+    allowNext: Boolean,
+    onPickDate: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -429,12 +469,17 @@ private fun PeriodNavigator(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium
         )
-        if (allowNext) {
-            IconButton(onClick = onNext) {
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一个")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onPickDate) {
+                Icon(Icons.Filled.DateRange, contentDescription = "选择日期", tint = MaterialTheme.colorScheme.primary)
             }
-        } else {
-            Spacer(modifier = Modifier.size(48.dp))
+            if (allowNext) {
+                IconButton(onClick = onNext) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一个")
+                }
+            } else {
+                Spacer(modifier = Modifier.size(48.dp))
+            }
         }
     }
 }
