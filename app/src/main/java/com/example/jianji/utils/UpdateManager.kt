@@ -17,6 +17,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 
 class UpdateManager(private val context: Context) {
 
@@ -31,6 +32,9 @@ class UpdateManager(private val context: Context) {
         private const val GITHUB_API = "https://api.github.com/repos/gnaiq/jianji/releases/latest"
     }
 
+    private val updatePrefs by lazy { context.getSharedPreferences("jianji_update", Context.MODE_PRIVATE) }
+    private val cancelled = AtomicBoolean(false)
+
     /**
      * 检查 GitHub 最新 Release。
      * 返回 null 表示当前已是最新版。
@@ -44,10 +48,10 @@ class UpdateManager(private val context: Context) {
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
 
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
             if (connection.responseCode != 200) {
                 return@withContext Result.failure(Exception("GitHub API error: ${connection.responseCode}"))
             }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
 
             val json = JSONObject(body)
             val tagName = json.getString("tag_name")
@@ -97,24 +101,16 @@ class UpdateManager(private val context: Context) {
      * 语义化比较版本号：latest 是否比 current 更新。
      * 例：current="1.3.0", latest="1.3.5" -> true；current="1.4.0", latest="1.3.5" -> false
      */
-    private fun isNewerVersion(current: String, latest: String): Boolean {
-        val c = current.split(".").map { it.toIntOrNull() ?: 0 }
-        val l = latest.split(".").map { it.toIntOrNull() ?: 0 }
-        val len = maxOf(c.size, l.size)
-        for (i in 0 until len) {
-            val cv = c.getOrElse(i) { 0 }
-            val lv = l.getOrElse(i) { 0 }
-            if (lv > cv) return true
-            if (lv < cv) return false
-        }
-        return false
-    }
+    // 语义化比较版本号（实现见 com.example.jianji.utils.compareVersionNewer，便于单元测试；已修复 "-fixed" 后缀误判 P2-2d）
+    private fun isNewerVersion(current: String, latest: String): Boolean =
+        compareVersionNewer(current, latest)
 
     /**
      * 通过 HttpURLConnection 直接下载 APK（绕过 DownloadManager 的 file:// URI 暴露问题），
      * 下载完成后用 FileProvider 触发安装。下载与检查更新走同一网络通路。
      */
     suspend fun downloadAndInstall(url: String, onProgress: (Int) -> Unit = {}) = withContext(Dispatchers.IO) {
+        cancelled.set(false)
         val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
         if (apkFile.exists()) apkFile.delete()
 
@@ -135,6 +131,11 @@ class UpdateManager(private val context: Context) {
                     var copied = 0L
                     var read: Int
                     while (input.read(buffer).also { read = it } != -1) {
+                        if (cancelled.get()) {
+                            output.flush()
+                            apkFile.delete()
+                            throw Exception("已取消下载")
+                        }
                         output.write(buffer, 0, read)
                         copied += read
                         if (total > 0) onProgress((copied * 100 / total).toInt())
@@ -165,6 +166,7 @@ class UpdateManager(private val context: Context) {
         }
 
         withContext(Dispatchers.Main) { installApk(apkFile) }
+        markUpdateInstalled()
     }
 
     /**
@@ -318,6 +320,7 @@ class UpdateManager(private val context: Context) {
             return
         }
         installApk(f)
+        markUpdateInstalled()
     }
 
     /** 手动下载地址 */
@@ -346,5 +349,31 @@ class UpdateManager(private val context: Context) {
                 Toast.LENGTH_LONG
             ).show()
         }
+    }
+
+    /** 取消正在进行的下载（由“检查更新”界面取消按钮调用，P2-2b） */
+    fun cancelDownload() { cancelled.set(true) }
+
+    /** 更新成功后调用：标记待清理，下次冷启动由 MainActivity 执行真正的缓存清理 */
+    fun markUpdateInstalled() {
+        updatePrefs.edit().putBoolean("pending_clear", true).apply()
+    }
+
+    /**
+     * 清除所有更新包与更新缓存数据（APK 安装包 + 私有缓存目录中相关文件）。
+     * 由“检查更新”流程在安装完成后标记，于下次应用冷启动时执行
+     * （P2-2 收尾 + 用户新增要求：更新后清除所有更新包和更新缓存包数据）。
+     */
+    fun clearUpdateCache() {
+        try {
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            val apk = File(dir, "jianji_update.apk")
+            if (apk.exists()) apk.delete()
+            context.cacheDir?.listFiles()?.forEach { f ->
+                if (f.name.contains("jianji_update", ignoreCase = true) || f.name.endsWith(".apk", ignoreCase = true)) {
+                    f.delete()
+                }
+            }
+        } catch (_: Exception) { }
     }
 }

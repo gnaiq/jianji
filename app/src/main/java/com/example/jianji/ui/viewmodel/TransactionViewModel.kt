@@ -148,10 +148,6 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { accountRepo.update(account) }
     }
 
-    fun deleteAccount(account: Account) {
-        viewModelScope.launch { accountRepo.delete(account) }
-    }
-
     // 删除账户前先解绑其交易（accountId 置空），防止悬空引用（P1-4 账户删除治理）
     fun deleteAccountCascade(account: Account) {
         viewModelScope.launch {

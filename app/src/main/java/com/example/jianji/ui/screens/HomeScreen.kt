@@ -629,7 +629,9 @@ fun TransactionItemCard(
 }
 
 fun formatAmount(amount: Double): String {
+    // 兜底：异常数据（NaN/Infinity）统一显示为 0.00，避免界面崩溃（v1.5.1）
+    val v = if (amount.isNaN() || amount.isInfinite()) 0.0 else amount
     return NumberFormat.getNumberInstance(Locale.getDefault()).apply {
         minimumFractionDigits = 2; maximumFractionDigits = 2
-    }.format(amount)
+    }.format(v)
 }

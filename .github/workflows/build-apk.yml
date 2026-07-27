@@ -43,6 +43,12 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease
 
+      # 单元测试（P2-7）：纯逻辑回归保护，覆盖版本比较/周期推算/统计计算。
+      # 失败即阻断发布，确保“检查更新”与周期交易等逻辑不被回退破坏。
+      - name: Run unit tests
+        if: startsWith(github.ref, 'refs/tags/')
+        run: gradle testDebugUnitTest
+
       # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag。
       # 否则已装用户（含本地高 versionCode 调试包）升级时会触发系统“已安装更高版本”
       # 而失败。此步在打包后、上传前拦截，避免发布降级版本。

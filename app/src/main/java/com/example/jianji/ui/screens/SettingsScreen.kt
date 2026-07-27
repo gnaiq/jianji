@@ -46,7 +46,9 @@ fun SettingsScreen(
     templates: List<QuickTemplate> = emptyList(),
     recurringTransactions: List<RecurringTransaction> = emptyList(),
     viewModel: TransactionViewModel? = null,
-    onDataCleared: () -> Unit = {}
+    onDataCleared: () -> Unit = {},
+    darkMode: Int = 0,
+    onDarkModeChange: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -58,6 +60,7 @@ fun SettingsScreen(
     var showImportDialog by remember { mutableStateOf(false) }
     var showBackupManage by remember { mutableStateOf(false) }
     var showPosterDialog by remember { mutableStateOf(false) }
+    var showDarkModeDialog by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
     var showExportProgress by remember { mutableStateOf(false) }
 
@@ -335,6 +338,18 @@ fun SettingsScreen(
             )
         }
 
+        // === 外观 ===
+        item { SectionHeader("外观") }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.DarkMode,
+                title = "深色模式",
+                subtitle = when (darkMode) { 0 -> "跟随系统"; 1 -> "浅色"; 2 -> "深色" },
+                onClick = { showDarkModeDialog = true }
+            )
+        }
+
         // === 关于 ===
         item { SectionHeader("关于 & 更新") }
 
@@ -391,6 +406,14 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )
             }
+            item {
+                Box(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    TextButton(onClick = { updateManager.cancelDownload() }) { Text("取消下载") }
+                }
+            }
         }
 
         item {
@@ -425,6 +448,33 @@ fun SettingsScreen(
         BudgetSettingsDialog(
             viewModel = viewModel,
             onDismiss = { showBudgetDialog = false }
+        )
+    }
+
+    if (showDarkModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDarkModeDialog = false },
+            title = { Text("深色模式") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0 to "跟随系统", 1 to "浅色", 2 to "深色").forEach { (mode, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                onDarkModeChange(mode); showDarkModeDialog = false
+                            },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            RadioButton(
+                                selected = darkMode == mode,
+                                onClick = { onDarkModeChange(mode); showDarkModeDialog = false }
+                            )
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showDarkModeDialog = false }) { Text("关闭") } }
         )
     }
 

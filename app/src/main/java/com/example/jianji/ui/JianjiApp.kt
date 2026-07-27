@@ -29,7 +29,10 @@ enum class Tab(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JianjiApp() {
+fun JianjiApp(
+    darkMode: Int = 0,
+    onDarkModeChange: (Int) -> Unit = {}
+) {
     val context = LocalContext.current
     val viewModel: TransactionViewModel = viewModel(
         factory = TransactionViewModelFactory(context.applicationContext as android.app.Application)
@@ -167,7 +170,9 @@ fun JianjiApp() {
                     templates = allTemplates,
                     recurringTransactions = allRecurring,
                     viewModel = viewModel,
-                    onDataCleared = { viewModel.clearAllData() }
+                    onDataCleared = { viewModel.clearAllData() },
+                    darkMode = darkMode,
+                    onDarkModeChange = onDarkModeChange
                 )
             }
         }
