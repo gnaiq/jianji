@@ -142,6 +142,11 @@ class UpdateManager(private val context: Context) {
                     output.flush()
                 }
             }
+            // 完整性校验：防止网络中断产生的残缺 APK 被当作“低版本”误判
+            if (total > 0 && apkFile.length() != total) {
+                apkFile.delete()
+                throw Exception("下载文件不完整（已下载 ${apkFile.length()} / $total 字节），请重试或前往 GitHub 手动下载")
+            }
             onProgress(100)
         } finally {
             connection.disconnect()
@@ -163,6 +168,29 @@ class UpdateManager(private val context: Context) {
     }
 
     /**
+     * 可靠读取 APK 的版本信息。
+     * 某些 ROM 在 flags=0 时不填充 versionCode，故以签名标志再读一次作为兜底，
+     * 避免把“版本号读不出来”误判为低版本而阻断正常更新。
+     */
+    private data class ApkVersion(val code: Long, val name: String)
+
+    private fun readApkVersion(pm: PackageManager, apk: File): ApkVersion? {
+        fun read(flags: Int): Pair<Long, String> {
+            val info = pm.getPackageArchiveInfo(apk.absolutePath, flags) ?: return 0L to ""
+            val code = PackageInfoCompat.getLongVersionCode(info)
+            val name = info.versionName ?: ""
+            return code to name
+        }
+        var (code, name) = read(0)
+        if (code <= 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val (c2, n2) = read(PackageManager.GET_SIGNING_CERTIFICATES)
+            if (c2 > code) code = c2
+            if (name.isEmpty()) name = n2
+        }
+        return if (code > 0 || name.isNotEmpty()) ApkVersion(code, name) else null
+    }
+
+    /**
      * 安装前自检：读取下载 APK 的包名 / versionCode / 签名，与已装应用比对。
      * 返回 null 表示可以安装；否则返回需要提示给用户的原因。
      *
@@ -176,13 +204,14 @@ class UpdateManager(private val context: Context) {
     private fun installBlockedReason(apk: File): String? {
         val pm = context.packageManager
 
-        // 1) 轻量读取包名 + versionCode（不带签名标志，确保 versionCode 可靠）
+        // 1) 包名一致性（轻量读取）
         val light = pm.getPackageArchiveInfo(apk.absolutePath, 0)
-            ?: return "无法读取安装包信息，请到下载目录手动安装"
-        if (light.packageName != context.packageName) {
-            return "安装包包名(${light.packageName})与当前应用不一致，无法覆盖安装"
+        if (light?.packageName != context.packageName) {
+            return "安装包包名(${light?.packageName})与当前应用不一致，无法覆盖安装"
         }
-        val apkVc = PackageInfoCompat.getLongVersionCode(light)
+
+        // 2) 可靠读取版本号（多方法兜底，避免把“读不出版本”误判为低版本）
+        val apkVer = readApkVersion(pm, apk) ?: return "无法读取安装包信息，请到下载目录手动安装"
 
         val installedFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
             PackageManager.GET_SIGNING_CERTIFICATES else 0
@@ -192,19 +221,27 @@ class UpdateManager(private val context: Context) {
 
         if (installed != null) {
             val installedVc = PackageInfoCompat.getLongVersionCode(installed)
+            val installedName = installed.versionName ?: ""
 
-            // 2) 版本守卫（fail-safe：读不到版本号也禁止安装，避免触发系统降级报错）
-            if (apkVc <= 0 || apkVc <= installedVc) {
+            // 3) 版本守卫：versionCode 可读时以它为准；读不出时退化为 versionName 语义比较
+            val downgrade = if (apkVer.code > 0) {
+                apkVer.code <= installedVc
+            } else {
+                !isNewerVersion(installedName, apkVer.name)
+            }
+            if (downgrade) {
                 val reason = when {
-                    apkVc <= 0 -> "版本号无法读取"
-                    apkVc < installedVc -> "低于"
-                    else -> "不高于（同版本）"
+                    apkVer.code > 0 && apkVer.code < installedVc -> "低于"
+                    apkVer.code > 0 -> "不高于（同版本）"
+                    else -> "无法确认比已安装版本更新"
                 }
-                return "下载的安装包版本(code $apkVc) $reason 已安装版本(code $installedVc)，系统禁止降级或同版本覆盖安装。\n" +
+                val apkTag = if (apkVer.code > 0) "code ${apkVer.code}" else "v${apkVer.name}"
+                val insTag = if (apkVer.code > 0) "code $installedVc" else "v$installedName"
+                return "下载的安装包版本($apkTag) $reason 已安装版本($insTag)，系统禁止降级或同版本覆盖安装。\n" +
                         "可能原因：设备上装的是本地测试版（versionCode 更高），或上次更新的安装包残留。请先卸载当前应用，再安装正式版。"
             }
 
-            // 3) 签名一致性（单独读取签名，不干扰 versionCode 的可靠读取）
+            // 4) 签名一致性（单独读取签名，不干扰版本号的可靠读取）
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val archive = pm.getPackageArchiveInfo(
                     apk.absolutePath,
@@ -233,15 +270,14 @@ class UpdateManager(private val context: Context) {
     fun hasLocalApk(): Boolean {
         val f = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "jianji_update.apk")
         if (!f.exists() || f.length() == 0L) return false
-        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0) ?: return false
-        val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
-        if (apkVc <= 0) return false
+        val apkVer = readApkVersion(context.packageManager, f) ?: return false
+        if (apkVer.code <= 0) return false
         val installedVc = try {
             PackageInfoCompat.getLongVersionCode(
                 context.packageManager.getPackageInfo(context.packageName, 0)
             )
         } catch (_: Exception) { 0L }
-        return apkVc > installedVc
+        return apkVer.code > installedVc
     }
 
     /** 安装本机已下载好的更新安装包（检查更新失败但仍已下好包时复用） */
@@ -252,15 +288,14 @@ class UpdateManager(private val context: Context) {
             return
         }
         // 自检：本地 APK 版本是否真正新于已装版本（防止上次更新残留的同级/旧包被误装）
-        val archiveInfo = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0)
-        if (archiveInfo != null) {
-            val apkVc = PackageInfoCompat.getLongVersionCode(archiveInfo)
+        val apkVer = readApkVersion(context.packageManager, f)
+        if (apkVer != null && apkVer.code > 0) {
             val installedVc = try {
                 PackageInfoCompat.getLongVersionCode(
                     context.packageManager.getPackageInfo(context.packageName, 0)
                 )
             } catch (_: Exception) { 0L }
-            if (apkVc > 0 && apkVc <= installedVc) {
+            if (apkVer.code <= installedVc) {
                 f.delete()
                 Toast.makeText(context,
                     "本地安装包版本不新于当前已装版本，已自动清理残留文件",

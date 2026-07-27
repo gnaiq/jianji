@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -104,28 +107,142 @@ fun StatisticsScreen(
         }
 
         if (showDatePicker) {
-            val pickerState = rememberDatePickerState(
-                initialSelectedDateMillis = baseDate.toEpochDay() * 86_400_000L
-            )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pickerState.selectedDateMillis?.let { millis ->
-                            baseDate = LocalDate.ofEpochDay(millis / 86_400_000L)
-                            weekOffset = 0; monthOffset = 0; yearOffset = 0
-                        }
+            when (selectedTab) {
+                1 -> MonthPickerDialog(
+                    initial = baseDate,
+                    onConfirm = {
+                        baseDate = it
+                        weekOffset = 0; monthOffset = 0; yearOffset = 0
                         showDatePicker = false
-                    }) { Text("确定") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                    },
+                    onDismiss = { showDatePicker = false }
+                )
+                2 -> YearPickerDialog(
+                    initial = baseDate,
+                    onConfirm = {
+                        baseDate = it
+                        weekOffset = 0; monthOffset = 0; yearOffset = 0
+                        showDatePicker = false
+                    },
+                    onDismiss = { showDatePicker = false }
+                )
+                else -> {
+                    val pickerState = rememberDatePickerState(
+                        initialSelectedDateMillis = baseDate.toEpochDay() * 86_400_000L
+                    )
+                    DatePickerDialog(
+                        onDismissRequest = { showDatePicker = false },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                pickerState.selectedDateMillis?.let { millis ->
+                                    baseDate = LocalDate.ofEpochDay(millis / 86_400_000L)
+                                    weekOffset = 0; monthOffset = 0; yearOffset = 0
+                                }
+                                showDatePicker = false
+                            }) { Text("确定") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                        }
+                    ) {
+                        DatePicker(state = pickerState)
+                    }
                 }
-            ) {
-                DatePicker(state = pickerState)
             }
         }
     }
+}
+
+// ─── 月 / 年 选择器（不出现日 / 月+日） ─────────────────────
+
+@Composable
+private fun MonthPickerDialog(
+    initial: LocalDate,
+    onConfirm: (LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var displayYear by remember { mutableStateOf(initial.year) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择月份") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { displayYear-- }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一年")
+                    }
+                    Text("${displayYear}年", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                    IconButton(onClick = { displayYear++ }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一年")
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.heightIn(max = 240.dp)
+                ) {
+                    items((1..12).toList()) { m ->
+                        val selected = displayYear == initial.year && m == initial.monthValue
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onConfirm(LocalDate.of(displayYear, m, 1)) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                            ) {
+                                Text("${m}月", style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+@Composable
+private fun YearPickerDialog(
+    initial: LocalDate,
+    onConfirm: (LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val years = remember(initial) { ((initial.year - 10)..(initial.year + 1)).toList().reversed() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择年份") },
+        text = {
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+                items(years) { y ->
+                    val selected = y == initial.year
+                    TextButton(
+                        onClick = { onConfirm(LocalDate.of(y, 1, 1)) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "${y}年",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 // 选中数据点后展示的时段费用

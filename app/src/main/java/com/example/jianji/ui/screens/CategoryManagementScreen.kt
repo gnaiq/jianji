@@ -339,7 +339,7 @@ fun RichCategoryFormDialog(
     var selectedIcon by remember { mutableStateOf(initialIcon) }
     var selectedColor by remember { mutableStateOf(initialColor) }
 
-    val icons = listOf("🍔","🍕","🚌","🏥","🎮","📚","👕","💄","🏠","⚡","📱","🎵","✈️","🎁","💊","🏋️","🐱","☕","💻","🚗")
+    val icons = CATEGORY_ICONS
     val colors = listOf("#E57373","#F06292","#BA68C8","#9575CD","#7986CB","#64B5F6","#4FC3F7","#4DB6AC","#81C784","#AED581","#FFD54F","#FFB74D","#FF8A65","#A1887F","#90A4AE","#E0E0E0")
 
     AlertDialog(
