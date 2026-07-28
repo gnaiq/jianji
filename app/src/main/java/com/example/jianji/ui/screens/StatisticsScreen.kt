@@ -402,17 +402,17 @@ private fun WeekStatistics(
             !t.date.isBefore(range.first) && t.date.isBefore(range.second)
         }
     }
-    val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }
+    val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }
 
     val weekStart = range.first.toLocalDate()
     val weekDays = (0..6).map { weekStart.plusDays(it.toLong()) }
     val weekLabels = weekDays.map { it.format(DateTimeFormatter.ofPattern("M/d")) }
     val weekExpense = weekDays.map { d ->
-        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
     val weekIncome = weekDays.map { d ->
-        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.INCOME }.sumOf { it.amount }.toFloat()
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -464,18 +464,18 @@ private fun MonthStatistics(
             !t.date.isBefore(range.first) && t.date.isBefore(range.second)
         }
     }
-    val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }
+    val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }
 
     val monthStart = range.first.toLocalDate()
     val daysInMonth = monthStart.lengthOfMonth()
     val monthDays = (1..daysInMonth).map { monthStart.withDayOfMonth(it) }
     val monthLabels = monthDays.map { it.dayOfMonth.toString() }
     val monthExpense = monthDays.map { d ->
-        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
     val monthIncome = monthDays.map { d ->
-        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.INCOME }.sumOf { it.amount }.toFloat()
+        filtered.filter { it.date.toLocalDate() == d && it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -520,22 +520,22 @@ private fun YearStatistics(
             !t.date.isBefore(range.first) && t.date.isBefore(range.second)
         }
     }
-    val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val incomeTotal = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }
+    val expenseTotal = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }
 
     val year = range.first.year
     val yearTxs = transactions.filter { it.date.year == year }
     val monthLabels = (1..12).map { "${it}月" }
     val monthExpense = (1..12).map { m ->
-        yearTxs.filter { it.date.monthValue == m && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+        yearTxs.filter { it.date.monthValue == m && it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
     val monthIncome = (1..12).map { m ->
-        yearTxs.filter { it.date.monthValue == m && it.type == TransactionType.INCOME }.sumOf { it.amount }.toFloat()
+        yearTxs.filter { it.date.monthValue == m && it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
     val years = ((year - 4)..year).toList()
     val fiveYearLabels = years.map { "$it" }
     val fiveYearExpense = years.map { y ->
-        transactions.filter { it.date.year == y && it.type == TransactionType.EXPENSE }.sumOf { it.amount }.toFloat()
+        transactions.filter { it.date.year == y && it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }.toFloat()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -653,7 +653,7 @@ private fun StatisticsContent(
             val expenseByCategory = filteredTransactions
                 .filter { it.type == TransactionType.EXPENSE }
                 .groupBy { it.categoryId }
-                .mapValues { (_, list) -> list.sumOf { it.amount } }
+                .mapValues { (_, list) -> list.sumOf { it.amountCents / 100.0 } }
                 .entries
                 .sortedByDescending { it.value }
 
@@ -686,7 +686,7 @@ private fun StatisticsContent(
             val incomeByCategory = filteredTransactions
                 .filter { it.type == TransactionType.INCOME }
                 .groupBy { it.categoryId }
-                .mapValues { (_, list) -> list.sumOf { it.amount } }
+                .mapValues { (_, list) -> list.sumOf { it.amountCents / 100.0 } }
                 .entries
                 .sortedByDescending { it.value }
 
@@ -727,14 +727,14 @@ private fun StatisticsContent(
             val dailyExpense = filteredTransactions
                 .filter { it.type == TransactionType.EXPENSE }
                 .groupBy { it.date.toLocalDate() }
-                .mapValues { (_, list) -> list.sumOf { it.amount } }
+                .mapValues { (_, list) -> list.sumOf { it.amountCents / 100.0 } }
                 .entries
                 .sortedBy { it.key }
 
             val dailyIncome = filteredTransactions
                 .filter { it.type == TransactionType.INCOME }
                 .groupBy { it.date.toLocalDate() }
-                .mapValues { (_, list) -> list.sumOf { it.amount } }
+                .mapValues { (_, list) -> list.sumOf { it.amountCents / 100.0 } }
                 .entries
                 .sortedBy { it.key }
 
