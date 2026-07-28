@@ -92,9 +92,10 @@ fun HistoryScreen(
                     minAmountText = ""
                     maxAmountText = ""
                 }) { Text("清除") }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onOpenRecycle) { Icon(Icons.Default.DeleteSweep, "回收站") }
             }
+            Spacer(Modifier.weight(1f))
+            // 回收站入口：常驻可见（不再被筛选条件隐藏），点击进入回收站恢复数据
+            IconButton(onClick = onOpenRecycle) { Icon(Icons.Default.DeleteSweep, "回收站") }
         }
 
         if (showFilters) {
