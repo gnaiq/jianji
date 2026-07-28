@@ -18,7 +18,7 @@
 set -euo pipefail
 REPO=gnaiq/jianji
 NEW_TAG=v1.4.20-rollback
-RB_VERSIONCODE=34   # 必须 > 线上最高 versionCode（v1.6.0=33）才能覆盖安装
+RB_VERSIONCODE=35   # 必须 > 线上最高 versionCode（v1.6.1=34）才能覆盖安装
 RB_VERSIONNAME=1.4.20-rollback
 
 if gh api "repos/$REPO/git/refs/tags/$NEW_TAG" >/dev/null 2>&1; then
@@ -64,7 +64,7 @@ TREE_SHA=$(echo "$TREE" | gh api "repos/$REPO/git/trees" --input - --jq '.sha')
 echo "tree = $TREE_SHA"
 
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-MSG="rollback: 回退到 v1.4.20（versionCode=$RB_VERSIONCODE，行为等同 v1.4.20，可覆盖安装到 v1.6.0）"
+MSG="rollback: 回退到 v1.4.20（versionCode=$RB_VERSIONCODE，行为等同 v1.4.20，可覆盖安装到 v1.6.1）"
 COMMIT_JSON=$(jq -n --arg tree "$TREE_SHA" --arg parent "$PARENT" --arg msg "$MSG" '{tree:$tree, parents:[$parent], message:$msg}')
 COMMIT_SHA=$(echo "$COMMIT_JSON" | gh api "repos/$REPO/git/commits" --input - --jq '.sha')
 echo "commit = $COMMIT_SHA"

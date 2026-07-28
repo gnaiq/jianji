@@ -24,6 +24,7 @@ enum class Tab(val label: String) {
     HOME("首页"),
     STATISTICS("统计"),
     CATEGORIES("分类管理"),
+    HISTORY("历史"),
     SETTINGS("设置")
 }
 
@@ -173,6 +174,13 @@ fun JianjiApp(
                     onDataCleared = { viewModel.clearAllData() },
                     darkMode = darkMode,
                     onDarkModeChange = onDarkModeChange
+                )
+                Tab.HISTORY -> HistoryScreen(
+                    transactions = transactions,
+                    categories = categories,
+                    accounts = allAccounts,
+                    onTransactionClick = { editingTransaction = it },
+                    onDeleteTransaction = { viewModel.deleteTransaction(it) }
                 )
             }
         }

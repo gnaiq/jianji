@@ -102,7 +102,11 @@ abstract class JianjiDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE recurring_transactions ADD COLUMN monthOfYear INTEGER NOT NULL DEFAULT 1")
                 db.execSQL("ALTER TABLE categories ADD COLUMN isSystem INTEGER NOT NULL DEFAULT 0")
                 // 系统「转账」分类：供账户间转账交易引用，避免外键悬空；isSystem=1 不展示给用户
-                db.execSQL("INSERT INTO categories (name, icon, type, isDefault, sortOrder, parentId, isSystem) VALUES ('转账','🔄','EXPENSE',0,999,0,1)")
+                // 关键修复：color 为 NOT NULL 列，必须显式赋值，否则升级用户（DB v3→v4）迁移时
+                // 触发 NOT NULL constraint failed 导致启动即闪退（v1.6.0 回归根因）
+                db.execSQL("INSERT INTO categories (name, icon, color, type, isDefault, sortOrder, parentId, isSystem) VALUES ('转账','🔄','#6200EE','EXPENSE',0,999,0,1)")
+                // 兜底：回填历史可能缺失的 color（实体读取为 String 非空，避免潜在的 null 读取问题）
+                db.execSQL("UPDATE categories SET color = '#6200EE' WHERE color IS NULL")
             }
         }
 

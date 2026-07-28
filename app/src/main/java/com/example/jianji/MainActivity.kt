@@ -17,6 +17,20 @@ import com.example.jianji.utils.UpdateManager
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 诊断：若上次启动已崩溃并记录，优先用系统弹窗展示异常栈，便于无 adb 反馈根因
+        val crashFile = File(getExternalFilesDir(null) ?: filesDir, "crash_log.txt")
+        if (crashFile.exists()) {
+            val text = crashFile.readText().take(6000)
+            android.app.AlertDialog.Builder(this)
+                .setTitle("上次启动崩溃信息（请截图或点“复制”反馈）")
+                .setMessage(text)
+                .setPositiveButton("复制") { _, _ ->
+                    val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("jianji_crash", text))
+                }
+                .setNegativeButton("关闭") { _, _ -> crashFile.delete() }
+                .show()
+        }
         // 更新后清理安装包与缓存：安装完成时会标记，下次冷启动在此执行真正的清除
         try {
             val up = getSharedPreferences("jianji_update", MODE_PRIVATE)
