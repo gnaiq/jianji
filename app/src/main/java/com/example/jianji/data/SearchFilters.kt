@@ -14,12 +14,17 @@ data class SearchFilters(
     val maxAmount: Double? = null,
     // 日期区间语义 [startDate, endDate)，与现有 date 范围查询一致
     val startDate: LocalDateTime? = null,
-    val endDate: LocalDateTime? = null
+    val endDate: LocalDateTime? = null,
+    // 多选分类过滤：非空时只保留命中所选分类之一的交易
+    val selectedCategories: Set<Long> = emptySet(),
+    // 多选标签过滤：非空时只保留命中全部所选标签的交易（AND 语义）
+    val selectedTags: Set<Long> = emptySet()
 ) {
     val isEmpty: Boolean
         get() = text.isBlank() && type == null && accountId == null &&
                 minAmount == null && maxAmount == null &&
-                startDate == null && endDate == null
+                startDate == null && endDate == null &&
+                selectedCategories.isEmpty() && selectedTags.isEmpty()
 }
 
 /**
@@ -43,8 +48,9 @@ fun List<Transaction>.applySearchFilters(
         }
         if (filters.type != null && tx.type != filters.type) return@filter false
         if (filters.accountId != null && tx.accountId != filters.accountId) return@filter false
-        if (filters.minAmount != null && tx.amount < filters.minAmount) return@filter false
-        if (filters.maxAmount != null && tx.amount > filters.maxAmount) return@filter false
+        if (filters.selectedCategories.isNotEmpty() && tx.categoryId !in filters.selectedCategories) return@filter false
+        if (filters.minAmount != null && (tx.amountCents / 100.0) < filters.minAmount) return@filter false
+        if (filters.maxAmount != null && (tx.amountCents / 100.0) > filters.maxAmount) return@filter false
         if (filters.startDate != null && tx.date < filters.startDate) return@filter false
         if (filters.endDate != null && tx.date >= filters.endDate) return@filter false
         true
