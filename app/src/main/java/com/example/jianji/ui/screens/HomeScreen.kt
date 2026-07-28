@@ -464,6 +464,7 @@ fun HomeScreen(
                     transaction = transaction,
                     category = categoryMap[transaction.categoryId],
                     accountName = transaction.accountId?.let { accountMap[it]?.name },
+                    toAccountName = transaction.toAccountId?.let { accountMap[it]?.name },
                     onClick = { onTransactionClick(transaction) },
                     onDelete = { onDeleteTransaction(transaction) }
                 )
@@ -480,6 +481,7 @@ fun SwipeToDeleteItem(
     transaction: Transaction,
     category: Category?,
     accountName: String? = null,
+    toAccountName: String? = null,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -536,7 +538,7 @@ fun SwipeToDeleteItem(
     ) {
         TransactionItemCard(
             transaction = transaction, category = category,
-            accountName = accountName, onClick = onClick,
+            accountName = accountName, toAccountName = toAccountName, onClick = onClick,
             onRequestDelete = { showConfirm = true }
         )
     }
@@ -571,9 +573,11 @@ fun TransactionItemCard(
     transaction: Transaction,
     category: Category? = null,
     accountName: String? = null,
+    toAccountName: String? = null,
     onClick: () -> Unit = {},
     onRequestDelete: () -> Unit = {}
 ) {
+    val isTransfer = transaction.type == TransactionType.TRANSFER
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -591,17 +595,31 @@ fun TransactionItemCard(
             ) {
                 Box(
                     modifier = Modifier.size(40.dp).clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                        .background(
+                            if (isTransfer) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(category?.icon ?: "📁", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        if (isTransfer) "🔄" else (category?.icon ?: "📁"),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 }
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(category?.name ?: "未分类", style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold)
-                        if (accountName != null) {
-                            Text(accountName, style = MaterialTheme.typography.labelSmall,
+                        Text(
+                            if (isTransfer) "转账" else (category?.name ?: "未分类"),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val accountLabel = when {
+                            isTransfer && accountName != null && toAccountName != null -> "$accountName → $toAccountName"
+                            accountName != null -> accountName
+                            else -> null
+                        }
+                        if (accountLabel != null) {
+                            Text(accountLabel, style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                         }
                     }
@@ -613,10 +631,18 @@ fun TransactionItemCard(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    if (transaction.type == TransactionType.INCOME) "+¥${formatAmount(transaction.amount)}"
-                    else "-¥${formatAmount(transaction.amount)}",
+                    when {
+                        transaction.type == TransactionType.INCOME -> "+¥${formatAmount(transaction.amount)}"
+                        isTransfer -> "⇄ ¥${formatAmount(transaction.amount)}"
+                        else -> "-¥${formatAmount(transaction.amount)}"
+                    },
                     style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
-                    color = if (transaction.type == TransactionType.INCOME) Color(0xFF4CAF50) else Color(0xFFF44336))
+                    color = when {
+                        transaction.type == TransactionType.INCOME -> Color(0xFF4CAF50)
+                        isTransfer -> MaterialTheme.colorScheme.tertiary
+                        else -> Color(0xFFF44336)
+                    }
+                )
                 Text(transaction.date.format(DateTimeFormatter.ofPattern("HH:mm")),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))

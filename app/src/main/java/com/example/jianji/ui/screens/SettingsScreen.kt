@@ -1063,12 +1063,14 @@ fun ImportDialog(
                 scope.launch {
                     try {
                         val importer = DataImportManager()
-                        val count = importer.importFromJson(
+                        val result = importer.importFromJson(
                             jsonText, JianjiDatabase.getDatabase(context.applicationContext)
                         )
                         importing = false
-                        if (count > 0) {
-                            Toast.makeText(context, "恢复成功，导入 ${count} 条", Toast.LENGTH_SHORT).show()
+                        if (result.transactionCount > 0) {
+                            val detail = if (result.isFullRestore) "（已恢复账户/预算/周期/模板）"
+                                else "（旧格式备份，仅恢复交易+分类）"
+                            Toast.makeText(context, "恢复成功，导入 ${result.transactionCount} 笔$detail", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         } else {
                             Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()

@@ -48,8 +48,16 @@ class UpdateManager(private val context: Context) {
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
 
-            if (connection.responseCode != 200) {
-                return@withContext Result.failure(Exception("GitHub API error: ${connection.responseCode}"))
+            val code = connection.responseCode
+            if (code != 200) {
+                // P1-3：GitHub 未鉴权 API 限额 60 次/小时/IP，公共网络下极易耗尽；
+                // 对 403/429 单独提示，避免用户误判为「网络被拦截」
+                if (code == 403 || code == 429) {
+                    return@withContext Result.failure(Exception(
+                        "检查更新过于频繁（GitHub 接口限流，HTTP $code）。请 1 小时后再试，或前往 Releases 页手动下载：${releasesUrl()}"
+                    ))
+                }
+                return@withContext Result.failure(Exception("GitHub API error: $code"))
             }
             val body = connection.inputStream.bufferedReader().use { it.readText() }
 

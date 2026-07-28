@@ -6,9 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.jianji.data.*
 import com.example.jianji.utils.AutoBackup
 import com.example.jianji.utils.BackupStorage
+import androidx.room.withTransaction
 import com.example.jianji.utils.DateUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -68,11 +71,22 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    // 当月预算（设置页保存后由 Room Flow 自动刷新）
-    val monthlyBudget: StateFlow<Double> = budgetRepo.observeTotalBudget(
-        YearMonth.now().year, YearMonth.now().monthValue
-    ).map { it?.amount ?: 0.0 }
+    // 当月预算：随月份切换动态重查（P0-2：原 YearMonth.now() 在 VM 构造时固化，进程跨月驻留会读旧月预算）
+    val monthlyBudget: StateFlow<Double> = currentMonthFlow()
+        .flatMapLatest { ym ->
+            budgetRepo.observeTotalBudget(ym.year, ym.monthValue).map { it?.amount ?: 0.0 }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // 仅在月份边界重新发射当前 YearMonth，避免每次交易都重查预算
+    private fun currentMonthFlow(): Flow<YearMonth> = flow {
+        while (true) {
+            val (start, end) = DateUtils.currentMonthRange()
+            emit(YearMonth.from(start.toLocalDate()))
+            val waitMs = Duration.between(LocalDateTime.now(), end).toMillis()
+            delay(if (waitMs > 0) waitMs else 1000L)
+        }
+    }
 
     // 各账户实时余额：由交易汇总，而非依赖存储字段（6.1 P0 修复「死数据」）
     // 收入 +amount；支出 -amount；转账 源账户 -amount、目标账户 +amount
@@ -233,32 +247,36 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
             val now = LocalDateTime.now()
             val due = recurringRepo.getDue(now)
             val defaultAcc = accountRepo.getDefault()?.id
-            for (rtx in due) {
-                // 生成本次及错过的所有周期（补账），交易日期 = 各自执行日
-                val occurrences = mutableListOf<LocalDateTime>()
-                var cur = rtx.nextRunDate
-                var guard = 0
-                while (cur <= now && guard < 1000) {
-                    occurrences.add(cur)
-                    cur = nextRunAfter(cur, rtx)
-                    guard++
-                }
-                occurrences.forEach { date ->
-                    transactionRepository.insertTransaction(
-                        Transaction(
-                            categoryId = rtx.categoryId,
-                            amount = rtx.amount,
-                            type = rtx.type,
-                            description = rtx.description,
-                            date = date,
-                            accountId = rtx.accountId ?: defaultAcc
+            // P0-3：插入补账交易与推进 nextRunDate 必须原子提交，
+            // 避免「插入完成、推进前」进程被杀导致下次启动重复入账
+            database.withTransaction {
+                for (rtx in due) {
+                    // 生成本次及错过的所有周期（补账），交易日期 = 各自执行日
+                    val occurrences = mutableListOf<LocalDateTime>()
+                    var cur = rtx.nextRunDate
+                    var guard = 0
+                    while (cur <= now && guard < 1000) {
+                        occurrences.add(cur)
+                        cur = nextRunAfter(cur, rtx)
+                        guard++
+                    }
+                    occurrences.forEach { date ->
+                        transactionRepository.insertTransaction(
+                            Transaction(
+                                categoryId = rtx.categoryId,
+                                amount = rtx.amount,
+                                type = rtx.type,
+                                description = rtx.description,
+                                date = date,
+                                accountId = rtx.accountId ?: defaultAcc
+                            )
                         )
-                    )
+                    }
+                    // 将下次执行日推进到未来，避免重复生成
+                    var next = rtx.nextRunDate
+                    while (next <= now) next = nextRunAfter(next, rtx)
+                    if (next != rtx.nextRunDate) recurringRepo.update(rtx.copy(nextRunDate = next))
                 }
-                // 将下次执行日推进到未来，避免重复生成
-                var next = rtx.nextRunDate
-                while (next <= now) next = nextRunAfter(next, rtx)
-                if (next != rtx.nextRunDate) recurringRepo.update(rtx.copy(nextRunDate = next))
             }
         }
     }

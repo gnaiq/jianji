@@ -90,6 +90,12 @@ data class ImportData(
     val quickTemplates: List<TemplateImport>? = null
 )
 
+/** 恢复结果：交易条数 + 是否为全量恢复（version=2，含账户/预算/周期/模板） */
+data class ImportResult(
+    val transactionCount: Int,
+    val isFullRestore: Boolean
+)
+
 class DataImportManager {
     suspend fun parseJson(json: String): ImportData? = withContext(Dispatchers.IO) {
         try {
@@ -170,7 +176,7 @@ class DataImportManager {
      *
      * @return 导入的交易条数；解析失败或为空返回 0
      */
-    suspend fun importFromJson(json: String, db: JianjiDatabase): Int = withContext(Dispatchers.IO) {
+    suspend fun importFromJson(json: String, db: JianjiDatabase): ImportResult = withContext(Dispatchers.IO) {
         val data = parseJson(json) ?: return@withContext 0
         val txs = data.transactions ?: emptyList()
         val cats = data.categories ?: emptyList()
@@ -271,6 +277,6 @@ class DataImportManager {
                 )
             })
         }
-        txs.size
+        ImportResult(txs.size, isFull)
     }
 }

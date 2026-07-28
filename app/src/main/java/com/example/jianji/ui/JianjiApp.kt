@@ -207,7 +207,8 @@ fun JianjiApp(
                                 description = description,
                                 date = date,
                                 accountId = accountId,
-                                toAccountId = toAccountId
+                                // P1：非转账类型强制清空 toAccountId，避免「转账→收/支」切换后残留脏字段
+                                toAccountId = if (type == TransactionType.TRANSFER) toAccountId else null
                             )
                         )
                     } else {
