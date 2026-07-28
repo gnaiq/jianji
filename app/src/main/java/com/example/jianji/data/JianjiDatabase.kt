@@ -15,9 +15,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Account::class,
         Budget::class,
         RecurringTransaction::class,
-        QuickTemplate::class
+        QuickTemplate::class,
+        Tag::class,
+        TransactionTagCrossRef::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -28,6 +30,7 @@ abstract class JianjiDatabase : RoomDatabase() {
     abstract fun budgetDao(): BudgetDao
     abstract fun recurringTransactionDao(): RecurringTransactionDao
     abstract fun quickTemplateDao(): QuickTemplateDao
+    abstract fun tagDao(): TagDao
 
     companion object {
         @Volatile
@@ -123,6 +126,45 @@ abstract class JianjiDatabase : RoomDatabase() {
             }
         }
 
+        // v1.6.6：金额 Long 分 + 回收站软删 + 标签系统
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1) 金额迁移 Double -> Long 分：新增 amount_cents 列，回填历史数据（四舍五入），
+                //    旧 amount 列保留为死列（Room 不再引用，避免 DROP+重建整表风险）
+                db.execSQL("ALTER TABLE transactions ADD COLUMN amount_cents INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE transactions SET amount_cents = CAST(ROUND(COALESCE(amount, 0) * 100) AS INTEGER)")
+
+                // 2) 回收站软删标记
+                db.execSQL("ALTER TABLE transactions ADD COLUMN deleted_at TEXT DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_deleted_at` ON `transactions` (`deleted_at`)")
+
+                // 3) 标签系统
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS tags (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        color TEXT NOT NULL DEFAULT '#6200EE',
+                        icon TEXT NOT NULL DEFAULT '🏷️',
+                        sortOrder INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS transaction_tags (
+                        transactionId INTEGER NOT NULL,
+                        tagId INTEGER NOT NULL,
+                        PRIMARY KEY (transactionId, tagId),
+                        FOREIGN KEY (transactionId) REFERENCES transactions(id) ON DELETE CASCADE,
+                        FOREIGN KEY (tagId) REFERENCES tags(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_tags_tagId` ON `transaction_tags` (`tagId`)")
+            }
+        }
+
         fun getDatabase(context: Context): JianjiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -130,7 +172,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                     JianjiDatabase::class.java,
                     "jianji_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance
