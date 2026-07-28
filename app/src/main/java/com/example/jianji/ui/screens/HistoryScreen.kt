@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,8 +33,11 @@ fun HistoryScreen(
     transactions: List<Transaction> = emptyList(),
     categories: List<Category> = emptyList(),
     accounts: List<Account> = emptyList(),
+    tags: List<Tag> = emptyList(),
+    transactionTagMap: Map<Long, List<Tag>> = emptyMap(),
     onTransactionClick: (Transaction) -> Unit = {},
-    onDeleteTransaction: (Transaction) -> Unit = {}
+    onDeleteTransaction: (Transaction) -> Unit = {},
+    onOpenRecycle: () -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
     var filters by remember { mutableStateOf(SearchFilters()) }
@@ -47,8 +51,11 @@ fun HistoryScreen(
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val accountMap = remember(accounts) { accounts.associateBy { it.id } }
     val effectiveFilters = remember(filters, query) { filters.copy(text = query) }
-    val filtered = remember(transactions, query, filters, categoryMap) {
-        transactions.applySearchFilters(effectiveFilters, categoryMap)
+    val filtered = remember(transactions, query, filters, categoryMap, transactionTagMap) {
+        // 分类多选在 applySearchFilters 内处理；标签多选在此做内存交集（OR 语义）
+        val base = transactions.applySearchFilters(effectiveFilters, categoryMap)
+        if (filters.selectedTags.isEmpty()) base
+        else base.filter { tx -> transactionTagMap[tx.id]?.any { it.id in filters.selectedTags } == true }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -85,6 +92,8 @@ fun HistoryScreen(
                     minAmountText = ""
                     maxAmountText = ""
                 }) { Text("清除") }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onOpenRecycle) { Icon(Icons.Default.DeleteSweep, "回收站") }
             }
         }
 
@@ -128,6 +137,60 @@ fun HistoryScreen(
                             selected = filters.accountId == acc.id,
                             onClick = { filters = filters.copy(accountId = acc.id) },
                             label = { Text(acc.name) }
+                        )
+                    }
+                }
+
+                // 分类多选（§6 搜索多选分类）
+                Text("分类", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = filters.selectedCategories.isEmpty(),
+                        onClick = { filters = filters.copy(selectedCategories = emptySet()) },
+                        label = { Text("全部") }
+                    )
+                    categories.forEach { cat ->
+                        FilterChip(
+                            selected = cat.id in filters.selectedCategories,
+                            onClick = {
+                                filters = filters.copy(
+                                    selectedCategories = if (cat.id in filters.selectedCategories)
+                                        filters.selectedCategories - cat.id
+                                    else filters.selectedCategories + cat.id
+                                )
+                            },
+                            label = { Text("${cat.icon} ${cat.name}") }
+                        )
+                    }
+                }
+
+                // 标签多选（§6）
+                Text("标签", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = filters.selectedTags.isEmpty(),
+                        onClick = { filters = filters.copy(selectedTags = emptySet()) },
+                        label = { Text("全部") }
+                    )
+                    tags.forEach { tag ->
+                        FilterChip(
+                            selected = tag.id in filters.selectedTags,
+                            onClick = {
+                                filters = filters.copy(
+                                    selectedTags = if (tag.id in filters.selectedTags)
+                                        filters.selectedTags - tag.id
+                                    else filters.selectedTags + tag.id
+                                )
+                            },
+                            label = { Text("${tag.icon} ${tag.name}") }
                         )
                     }
                 }
