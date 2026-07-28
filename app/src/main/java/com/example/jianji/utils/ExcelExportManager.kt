@@ -75,7 +75,7 @@ class ExcelExportManager(private val context: Context) {
             sharedStrings.add(catStr)
             sheetRows.append("<c r=\"D$rowNum\" t=\"s\"><v>${sharedStrings.indexOf(catStr)}</v></c>")
 
-            sheetRows.append("<c r=\"E$rowNum\"><v>${tx.amount}</v></c>")
+            sheetRows.append("<c r=\"E$rowNum\"><v>${tx.amountCents / 100.0}</v></c>")
 
             sharedStrings.add(tx.description)
             sheetRows.append("<c r=\"F$rowNum\" t=\"s\"><v>${sharedStrings.indexOf(tx.description)}</v></c>")
