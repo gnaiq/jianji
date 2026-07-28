@@ -5,7 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
+import androidx.room.Transaction as RoomTransaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -41,7 +41,7 @@ interface TagDao {
     suspend fun deleteCrossRefsByTag(tagId: Long)
 
     // 按标签筛选交易（回收站之外的有效交易）
-    @Transaction
+    @RoomTransaction
     @Query(
         """SELECT t.* FROM transactions t
            INNER JOIN transaction_tags tt ON tt.transactionId = t.id
@@ -51,7 +51,7 @@ interface TagDao {
     fun getTransactionsByTag(tagId: Long): Flow<List<Transaction>>
 
     // 按多个标签筛选（IN 子句，OR 语义）
-    @Transaction
+    @RoomTransaction
     @Query(
         """SELECT t.* FROM transactions t
            INNER JOIN transaction_tags tt ON tt.transactionId = t.id
