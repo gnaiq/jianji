@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsets.Companion.ime
+import androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -98,7 +100,7 @@ fun AddTransactionDialog(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         // 让底部弹层随系统输入法（9宫格/26字母全键盘）整体上移，彻底解决描述框被键盘遮挡
-        windowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
+        windowInsets = ime.union(navigationBars),
         dragHandle = { HorizontalDivider(thickness = 4.dp, modifier = Modifier.padding(vertical = 8.dp)) }
     ) {
         Column(
