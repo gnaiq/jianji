@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.jianji.data.*
@@ -38,18 +39,23 @@ fun AddTransactionDialog(
     templates: List<QuickTemplate> = emptyList(),
     accounts: List<Account> = emptyList(),
     accountBalances: Map<Long, Double> = emptyMap(),
+    tags: List<Tag> = emptyList(),
+    initialTagIds: List<Long> = emptyList(),
+    onRequestAddTag: () -> Unit = {},
     onDismiss: () -> Unit,
     onRequestAddCategory: (TransactionType) -> Unit = {},
-    onConfirm: (categoryId: Long, amount: Double, type: TransactionType, description: String, date: LocalDateTime, accountId: Long?, toAccountId: Long?) -> Unit
+    onConfirm: (categoryId: Long, amount: Double, type: TransactionType, description: String, date: LocalDateTime, accountId: Long?, toAccountId: Long?, tagIds: List<Long>) -> Unit
 ) {
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
     var selectedCategoryId by remember { mutableStateOf<Long?>(editingTransaction?.categoryId) }
     var selectedAccountId by remember { mutableStateOf<Long?>(editingTransaction?.accountId) }
     var selectedToAccountId by remember { mutableStateOf<Long?>(editingTransaction?.toAccountId) }
-    var amount by remember { mutableStateOf(editingTransaction?.amount?.toString() ?: "") }
+    var amount by remember { mutableStateOf(editingTransaction?.amountCents?.let { (it / 100.0).toString() } ?: "") }
     var description by remember { mutableStateOf(editingTransaction?.description ?: "") }
     var selectedDate by remember { mutableStateOf(editingTransaction?.date ?: LocalDateTime.now()) }
     var showCategoryPicker by remember { mutableStateOf(false) }
+    // §6 标签多选
+    var selectedTagIds by remember { mutableStateOf(initialTagIds.toSet()) }
 
     // 自动选择默认分类
     LaunchedEffect(categories, selectedType) {
@@ -67,7 +73,8 @@ fun AddTransactionDialog(
     val filteredTemplates = templates.filter { it.type == selectedType }
     val selectedCategory = categories.find { it.id == selectedCategoryId }
     val transferCategory = categories.firstOrNull { it.isSystem }
-    val parsedAmount = amount.toDoubleOrNull() ?: 0.0
+    // 支持计算器表达式（如 12+3.5）；纯数字也能直接解析
+    val parsedAmount = evalExpression(amount) ?: amount.toDoubleOrNull() ?: 0.0
     val isValid = if (selectedType == TransactionType.TRANSFER) {
         parsedAmount > 0 && selectedAccountId != null && selectedToAccountId != null
             && selectedAccountId != selectedToAccountId && transferCategory != null
@@ -76,15 +83,30 @@ fun AddTransactionDialog(
     }
 
     val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState()
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(if (editingTransaction != null) "编辑交易" else "添加交易") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        sheetState = sheetState,
+        dragHandle = { HorizontalDivider(thickness = 4.dp, modifier = Modifier.padding(vertical = 8.dp)) }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Text(
+                    if (editingTransaction != null) "编辑交易" else "添加交易",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "关闭") }
+            }
                 // 收支类型（含转账）：§5 改用分段选择器——天生单行等宽成组，
                 // 杜绝窄屏/大字体下 Button 文字换行导致的「视觉塌成竖排」
                 val types = listOf(
@@ -308,38 +330,69 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 金额输入
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { newValue ->
-                        if (newValue.isEmpty() || newValue.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-                            amount = newValue
-                        }
-                    },
-                    label = { Text("金额") },
+                // 金额输入（§6 计算器键盘 + 底部弹层）
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-
-                // 快捷金额
-                LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf(10.0, 20.0, 50.0, 100.0, 200.0, 500.0)) { quick ->
-                        Card(
-                            modifier = Modifier.clickable { amount = quick.toString() },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Text(
-                                text = quick.toInt().toString(),
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Text(
+                        text = if (amount.isEmpty()) "0.00" else amount,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                }
+                CalculatorKeypad { key ->
+                    when (key) {
+                        "⌫" -> amount = if (amount.isNotEmpty()) amount.dropLast(1) else ""
+                        "C" -> amount = ""
+                        "=" -> { val r = evalExpression(amount); if (r != null) amount = formatCalc(r) }
+                        else -> {
+                            val last = amount.lastOrNull()
+                            val ops = setOf('+', '−', '×', '÷')
+                            when {
+                                key in listOf("+", "−", "×", "÷") ->
+                                    if (amount.isNotEmpty() && last !in ops && last != '.') amount += key
+                                key == "." -> {
+                                    val seg = amount.substringAfterLast(Regex("[-+×÷]"))
+                                    amount += if (amount.isEmpty() || last in ops) "0." else if ("." !in seg) "." else ""
+                                }
+                                else -> amount += key
+                            }
                         }
                     }
+                }
+
+                // 标签多选（§6）
+                Text("标签", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tags.forEach { tag ->
+                        val selected = tag.id in selectedTagIds
+                        val tagColor = runCatching { Color(android.graphics.Color.parseColor(tag.color)) }
+                            .getOrDefault(MaterialTheme.colorScheme.primary)
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                selectedTagIds = if (selected) selectedTagIds - tag.id else selectedTagIds + tag.id
+                            },
+                            label = { Text("${tag.icon} ${tag.name}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = tagColor.copy(alpha = 0.25f),
+                                selectedLabelColor = tagColor
+                            )
+                        )
+                    }
+                    AssistChip(
+                        onClick = onRequestAddTag,
+                        label = { Text("+ 新建标签") },
+                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                    )
                 }
 
                 // 描述
@@ -360,25 +413,110 @@ fun AddTransactionDialog(
                         onDismiss = { showCategoryPicker = false }
                     )
                 }
+
+                // 底部操作按钮（底部弹层内确认/取消）
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("取消") }
+                    Button(
+                        onClick = {
+                            if (!isValid) return@Button
+                            val categoryId = if (selectedType == TransactionType.TRANSFER)
+                                transferCategory?.id ?: 0L else (selectedCategory?.id ?: 0L)
+                            onConfirm(
+                                categoryId, parsedAmount, selectedType, description,
+                                selectedDate.withNano(0), selectedAccountId,
+                                if (selectedType == TransactionType.TRANSFER) selectedToAccountId else null,
+                                selectedTagIds.toList()
+                            )
+                        },
+                        enabled = isValid,
+                        modifier = Modifier.weight(2f)
+                    ) { Text(if (editingTransaction != null) "保存" else "确认") }
+                }
+                Spacer(Modifier.height(16.dp))
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (!isValid) return@Button
-                    val categoryId = if (selectedType == TransactionType.TRANSFER)
-                        transferCategory?.id ?: 0L else (selectedCategory?.id ?: 0L)
-                    onConfirm(
-                        categoryId, parsedAmount, selectedType, description,
-                        selectedDate.withNano(0), selectedAccountId,
-                        if (selectedType == TransactionType.TRANSFER) selectedToAccountId else null
-                    )
-                },
-                enabled = isValid
-            ) { Text(if (editingTransaction != null) "保存" else "确认") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        }
+    }
+}
+
+// 计算器表达式求值（支持 + − × ÷，含运算符优先级），非法返回 null
+private fun evalExpression(input: String): Double? {
+    val s = input.replace('×', '*').replace('÷', '/')
+    if (s.isBlank() || !s.matches(Regex("^[0-9.+\\-*/ ]+$"))) return null
+    return try {
+        val tokens = mutableListOf<String>()
+        var num = ""
+        for (ch in s) {
+            if (ch.isDigit() || ch == '.') num += ch
+            else {
+                if (num.isNotEmpty()) { tokens.add(num); num = "" }
+                if (ch != ' ') tokens.add(ch.toString())
+            }
+        }
+        if (num.isNotEmpty()) tokens.add(num)
+        if (tokens.isEmpty()) return null
+        val nums = mutableListOf(tokens[0].toDouble())
+        val ops = mutableListOf<String>()
+        var i = 1
+        while (i < tokens.size) {
+            val op = tokens[i]
+            val nxt = tokens[i + 1].toDouble()
+            if (op == "*" || op == "/") {
+                val a = nums.removeAt(nums.lastIndex)
+                if (op == "/" && nxt == 0.0) return null
+                nums.add(if (op == "*") a * nxt else a / nxt)
+            } else {
+                nums.add(nxt); ops.add(op)
+            }
+            i += 2
+        }
+        var res = nums[0]
+        for (k in ops.indices) res = if (ops[k] == "+") res + nums[k + 1] else res - nums[k + 1]
+        res
+    } catch (e: Exception) { null }
+}
+
+private fun formatCalc(v: Double): String {
+    val value = if (v.isNaN() || v.isInfinite()) 0.0 else v
+    return if (value % 1.0 == 0.0) value.toLong().toString()
+    else String.format(java.util.Locale.US, "%.2f", value)
+}
+
+@Composable
+private fun CalculatorKeypad(onInput: (String) -> Unit) {
+    val keys = listOf(
+        listOf("7", "8", "9", "÷"),
+        listOf("4", "5", "6", "×"),
+        listOf("1", "2", "3", "−"),
+        listOf("C", "0", "⌫", "+"),
+        listOf("=")
     )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        keys.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                row.forEach { key ->
+                    OutlinedButton(
+                        onClick = { onInput(key) },
+                        modifier = Modifier.weight(if (row.size == 1) 4f else 1f).height(54.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (key in listOf("+", "−", "×", "÷", "="))
+                                MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Text(key, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
