@@ -44,7 +44,7 @@ class DataExportManager(private val context: Context) {
                         csvPrinter.printRecord(
                             transaction.id,
                             category,
-                            transaction.amount,
+                            transaction.amountCents / 100.0,
                             transaction.type.name,
                             transaction.description,
                             dateFormatShort.get()!!.format(Date.from(transaction.date.atZone(java.time.ZoneId.systemDefault()).toInstant())),
