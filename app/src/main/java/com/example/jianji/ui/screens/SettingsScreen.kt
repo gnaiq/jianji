@@ -345,7 +345,7 @@ fun SettingsScreen(
             SettingsCard(
                 icon = Icons.Default.DarkMode,
                 title = "深色模式",
-                subtitle = when (darkMode) { 0 -> "跟随系统"; 1 -> "浅色"; 2 -> "深色" },
+                subtitle = when (darkMode) { 0 -> "跟随系统"; 1 -> "浅色"; 2 -> "深色"; else -> "跟随系统" },
                 onClick = { showDarkModeDialog = true }
             )
         }
