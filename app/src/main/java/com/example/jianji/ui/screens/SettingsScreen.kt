@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -37,6 +38,41 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+
+private sealed interface SettingsDestination {
+    data object Main : SettingsDestination
+    data object DataManagement : SettingsDestination
+    data object FunctionManagement : SettingsDestination
+    data object Appearance : SettingsDestination
+    data object About : SettingsDestination
+}
+
+@Composable
+private fun SettingsSubScaffold(
+    title: String,
+    onBack: () -> Unit,
+    content: LazyListScope.() -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content
+        )
+    }
+}
 
 @Composable
 fun SettingsScreen(
@@ -96,14 +132,56 @@ fun SettingsScreen(
     var updateStatus by remember { mutableStateOf("检查更新") }
     var downloadProgress by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item { Text("设置", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+    var destination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.Main) }
 
-        // === 数据管理 ===
+    when (destination) {
+        SettingsDestination.Main -> {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item { Text("设置", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                item { SectionHeader("设置分组") }
+                item {
+                    SettingsCard(
+                        icon = Icons.Default.Backup,
+                        title = "数据管理",
+                        subtitle = "备份、恢复、导出与清除",
+                        onClick = { destination = SettingsDestination.DataManagement }
+                    )
+                }
+                item {
+                    SettingsCard(
+                        icon = Icons.Default.AccountBalance,
+                        title = "功能管理",
+                        subtitle = "预算、账户、模板、周期记账",
+                        onClick = { destination = SettingsDestination.FunctionManagement }
+                    )
+                }
+                item {
+                    SettingsCard(
+                        icon = Icons.Default.DarkMode,
+                        title = "外观",
+                        subtitle = "深色模式",
+                        onClick = { destination = SettingsDestination.Appearance }
+                    )
+                }
+                item {
+                    SettingsCard(
+                        icon = Icons.Default.Info,
+                        title = "关于 & 更新",
+                        subtitle = "版本检查与关于",
+                        onClick = { destination = SettingsDestination.About }
+                    )
+                }
+                item { Spacer(Modifier.height(80.dp)) }
+            }
+        }
+
+        SettingsDestination.DataManagement -> {
+            SettingsSubScaffold(title = "数据管理", onBack = { destination = SettingsDestination.Main }) {
+                // === 数据管理 ===
         item { SectionHeader("数据管理") }
 
         item {
@@ -290,7 +368,12 @@ fun SettingsScreen(
             )
         }
 
-        // === 功能管理 ===
+            }
+        }
+
+        SettingsDestination.FunctionManagement -> {
+            SettingsSubScaffold(title = "功能管理", onBack = { destination = SettingsDestination.Main }) {
+                // === 功能管理 ===
         item { SectionHeader("功能管理") }
 
         item {
@@ -338,7 +421,12 @@ fun SettingsScreen(
             )
         }
 
-        // === 外观 ===
+            }
+        }
+
+        SettingsDestination.Appearance -> {
+            SettingsSubScaffold(title = "外观", onBack = { destination = SettingsDestination.Main }) {
+                // === 外观 ===
         item { SectionHeader("外观") }
 
         item {
@@ -350,7 +438,12 @@ fun SettingsScreen(
             )
         }
 
-        // === 关于 ===
+            }
+        }
+
+        SettingsDestination.About -> {
+            SettingsSubScaffold(title = "关于 & 更新", onBack = { destination = SettingsDestination.Main }) {
+                // === 关于 ===
         item { SectionHeader("关于 & 更新") }
 
         item {
@@ -426,6 +519,8 @@ fun SettingsScreen(
         }
 
         item { Spacer(Modifier.height(80.dp)) }
+            }
+        }
     }
 
     // === Dialogs ===
