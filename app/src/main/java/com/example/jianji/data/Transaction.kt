@@ -1,5 +1,6 @@
 package com.example.jianji.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -31,6 +32,7 @@ data class Transaction(
     val categoryId: Long,
     // §8 金额迁移至 Long 分存储：避免 Double 浮点误差累积（尤其是 SUM 与跨账户转账对账）。
     // 展示层用 amountCents / 100.0，输入层用 (yuan * 100).toLong() 反算。
+    @ColumnInfo(name = "amount_cents")
     val amountCents: Long,
     val type: TransactionType, // INCOME or EXPENSE
     val description: String = "",
@@ -38,6 +40,7 @@ data class Transaction(
     val accountId: Long? = null,
     val toAccountId: Long? = null, // 转账目标账户（type=TRANSFER 时有效）
     // 回收站/撤销（§5）：软删除标记。null = 未删；非 null = 删除时间，列表/统计/汇总均排除。
+    @ColumnInfo(name = "deleted_at")
     val deletedAt: LocalDateTime? = null,
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val updatedAt: LocalDateTime = LocalDateTime.now()
