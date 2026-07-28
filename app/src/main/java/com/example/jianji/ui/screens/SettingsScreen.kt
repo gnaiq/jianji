@@ -86,7 +86,8 @@ fun SettingsScreen(
     viewModel: TransactionViewModel? = null,
     onDataCleared: () -> Unit = {},
     darkMode: Int = 0,
-    onDarkModeChange: (Int) -> Unit = {}
+    onDarkModeChange: (Int) -> Unit = {},
+    onOpenTags: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -336,7 +337,7 @@ fun SettingsScreen(
                                 val csv = buildString {
                                 appendLine("ID,日期,类型,分类ID,金额,描述")
                                 all.sortedByDescending { it.date }.forEach { tx ->
-                                    appendLine("${tx.id},${tx.date},${tx.type},${tx.categoryId},${tx.amount},${tx.description}")
+                                    appendLine("${tx.id},${tx.date},${tx.type},${tx.categoryId},${tx.amountCents / 100.0},${tx.description}")
                                 }
                             }
                             val fileName = "简记备份_${LocalDate.now()}.csv"
@@ -411,6 +412,15 @@ fun SettingsScreen(
                 title = "周期交易",
                 subtitle = "自动记账（房租/工资/订阅等）",
                 onClick = { showRecurringDialog = true }
+            )
+        }
+
+        item {
+            SettingsCard(
+                icon = Icons.Default.Label,
+                title = "标签管理",
+                subtitle = "创建并管理交易标签，记账时打标、按标签筛选",
+                onClick = onOpenTags
             )
         }
 
@@ -1167,7 +1177,8 @@ fun ImportDialog(
                         if (result.transactionCount > 0) {
                             val detail = if (result.isFullRestore) "（已恢复账户/预算/周期/模板）"
                                 else "（旧格式备份，仅恢复交易+分类）"
-                            Toast.makeText(context, "恢复成功，导入 ${result.transactionCount} 笔$detail", Toast.LENGTH_SHORT).show()
+                            val skipNote = if (result.skippedCount > 0) "，跳过 ${result.skippedCount} 笔无效记录" else ""
+                            Toast.makeText(context, "恢复成功，导入 ${result.transactionCount} 笔$detail$skipNote", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         } else {
                             Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
