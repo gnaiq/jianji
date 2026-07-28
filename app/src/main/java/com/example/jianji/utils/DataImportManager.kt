@@ -177,10 +177,10 @@ class DataImportManager {
      * @return 导入的交易条数；解析失败或为空返回 0
      */
     suspend fun importFromJson(json: String, db: JianjiDatabase): ImportResult = withContext(Dispatchers.IO) {
-        val data = parseJson(json) ?: return@withContext 0
+        val data = parseJson(json) ?: return@withContext ImportResult(0, false)
         val txs = data.transactions ?: emptyList()
         val cats = data.categories ?: emptyList()
-        if (txs.isEmpty() && cats.isEmpty()) return@withContext 0
+        if (txs.isEmpty() && cats.isEmpty()) return@withContext ImportResult(0, false)
 
         val isFull = data.version == 2
 
