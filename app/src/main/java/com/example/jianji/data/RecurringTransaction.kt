@@ -16,6 +16,7 @@ data class RecurringTransaction(
     val frequency: RecurringFrequency,
     val interval: Int = 1, // 每 N 个 frequency 执行一次
     val dayOfMonth: Int = 1, // MONTHLY/YEARLY: 几号
+    val monthOfYear: Int = 1, // YEARLY: 几月（修复此前写死为 1 月）
     val dayOfWeek: Int = 1, // WEEKLY: 周一=1...周日=7
     val nextRunDate: LocalDateTime, // 下次执行日期
     val isActive: Boolean = true,

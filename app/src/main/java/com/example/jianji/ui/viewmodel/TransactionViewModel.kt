@@ -74,6 +74,29 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     ).map { it?.amount ?: 0.0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    // 各账户实时余额：由交易汇总，而非依赖存储字段（6.1 P0 修复「死数据」）
+    // 收入 +amount；支出 -amount；转账 源账户 -amount、目标账户 +amount
+    val accountBalances: StateFlow<Map<Long, Double>> = transactions
+        .map { txs ->
+            val map = mutableMapOf<Long, Double>()
+            fun add(accId: Long?, delta: Double) {
+                if (accId == null) return
+                map[accId] = (map[accId] ?: 0.0) + delta
+            }
+            for (t in txs) {
+                when (t.type) {
+                    TransactionType.INCOME -> add(t.accountId, t.amount)
+                    TransactionType.EXPENSE -> add(t.accountId, -t.amount)
+                    TransactionType.TRANSFER -> {
+                        add(t.accountId, -t.amount)
+                        add(t.toAccountId, t.amount)
+                    }
+                }
+            }
+            map
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     // -- Transaction CRUD --
     fun addTransaction(
         categoryId: Long,
@@ -81,7 +104,8 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         type: TransactionType,
         description: String,
         date: LocalDateTime,
-        accountId: Long? = null
+        accountId: Long? = null,
+        toAccountId: Long? = null
     ) {
         viewModelScope.launch {
             transactionRepository.insertTransaction(
@@ -91,7 +115,8 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
                     type = type,
                     description = description,
                     date = date,
-                    accountId = accountId ?: accountRepo.getDefault()?.id
+                    accountId = accountId ?: accountRepo.getDefault()?.id,
+                    toAccountId = toAccountId
                 )
             )
         }
@@ -215,7 +240,7 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
                 var guard = 0
                 while (cur <= now && guard < 1000) {
                     occurrences.add(cur)
-                    cur = advance(cur, rtx)
+                    cur = nextRunAfter(cur, rtx)
                     guard++
                 }
                 occurrences.forEach { date ->
@@ -232,18 +257,31 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
                 }
                 // 将下次执行日推进到未来，避免重复生成
                 var next = rtx.nextRunDate
-                while (next <= now) next = advance(next, rtx)
+                while (next <= now) next = nextRunAfter(next, rtx)
                 if (next != rtx.nextRunDate) recurringRepo.update(rtx.copy(nextRunDate = next))
             }
         }
     }
 
-    private fun advance(date: LocalDateTime, rtx: RecurringTransaction): LocalDateTime {
+    // 与 computeRecurringNextRun 同源：基于上次发生日锚定下一次，保证创建预览与执行推进一致（6.1 P1 双轨不一致修复）
+    private fun nextRunAfter(prev: LocalDateTime, rtx: RecurringTransaction): LocalDateTime {
+        val iv = maxOf(1, rtx.interval)
+        val dom = rtx.dayOfMonth.coerceIn(1, 31)
         return when (rtx.frequency) {
-            RecurringFrequency.DAILY -> date.plusDays(rtx.interval.toLong())
-            RecurringFrequency.WEEKLY -> date.plusWeeks(rtx.interval.toLong())
-            RecurringFrequency.MONTHLY -> date.plusMonths(rtx.interval.toLong())
-            RecurringFrequency.YEARLY -> date.plusYears(rtx.interval.toLong())
+            RecurringFrequency.DAILY -> prev.toLocalDate().plusDays(iv.toLong()).atStartOfDay()
+            RecurringFrequency.WEEKLY -> prev.plusWeeks(iv.toLong()) // 保持星期一致
+            RecurringFrequency.MONTHLY -> {
+                val d = prev.toLocalDate().plusMonths(iv.toLong())
+                val day = if (dom > d.lengthOfMonth()) d.lengthOfMonth() else dom
+                d.withDayOfMonth(day).atStartOfDay()
+            }
+            RecurringFrequency.YEARLY -> {
+                val d = prev.toLocalDate().plusYears(iv.toLong())
+                val m = rtx.monthOfYear.coerceIn(1, 12)
+                val maxDom = java.time.YearMonth.of(d.year, m).lengthOfMonth()
+                val day = if (dom > maxDom) maxDom else dom
+                java.time.LocalDate.of(d.year, m, day).atStartOfDay()
+            }
         }
     }
 

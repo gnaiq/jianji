@@ -184,11 +184,12 @@ fun JianjiApp(
                 editingTransaction = editingTransaction,
                 templates = allTemplates,
                 accounts = allAccounts,
+                accountBalances = viewModel.accountBalances.value,
                 onDismiss = {
                     showAddDialog = false
                     editingTransaction = null
                 },
-                onConfirm = { categoryId, amount, type, description, date, accountId ->
+                onConfirm = { categoryId, amount, type, description, date, accountId, toAccountId ->
                     if (editingTransaction != null) {
                         viewModel.updateTransaction(
                             editingTransaction!!.copy(
@@ -197,11 +198,12 @@ fun JianjiApp(
                                 type = type,
                                 description = description,
                                 date = date,
-                                accountId = accountId
+                                accountId = accountId,
+                                toAccountId = toAccountId
                             )
                         )
                     } else {
-                        viewModel.addTransaction(categoryId, amount, type, description, date, accountId)
+                        viewModel.addTransaction(categoryId, amount, type, description, date, accountId, toAccountId)
                     }
                     showAddDialog = false
                     editingTransaction = null

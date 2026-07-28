@@ -61,7 +61,7 @@ fun SettingsScreen(
     var showBackupManage by remember { mutableStateOf(false) }
     var showPosterDialog by remember { mutableStateOf(false) }
     var showDarkModeDialog by remember { mutableStateOf(false) }
-    var showPinDialog by remember { mutableStateOf(false) }
+
     var showExportProgress by remember { mutableStateOf(false) }
 
     // 备份/恢复在 Android 6–9（<Q）需要运行时存储权限；Q+ 走 MediaStore 无需权限（P0-3）
@@ -482,6 +482,7 @@ fun SettingsScreen(
         AccountManagementDialog(
             accounts = accounts,
             viewModel = viewModel,
+            accountBalances = viewModel?.accountBalances?.value ?: emptyMap(),
             onDismiss = { showAccountDialog = false }
         )
     }
@@ -611,7 +612,7 @@ fun BudgetSettingsDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit
 
 // ======== Account Dialog ========
 @Composable
-fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
+fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewModel?, onDismiss: () -> Unit, accountBalances: Map<Long, Double> = emptyMap()) {
     var showAdd by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newIcon by remember { mutableStateOf("💳") }
@@ -639,6 +640,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
                                 Text(acc.icon, style = MaterialTheme.typography.bodyLarge)
                                 Column {
                                     Text(acc.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    Text("余额 ¥%.2f".format(accountBalances[acc.id] ?: 0.0), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                     if (acc.isDefault) Text("默认", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
@@ -814,6 +816,7 @@ fun RecurringManagementDialog(
     var rDayOfMonth by remember { mutableStateOf("1") }
     var rInterval by remember { mutableStateOf("1") }
     var rDayOfWeek by remember { mutableStateOf("1") }
+    var rMonthOfYear by remember { mutableStateOf("1") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -884,6 +887,12 @@ fun RecurringManagementDialog(
                         }, label = { Text(if (rFreq == RecurringFrequency.YEARLY) "每年几号" else "每月几号") },
                             modifier = Modifier.fillMaxWidth(), singleLine = true)
                     }
+                    if (rFreq == RecurringFrequency.YEARLY) {
+                        OutlinedTextField(value = rMonthOfYear, onValueChange = {
+                            if (it.all { c -> c.isDigit() }) rMonthOfYear = it
+                        }, label = { Text("每年几月") },
+                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    }
                     if (rFreq == RecurringFrequency.WEEKLY) {
                         Text("每${unitLabel}的星期几", style = MaterialTheme.typography.labelMedium)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -917,7 +926,7 @@ fun RecurringManagementDialog(
                     }
                     val previewNext = computeRecurringNextRun(
                         rFreq, rDayOfMonth.toIntOrNull() ?: 1, rInterval.toIntOrNull() ?: 1,
-                        rDayOfWeek.toIntOrNull() ?: 1
+                        rDayOfWeek.toIntOrNull() ?: 1, rMonthOfYear.toIntOrNull() ?: 1
                     )
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -945,6 +954,7 @@ fun RecurringManagementDialog(
                     viewModel?.addRecurring(RecurringTransaction(
                         categoryId = catId, amount = amt, type = rType, description = rDesc,
                         frequency = rFreq, interval = interval, dayOfMonth = dom,
+                        monthOfYear = rMonthOfYear.toIntOrNull() ?: 1,
                         dayOfWeek = dow, nextRunDate = nextRun
                     ))
                     showAdd = false; rAmount = ""; rDesc = ""; rCatId = null

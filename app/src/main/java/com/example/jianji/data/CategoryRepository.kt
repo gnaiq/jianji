@@ -67,5 +67,17 @@ class CategoryRepository(private val dao: CategoryDao) {
                 )
             }
         }
+        // 系统分类：转账（供账户间转账引用，不在用户分类列表展示）
+        dao.insert(
+            Category(
+                name = "转账",
+                icon = "🔄",
+                color = "#6200EE",
+                type = CategoryType.EXPENSE,
+                isSystem = true,
+                sortOrder = 999,
+                parentId = 0
+            )
+        )
     }
 }

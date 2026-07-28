@@ -15,6 +15,7 @@ data class TransactionImport(
     val id: Long? = null,
     val categoryId: Long = 0,
     val accountId: Long? = null,
+    val toAccountId: Long? = null,
     val amount: Double = 0.0,
     val type: String = "EXPENSE",
     val description: String = "",
@@ -61,6 +62,7 @@ data class RecurringImport(
     val frequency: String = "MONTHLY",
     val interval: Int = 1,
     val dayOfMonth: Int = 1,
+    val monthOfYear: Int = 1,
     val dayOfWeek: Int = 1,
     val nextRunDate: String = "",
     val isActive: Boolean = true,
@@ -114,6 +116,7 @@ class DataImportManager {
             transactions = transactions.map { t ->
                 TransactionImport(
                     id = t.id, categoryId = t.categoryId, accountId = t.accountId,
+                    toAccountId = t.toAccountId,
                     amount = t.amount, type = t.type.name, description = t.description,
                     date = t.date.toString(),
                     createdAt = t.createdAt.toString(), updatedAt = t.updatedAt.toString()
@@ -139,7 +142,8 @@ class DataImportManager {
                 RecurringImport(
                     id = r.id, categoryId = r.categoryId, accountId = r.accountId, amount = r.amount,
                     type = r.type.name, description = r.description, frequency = r.frequency.name,
-                    interval = r.interval, dayOfMonth = r.dayOfMonth, dayOfWeek = r.dayOfWeek,
+                    interval = r.interval, dayOfMonth = r.dayOfMonth, monthOfYear = r.monthOfYear,
+                    dayOfWeek = r.dayOfWeek,
                     nextRunDate = r.nextRunDate.toString(), isActive = r.isActive,
                     createdAt = r.createdAt.toString()
                 )
@@ -225,6 +229,7 @@ class DataImportManager {
                         frequency = RecurringFrequency.valueOf(r.frequency),
                         interval = r.interval,
                         dayOfMonth = r.dayOfMonth,
+                        monthOfYear = r.monthOfYear,
                         dayOfWeek = r.dayOfWeek,
                         nextRunDate = LocalDateTime.parse(r.nextRunDate),
                         isActive = r.isActive,
@@ -252,8 +257,13 @@ class DataImportManager {
                     id = t.id ?: 0,
                     categoryId = t.categoryId,
                     accountId = t.accountId,
+                    toAccountId = t.toAccountId,
                     amount = t.amount,
-                    type = if (t.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                    type = when (t.type) {
+                        "INCOME" -> TransactionType.INCOME
+                        "TRANSFER" -> TransactionType.TRANSFER
+                        else -> TransactionType.EXPENSE
+                    },
                     description = t.description,
                     date = LocalDateTime.parse(t.date),
                     createdAt = t.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now(),

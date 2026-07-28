@@ -36,13 +36,15 @@ fun AddTransactionDialog(
     editingTransaction: Transaction? = null,
     templates: List<QuickTemplate> = emptyList(),
     accounts: List<Account> = emptyList(),
+    accountBalances: Map<Long, Double> = emptyMap(),
     onDismiss: () -> Unit,
     onRequestAddCategory: (TransactionType) -> Unit = {},
-    onConfirm: (categoryId: Long, amount: Double, type: TransactionType, description: String, date: LocalDateTime, accountId: Long?) -> Unit
+    onConfirm: (categoryId: Long, amount: Double, type: TransactionType, description: String, date: LocalDateTime, accountId: Long?, toAccountId: Long?) -> Unit
 ) {
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
     var selectedCategoryId by remember { mutableStateOf<Long?>(editingTransaction?.categoryId) }
     var selectedAccountId by remember { mutableStateOf<Long?>(editingTransaction?.accountId) }
+    var selectedToAccountId by remember { mutableStateOf<Long?>(editingTransaction?.toAccountId) }
     var amount by remember { mutableStateOf(editingTransaction?.amount?.toString() ?: "") }
     var description by remember { mutableStateOf(editingTransaction?.description ?: "") }
     var selectedDate by remember { mutableStateOf(editingTransaction?.date ?: LocalDateTime.now()) }
@@ -50,7 +52,7 @@ fun AddTransactionDialog(
 
     // 自动选择默认分类
     LaunchedEffect(categories, selectedType) {
-        if (categories.isEmpty()) return@LaunchedEffect
+        if (categories.isEmpty() || selectedType == TransactionType.TRANSFER) return@LaunchedEffect
         val ct = if (selectedType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
         val current = categories.find { it.id == selectedCategoryId }
         if (current == null || current.type != ct) {
@@ -63,8 +65,14 @@ fun AddTransactionDialog(
     val filteredCategories = categories.filter { it.type == ct }
     val filteredTemplates = templates.filter { it.type == selectedType }
     val selectedCategory = categories.find { it.id == selectedCategoryId }
+    val transferCategory = categories.firstOrNull { it.isSystem }
     val parsedAmount = amount.toDoubleOrNull() ?: 0.0
-    val isValid = selectedCategory != null && parsedAmount > 0
+    val isValid = if (selectedType == TransactionType.TRANSFER) {
+        parsedAmount > 0 && selectedAccountId != null && selectedToAccountId != null
+            && selectedAccountId != selectedToAccountId && transferCategory != null
+    } else {
+        selectedCategory != null && parsedAmount > 0
+    }
 
     val context = LocalContext.current
 
@@ -76,29 +84,32 @@ fun AddTransactionDialog(
                 modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 收支类型
+                // 收支类型（含转账）
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = { selectedType = TransactionType.INCOME },
-                        modifier = Modifier.weight(1f),
+                    Button(onClick = { selectedType = TransactionType.INCOME }, modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedType == TransactionType.INCOME)
                                 MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) { Text("收入") }
-                    Button(
-                        onClick = { selectedType = TransactionType.EXPENSE },
-                        modifier = Modifier.weight(1f),
+                    Button(onClick = { selectedType = TransactionType.EXPENSE }, modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedType == TransactionType.EXPENSE)
                                 MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) { Text("支出") }
+                    Button(onClick = { selectedType = TransactionType.TRANSFER }, modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedType == TransactionType.TRANSFER)
+                                MaterialTheme.colorScheme.tertiary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) { Text("转账") }
                 }
 
                 // 快捷模板
@@ -150,23 +161,34 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 分类选择
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { showCategoryPicker = true },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                // 分类选择（转账无需分类）
+                if (selectedType != TransactionType.TRANSFER) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { showCategoryPicker = true },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Text(selectedCategory?.name ?: "选择分类", style = MaterialTheme.typography.bodyLarge)
-                        Text(selectedCategory?.icon ?: "📁", style = MaterialTheme.typography.bodyLarge)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(selectedCategory?.name ?: "选择分类", style = MaterialTheme.typography.bodyLarge)
+                            Text(selectedCategory?.icon ?: "📁", style = MaterialTheme.typography.bodyLarge)
+                        }
                     }
                 }
 
                 // 账户选择
-                if (accounts.size > 1) {
+                if (selectedType == TransactionType.TRANSFER) {
+                    if (accounts.size < 2) {
+                        Text("转账需要至少两个账户，请先在「设置 → 账户管理」中添加",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error)
+                    } else {
+                        TransferAccountPicker("转出账户", selectedAccountId, accounts, accountBalances) { selectedAccountId = it }
+                        TransferAccountPicker("转入账户", selectedToAccountId, accounts, accountBalances) { selectedToAccountId = it }
+                    }
+                } else if (accounts.isNotEmpty()) {
                     var showAccountPicker by remember { mutableStateOf(false) }
                     val selectedAccount = accounts.find { it.id == selectedAccountId }
                         ?: accounts.firstOrNull { it.isDefault }
@@ -180,7 +202,7 @@ fun AddTransactionDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${selectedAccount?.icon ?: "💳"} ${selectedAccount?.name ?: "无账户"}",
+                            Text("${selectedAccount?.icon ?: "💳"} ${selectedAccount?.name ?: "无账户"}  ${selectedAccount?.id?.let { "¥%.2f".format(accountBalances[it] ?: 0.0) } ?: ""}",
                                 style = MaterialTheme.typography.bodyLarge)
                             Text("选择账户 >", style = MaterialTheme.typography.labelSmall)
                         }
@@ -211,8 +233,13 @@ fun AddTransactionDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
                                                 Text(acc.icon, style = MaterialTheme.typography.bodyLarge)
-                                                Text(acc.name, style = MaterialTheme.typography.bodyLarge,
-                                                    fontWeight = FontWeight.Bold)
+                                                Column {
+                                                    Text(acc.name, style = MaterialTheme.typography.bodyLarge,
+                                                        fontWeight = FontWeight.Bold)
+                                                    Text("¥%.2f".format(accountBalances[acc.id] ?: 0.0),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                                }
                                             }
                                         }
                                     }
@@ -340,16 +367,84 @@ fun AddTransactionDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val cat = selectedCategory
-                    if (cat != null && isValid) {
-                        onConfirm(cat.id, parsedAmount, selectedType, description, selectedDate.withNano(0), selectedAccountId)
-                    }
+                    if (!isValid) return@Button
+                    val categoryId = if (selectedType == TransactionType.TRANSFER)
+                        transferCategory?.id ?: 0L else (selectedCategory?.id ?: 0L)
+                    onConfirm(
+                        categoryId, parsedAmount, selectedType, description,
+                        selectedDate.withNano(0), selectedAccountId,
+                        if (selectedType == TransactionType.TRANSFER) selectedToAccountId else null
+                    )
                 },
                 enabled = isValid
             ) { Text(if (editingTransaction != null) "保存" else "确认") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
+}
+
+@Composable
+private fun TransferAccountPicker(
+    label: String,
+    selectedId: Long?,
+    accounts: List<Account>,
+    accountBalances: Map<Long, Double>,
+    onSelect: (Long) -> Unit
+) {
+    var show by remember { mutableStateOf(false) }
+    val sel = accounts.find { it.id == selectedId }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { show = true },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("${sel?.icon ?: "💳"} ${sel?.name ?: label}  ${sel?.id?.let { "¥%.2f".format(accountBalances[it] ?: 0.0) } ?: ""}",
+                style = MaterialTheme.typography.bodyLarge)
+            Text("选择 >", style = MaterialTheme.typography.labelSmall)
+        }
+    }
+    if (show) {
+        AlertDialog(
+            onDismissRequest = { show = false },
+            title = { Text(label) },
+            text = {
+                LazyColumn {
+                    items(accounts) { acc ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { onSelect(acc.id); show = false }
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (acc.id == selectedId)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(acc.icon, style = MaterialTheme.typography.bodyLarge)
+                                Column {
+                                    Text(acc.name, style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold)
+                                    Text("¥%.2f".format(accountBalances[acc.id] ?: 0.0),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { show = false }) { Text("取消") } }
+        )
+    }
 }
 
 @Composable

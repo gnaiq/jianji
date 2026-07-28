@@ -27,10 +27,11 @@ data class Transaction(
     val description: String = "",
     val date: LocalDateTime,
     val accountId: Long? = null,
+    val toAccountId: Long? = null, // 转账目标账户（type=TRANSFER 时有效）
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val updatedAt: LocalDateTime = LocalDateTime.now()
 )
 
 enum class TransactionType {
-    INCOME, EXPENSE
+    INCOME, EXPENSE, TRANSFER
 }

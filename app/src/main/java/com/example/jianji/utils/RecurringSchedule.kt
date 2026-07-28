@@ -16,6 +16,7 @@ fun computeRecurringNextRun(
     dayOfMonth: Int,
     interval: Int,
     dayOfWeek: Int = 1,
+    monthOfYear: Int = 1,
     now: LocalDateTime = LocalDateTime.now()
 ): LocalDateTime {
     val iv = maxOf(1, interval)
@@ -44,8 +45,10 @@ fun computeRecurringNextRun(
 
         RecurringFrequency.YEARLY -> {
             val y = now.year
-            val dom = dayOfMonth.coerceIn(1, 31)
-            val candidate = LocalDate.of(y, 1, dom).atStartOfDay()
+            val m = monthOfYear.coerceIn(1, 12)
+            // 月末天数保护：避免「2 月 31 日」等非法日期导致 LocalDate.of 抛异常
+            val dom = min(dayOfMonth.coerceIn(1, 31), YearMonth.of(y, m).lengthOfMonth())
+            val candidate = LocalDate.of(y, m, dom).atStartOfDay()
             if (candidate.isBefore(now)) candidate.plusYears(iv.toLong()) else candidate
         }
     }
