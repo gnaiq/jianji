@@ -20,13 +20,15 @@ class StatisticsCalculatorTest {
             tx(1, 1, 10.0, TransactionType.EXPENSE),
             tx(2, 1, 5.0, TransactionType.EXPENSE),
             tx(3, 2, 20.0, TransactionType.EXPENSE),
-            tx(4, 1, 100.0, TransactionType.INCOME)
+            tx(4, 1, 100.0, TransactionType.EXPENSE)
         )
         val map = mapOf(1L to c1, 2L to c2)
         val result = StatisticsCalculator().calculateByCategory(txs, map)
         assertEquals(2, result.size)
-        assertEquals(15.0, result[c1]!!.first, 0.0001)
+        assertEquals(115.0, result[c1]!!.first, 0.0001)   // 10 + 5 + 100
+        assertEquals(3, result[c1]!!.second)              // 笔数
         assertEquals(20.0, result[c2]!!.first, 0.0001)
+        assertEquals(1, result[c2]!!.second)
     }
 
     @Test fun calculateWeeklyStatisticsFiltersRange() {
