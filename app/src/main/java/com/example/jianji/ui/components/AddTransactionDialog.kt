@@ -441,7 +441,6 @@ fun AddTransactionDialog(
             }
         }
     }
-}
 
 // 计算器表达式求值（支持 + − × ÷，含运算符优先级），非法返回 null
 private fun evalExpression(input: String): Double? {
