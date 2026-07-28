@@ -173,6 +173,10 @@ abstract class JianjiDatabase : RoomDatabase() {
                     "jianji_database"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    // 版本回退机制：允许 schema 降级时走破坏性迁移，避免回退到旧版
+                    // （如从未来 v1.6.7 DB v7 回退到本版 v1.6.6 DB v6）时因 Room 拒绝降级而闪退。
+                    // 代价是回退会清空 DB，属回退预期内的数据损失，已在 rollback 脚本中说明。
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
