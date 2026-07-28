@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -98,14 +96,14 @@ fun AddTransactionDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        // 让底部弹层感知输入法：系统键盘（9宫格/26字母全键盘）弹出时整体上移，
-        // 避免遮挡金额显示与自定义计算器按钮，保证两种键盘模式下交互均顺畅
-        windowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
         dragHandle = { HorizontalDivider(thickness = 4.dp, modifier = Modifier.padding(vertical = 8.dp)) }
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                // 输入法安全内边距：系统键盘（9宫格/26字母全键盘）弹出时，内容整体上移
+                // 并留出底部空间，杜绝遮挡金额显示与自定义计算器按钮，保证两种键盘模式下交互顺畅
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
