@@ -81,7 +81,7 @@ class StatisticsCalculator {
         return transactions.groupBy { it.categoryId }
             .mapNotNull { (categoryId, txns) ->
                 val category = categories[categoryId] ?: return@mapNotNull null
-                category to (txns.sumOf { it.amount } to txns.size)
+                category to (txns.sumOf { it.amountCents / 100.0 } to txns.size)
             }
             .toMap()
     }
@@ -100,7 +100,7 @@ class StatisticsCalculator {
             val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59)
             val monthTotal = transactions
                 .filter { it.date >= startDate && it.date <= endDate && it.type == TransactionType.EXPENSE }
-                .sumOf { it.amount }
+                .sumOf { it.amountCents / 100.0 }
             yearMonth.toString() to monthTotal
         }.reversed()
     }
@@ -113,8 +113,8 @@ class StatisticsCalculator {
         val incomeTransactions = transactions.filter { it.type == TransactionType.INCOME }
         val expenseTransactions = transactions.filter { it.type == TransactionType.EXPENSE }
 
-        val totalIncome = incomeTransactions.sumOf { it.amount }
-        val totalExpense = expenseTransactions.sumOf { it.amount }
+        val totalIncome = incomeTransactions.sumOf { it.amountCents / 100.0 }
+        val totalExpense = expenseTransactions.sumOf { it.amountCents / 100.0 }
 
         val incomeByCategory = calculateCategoryStatistics(incomeTransactions, categories, totalIncome)
         val expenseByCategory = calculateCategoryStatistics(expenseTransactions, categories, totalExpense)
@@ -139,7 +139,7 @@ class StatisticsCalculator {
         return transactions.groupBy { it.categoryId }
             .mapNotNull { (categoryId, txns) ->
                 val category = categories[categoryId] ?: return@mapNotNull null
-                val amount = txns.sumOf { it.amount }
+                val amount = txns.sumOf { it.amountCents / 100.0 }
                 CategoryStatistics(
                     category = category,
                     totalAmount = amount,
