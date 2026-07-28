@@ -49,14 +49,14 @@ class PosterGenerator(private val context: Context) {
         year: Int
     ): AnnualStats {
         val yearTxs = transactions.filter { it.date.year == year }
-        val income = yearTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val expense = yearTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val income = yearTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }
+        val expense = yearTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountCents / 100.0 }
         val catMap = categories.associateBy { it.id }
 
         val expenseByCat = yearTxs.filter { it.type == TransactionType.EXPENSE }
-            .groupBy { it.categoryId }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .groupBy { it.categoryId }.mapValues { (_, txs) -> txs.sumOf { it.amountCents / 100.0 } }
         val incomeByCat = yearTxs.filter { it.type == TransactionType.INCOME }
-            .groupBy { it.categoryId }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .groupBy { it.categoryId }.mapValues { (_, txs) -> txs.sumOf { it.amountCents / 100.0 } }
 
         val topExpense = expenseByCat.maxByOrNull { it.value }
             ?.let { (catMap[it.key]?.name ?: "未知") to it.value } ?: ("无" to 0.0)
@@ -65,12 +65,12 @@ class PosterGenerator(private val context: Context) {
 
         val monthlyBreakdown = (1..12).map { month ->
             month to yearTxs.filter { it.date.monthValue == month && it.type == TransactionType.EXPENSE }
-                .sumOf { it.amount }
+                .sumOf { it.amountCents / 100.0 }
         }
 
         val dailyMax = yearTxs.filter { it.type == TransactionType.EXPENSE }
             .groupBy { it.date.toLocalDate() }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amountCents / 100.0 } }
             .maxByOrNull { it.value }
         val maxDaily = dailyMax?.let { it.key.format(DateTimeFormatter.ISO_LOCAL_DATE) to it.value } ?: ("无" to 0.0)
 
