@@ -24,6 +24,7 @@ class BudgetRepository(private val dao: BudgetDao) {
             insert(budget)
         }
     }
+    suspend fun insert(budget: Budget) = dao.insert(budget)
     suspend fun update(budget: Budget) = dao.update(budget)
     suspend fun delete(budget: Budget) = dao.delete(budget)
     suspend fun deleteAll() = dao.deleteAll()
