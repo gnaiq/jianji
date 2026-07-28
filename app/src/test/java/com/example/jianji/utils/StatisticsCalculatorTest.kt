@@ -11,7 +11,7 @@ import java.time.LocalDateTime
 class StatisticsCalculatorTest {
     private fun cat(id: Long, name: String) = Category(id = id, name = name, type = CategoryType.EXPENSE)
     private fun tx(id: Long, catId: Long, amount: Double, type: TransactionType, date: LocalDateTime = LocalDateTime.now()) =
-        Transaction(id = id, categoryId = catId, amount = amount, type = type, description = "", date = date)
+        Transaction(id = id, categoryId = catId, amountCents = (amount * 100).toLong(), type = type, description = "", date = date)
 
     @Test fun calculateByCategoryGroupsAndSums() {
         val c1 = cat(1, "餐饮")
