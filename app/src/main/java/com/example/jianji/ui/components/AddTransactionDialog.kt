@@ -1,6 +1,7 @@
 package com.example.jianji.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,9 +29,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.jianji.data.*
 import java.time.LocalDateTime
@@ -86,11 +92,15 @@ fun AddTransactionDialog(
     }
 
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val sheetState = rememberModalBottomSheetState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        // 让底部弹层感知输入法：系统键盘（9宫格/26字母全键盘）弹出时整体上移，
+        // 避免遮挡金额显示与自定义计算器按钮，保证两种键盘模式下交互均顺畅
+        windowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
         dragHandle = { HorizontalDivider(thickness = 4.dp, modifier = Modifier.padding(vertical = 8.dp)) }
     ) {
         Column(
@@ -404,7 +414,12 @@ fun AddTransactionDialog(
                     onValueChange = { if (it.length <= 100) description = it },
                     label = { Text("描述（可选）") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() })
                 )
 
                 // 分类选择器
