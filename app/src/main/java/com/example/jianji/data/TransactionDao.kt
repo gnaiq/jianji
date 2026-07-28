@@ -81,6 +81,11 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND date >= :startDate AND date < :endDate")
     suspend fun getSumByType(type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Double?
 
+    // §1 P0 查询下推：当月收支/今日支出改由 SQL 聚合（吃 date 索引），
+    // 替代 ViewModel 中每次发射对全表 List 的三遍内存扫描
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND date >= :startDate AND date < :endDate")
+    fun observeSumByType(type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Flow<Double?>
+
     @Query("SELECT SUM(amount) FROM transactions WHERE categoryId = :categoryId AND type = :type AND date >= :startDate AND date < :endDate")
     suspend fun getSumByCategoryAndType(categoryId: Long, type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Double?
 

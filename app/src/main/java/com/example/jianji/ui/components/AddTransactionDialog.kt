@@ -30,6 +30,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionDialog(
     categories: List<Category>,
@@ -84,32 +85,29 @@ fun AddTransactionDialog(
                 modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 收支类型（含转账）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(onClick = { selectedType = TransactionType.INCOME }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == TransactionType.INCOME)
-                                MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) { Text("收入") }
-                    Button(onClick = { selectedType = TransactionType.EXPENSE }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == TransactionType.EXPENSE)
-                                MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) { Text("支出") }
-                    Button(onClick = { selectedType = TransactionType.TRANSFER }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == TransactionType.TRANSFER)
-                                MaterialTheme.colorScheme.tertiary
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) { Text("转账") }
+                // 收支类型（含转账）：§5 改用分段选择器——天生单行等宽成组，
+                // 杜绝窄屏/大字体下 Button 文字换行导致的「视觉塌成竖排」
+                val types = listOf(
+                    TransactionType.INCOME to "收入",
+                    TransactionType.EXPENSE to "支出",
+                    TransactionType.TRANSFER to "转账"
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    types.forEachIndexed { index, (type, label) ->
+                        SegmentedButton(
+                            selected = selectedType == type,
+                            onClick = { selectedType = type },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = types.size),
+                            colors = SegmentedButtonDefaults.colors(
+                                // 保留原三色语义：收入=主色 / 支出=错误色 / 转账=第三色
+                                activeContainerColor = when (type) {
+                                    TransactionType.INCOME -> MaterialTheme.colorScheme.primaryContainer
+                                    TransactionType.EXPENSE -> MaterialTheme.colorScheme.errorContainer
+                                    else -> MaterialTheme.colorScheme.tertiaryContainer
+                                }
+                            )
+                        ) { Text(label, maxLines = 1, softWrap = false) }
+                    }
                 }
 
                 // 快捷模板

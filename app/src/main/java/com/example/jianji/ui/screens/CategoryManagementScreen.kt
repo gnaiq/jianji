@@ -78,7 +78,7 @@ fun CategoryManagementScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            "分类管理",
+            "分类",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )

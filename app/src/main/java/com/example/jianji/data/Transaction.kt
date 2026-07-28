@@ -16,7 +16,9 @@ import java.time.LocalDateTime
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["accountId"]), Index(value = ["description"])]
+    // date 索引（§1 P0）：首页/历史/统计的日期范围过滤与 SUM 聚合均按 date 检索，
+    // 万条数据下无索引即全表扫描；与 MIGRATION_4_5 的 CREATE INDEX 配对
+    indices = [Index(value = ["accountId"]), Index(value = ["description"]), Index(value = ["date"])]
 )
 data class Transaction(
     @PrimaryKey(autoGenerate = true)

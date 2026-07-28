@@ -43,6 +43,9 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     suspend fun getSumByType(type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Double =
         transactionDao.getSumByType(type, startDate, endDate) ?: 0.0
 
+    fun observeSumByType(type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Flow<Double?> =
+        transactionDao.observeSumByType(type, startDate, endDate)
+
     suspend fun getSumByCategoryAndType(categoryId: Long, type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Double =
         transactionDao.getSumByCategoryAndType(categoryId, type, startDate, endDate) ?: 0.0
 

@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RecurringTransaction::class,
         QuickTemplate::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -110,6 +110,19 @@ abstract class JianjiDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // date 索引（§1 P0 查询下推配套）。索引名必须与 Room 生成的
+                // index_transactions_date 完全一致，否则 schema 校验失败
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_date` ON `transactions` (`date`)")
+                // 防御性补齐：实体自始声明 accountId/description 索引，但历史迁移链
+                // （1→2→3→4）从未 CREATE INDEX。迁移后 Room 会校验全部索引，
+                // 若老升级用户 DB 缺失即崩。IF NOT EXISTS 已存在则 no-op，缺失则修复。
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_accountId` ON `transactions` (`accountId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_description` ON `transactions` (`description`)")
+            }
+        }
+
         fun getDatabase(context: Context): JianjiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -117,7 +130,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                     JianjiDatabase::class.java,
                     "jianji_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

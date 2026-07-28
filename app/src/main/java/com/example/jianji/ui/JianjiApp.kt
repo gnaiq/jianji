@@ -3,10 +3,19 @@ package com.example.jianji.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.utils.BackupScheduler
@@ -20,15 +29,16 @@ import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
 import com.example.jianji.data.Transaction as AppTransaction
 
-enum class Tab(val label: String) {
-    HOME("首页"),
-    STATISTICS("统计"),
-    CATEGORIES("分类管理"),
-    HISTORY("历史"),
-    SETTINGS("设置")
+// §4 五页签迁移底部 NavigationBar：图标 + 短标签，「分类管理」更名「分类」
+enum class Tab(val label: String, val icon: ImageVector) {
+    HOME("首页", Icons.Filled.Home),
+    STATISTICS("统计", Icons.Filled.BarChart),
+    CATEGORIES("分类", Icons.Filled.Category),
+    HISTORY("历史", Icons.Filled.History),
+    SETTINGS("设置", Icons.Filled.Settings)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun JianjiApp(
     darkMode: Int = 0,
@@ -52,10 +62,17 @@ fun JianjiApp(
     LaunchedEffect(Unit) {
         BackupScheduler.ensureScheduled(context)
     }
-        LaunchedEffect(transactions) {
-            if (BackupScheduler.isImmediateBackupEnabled(context)) {
-                viewModel.autoBackup()
-            }
+        // §1 P0 即时备份节流：跳过冷启动初始发射 + debounce 5s，
+        // 连续记 N 笔账仅在停止操作 5 秒后合并为一次全量落盘（原实现每次发射都写 MediaStore）
+        LaunchedEffect(Unit) {
+            snapshotFlow { transactions }
+                .drop(1)
+                .debounce(5_000)
+                .collect {
+                    if (BackupScheduler.isImmediateBackupEnabled(context)) {
+                        viewModel.autoBackup()
+                    }
+                }
         }
         // 数据变化时刷新桌面小组件（P1-6）
         LaunchedEffect(transactions) {
@@ -80,6 +97,21 @@ fun JianjiApp(
     var isSearching by remember { mutableStateOf(false) }
 
     Scaffold(
+        bottomBar = {
+            NavigationBar {
+                Tab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == tab,
+                        onClick = {
+                            selectedTab = tab
+                            if (tab != Tab.HOME) { isSearching = false; searchQuery = "" }
+                        },
+                        icon = { Icon(tab.icon, contentDescription = tab.label) },
+                        label = { Text(tab.label) }
+                    )
+                }
+            }
+        },
         floatingActionButton = {
             if (selectedTab != Tab.SETTINGS && !isSearching) {
                 FloatingActionButton(
@@ -99,20 +131,6 @@ fun JianjiApp(
         }
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
-            // Tab bar
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                Tab.entries.forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = {
-                            selectedTab = tab
-                            if (tab != Tab.HOME) { isSearching = false; searchQuery = "" }
-                        },
-                        text = { Text(tab.label) }
-                    )
-                }
-            }
-
             when (selectedTab) {
                 Tab.HOME -> HomeScreen(
                     transactions = transactions,

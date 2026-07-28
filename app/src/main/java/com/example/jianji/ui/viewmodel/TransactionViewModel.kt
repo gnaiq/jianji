@@ -48,27 +48,34 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     val recurringTransactions: StateFlow<List<RecurringTransaction>> = recurringRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 当月收支（每次发射重新计算当月区间，跨月后自动刷新；统一日期源）
-    val monthlyIncome: StateFlow<Double> = transactions
-        .map { txs ->
-            val (s, e) = DateUtils.currentMonthRange()
-            txs.filter { it.date >= s && it.date < e && it.type == TransactionType.INCOME }.sumOf { it.amount }
+    // 当月收支（§1 P0 查询下推：SQL SUM + date 索引替代全表内存过滤；
+    // Room Flow 随表变化自动重查，月份边界由 currentMonthFlow 驱动切换区间）
+    val monthlyIncome: StateFlow<Double> = currentMonthFlow()
+        .flatMapLatest { ym ->
+            transactionRepository.observeSumByType(
+                TransactionType.INCOME, ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()
+            )
         }
+        .map { it ?: 0.0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val monthlyExpense: StateFlow<Double> = transactions
-        .map { txs ->
-            val (s, e) = DateUtils.currentMonthRange()
-            txs.filter { it.date >= s && it.date < e && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val monthlyExpense: StateFlow<Double> = currentMonthFlow()
+        .flatMapLatest { ym ->
+            transactionRepository.observeSumByType(
+                TransactionType.EXPENSE, ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()
+            )
         }
+        .map { it ?: 0.0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    // 今日支出（每次发射重新计算今日区间）
-    val dailyExpense: StateFlow<Double> = transactions
-        .map { txs ->
-            val (s, e) = DateUtils.todayRange()
-            txs.filter { it.date >= s && it.date < e && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    // 今日支出（同上；日期边界由 currentDayFlow 驱动切换区间）
+    val dailyExpense: StateFlow<Double> = currentDayFlow()
+        .flatMapLatest { day ->
+            transactionRepository.observeSumByType(
+                TransactionType.EXPENSE, day.atStartOfDay(), day.plusDays(1).atStartOfDay()
+            )
         }
+        .map { it ?: 0.0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // 当月预算：随月份切换动态重查（P0-2：原 YearMonth.now() 在 VM 构造时固化，进程跨月驻留会读旧月预算）
@@ -83,6 +90,16 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         while (true) {
             val (start, end) = DateUtils.currentMonthRange()
             emit(YearMonth.from(start.toLocalDate()))
+            val waitMs = Duration.between(LocalDateTime.now(), end).toMillis()
+            delay(if (waitMs > 0) waitMs else 1000L)
+        }
+    }
+
+    // 仅在自然日边界重新发射当前日期（与 currentMonthFlow 同构，供今日支出切区间）
+    private fun currentDayFlow(): Flow<LocalDate> = flow {
+        while (true) {
+            val (start, end) = DateUtils.todayRange()
+            emit(start.toLocalDate())
             val waitMs = Duration.between(LocalDateTime.now(), end).toMillis()
             delay(if (waitMs > 0) waitMs else 1000L)
         }
