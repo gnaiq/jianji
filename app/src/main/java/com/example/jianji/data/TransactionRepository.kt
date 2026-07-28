@@ -31,6 +31,20 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     suspend fun deleteTransaction(transaction: Transaction) =
         transactionDao.delete(transaction)
 
+    // 软删（回收站，§5）：标记 deleted_at，不物理删除
+    suspend fun softDelete(transaction: Transaction) =
+        transactionDao.update(transaction.copy(deletedAt = LocalDateTime.now()))
+
+    fun getDeletedTransactions(): Flow<List<Transaction>> =
+        transactionDao.getDeletedTransactions()
+
+    suspend fun restoreTransaction(id: Long) = transactionDao.restoreTransaction(id)
+
+    suspend fun purgeDeleted() = transactionDao.purgeDeleted()
+
+    fun getTransactionsByTagIds(tagIds: List<Long>): Flow<List<Transaction>> =
+        transactionDao.getTransactionsByTagIds(tagIds)
+
     suspend fun getSumByType(type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Double =
         transactionDao.getSumByType(type, startDate, endDate) ?: 0.0
 
