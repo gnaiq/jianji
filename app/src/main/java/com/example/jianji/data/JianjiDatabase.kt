@@ -127,18 +127,56 @@ abstract class JianjiDatabase : RoomDatabase() {
         }
 
         // v1.6.6：金额 Long 分 + 回收站软删 + 标签系统
+        // 采用「建新表 -> 迁数据 -> 删旧表 -> 重命名」重建 transactions，
+        // 确保迁移后 schema 与 Room 依据实体生成的 v6 定义逐列一致：
+        //  - 规避 ALTER ADD COLUMN 在 NOT NULL/默认值/自动外键索引上的校验差异导致升级闪退；
+        //  - 补齐 transactions.categoryId 的自动外键索引 index_transactions_categoryId
+        //    （Room 为外键自动建索引，但历史迁移链从未 CREATE，老版本升级用户缺此索引会校验失败）。
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1) 金额迁移 Double -> Long 分：新增 amount_cents 列，回填历史数据（四舍五入），
-                //    旧 amount 列保留为死列（Room 不再引用，避免 DROP+重建整表风险）
-                db.execSQL("ALTER TABLE transactions ADD COLUMN amount_cents INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("UPDATE transactions SET amount_cents = CAST(ROUND(COALESCE(amount, 0) * 100) AS INTEGER)")
-
-                // 2) 回收站软删标记
-                db.execSQL("ALTER TABLE transactions ADD COLUMN deleted_at TEXT DEFAULT NULL")
+                // 1) 重建 transactions 表
+                db.execSQL(
+                    """
+                    CREATE TABLE `transactions_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `categoryId` INTEGER NOT NULL,
+                        `amount_cents` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `description` TEXT NOT NULL DEFAULT '',
+                        `date` TEXT NOT NULL,
+                        `accountId` INTEGER,
+                        `toAccountId` INTEGER,
+                        `deleted_at` TEXT,
+                        `createdAt` TEXT NOT NULL,
+                        `updatedAt` TEXT NOT NULL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """
+                )
+                // 迁移历史数据：金额 Double -> Long 分（四舍五入），软删标记置 NULL
+                db.execSQL(
+                    """
+                    INSERT INTO `transactions_new` (
+                        id, categoryId, amount_cents, type, description, date,
+                        accountId, toAccountId, deleted_at, createdAt, updatedAt
+                    ) SELECT
+                        id, categoryId,
+                        CAST(ROUND(COALESCE(amount, 0) * 100) AS INTEGER),
+                        type, description, date,
+                        accountId, toAccountId, NULL, createdAt, updatedAt
+                    FROM `transactions`
+                    """
+                )
+                db.execSQL("DROP TABLE `transactions`")
+                db.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions`")
+                // 重建全部索引（含 Room 为外键自动生成的 index_transactions_categoryId）
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_accountId` ON `transactions` (`accountId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_description` ON `transactions` (`description`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_date` ON `transactions` (`date`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_deleted_at` ON `transactions` (`deleted_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
 
-                // 3) 标签系统
+                // 2) 标签系统
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS tags (
