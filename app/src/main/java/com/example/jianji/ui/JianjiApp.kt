@@ -34,17 +34,23 @@ import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
 import com.example.jianji.data.Transaction as AppTransaction
 import java.time.LocalDate
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 
-// §4 五页签迁移底部 NavigationBar：图标 + 短标签，「分类管理」更名「分类」
-enum class Tab(val label: String, val icon: ImageVector) {
-    HOME("首页", Icons.Filled.Home),
-    STATISTICS("统计", Icons.Filled.BarChart),
-    CATEGORIES("分类", Icons.Filled.Category),
-    HISTORY("历史", Icons.Filled.History),
-    SETTINGS("设置", Icons.Filled.Settings),
-    CALENDAR("日历", Icons.Filled.DateRange),
-    RECYCLE("回收站", Icons.Filled.DeleteSweep),
-    TAGS("标签", Icons.Filled.Label)
+// §4 五页签底部 NavigationBar：图标 + 短标签，「分类管理」更名「分类」
+// §10 Nav-Compose 单 Activity：用 NavHost + navController 管理全部屏幕路由，
+//      底部 5 个主 tab 走 NavHost 的 startDestination 体系，日历/回收站/标签为次级路由。
+enum class Tab(val label: String, val icon: ImageVector, val route: String) {
+    HOME("首页", Icons.Filled.Home, "home"),
+    STATISTICS("统计", Icons.Filled.BarChart, "statistics"),
+    CATEGORIES("分类", Icons.Filled.Category, "categories"),
+    HISTORY("历史", Icons.Filled.History, "history"),
+    SETTINGS("设置", Icons.Filled.Settings, "settings"),
+    CALENDAR("日历", Icons.Filled.DateRange, "calendar"),
+    RECYCLE("回收站", Icons.Filled.DeleteSweep, "recycle"),
+    TAGS("标签", Icons.Filled.Label, "tags")
 }
 
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
@@ -93,13 +99,9 @@ fun JianjiApp(
             } catch (_: Exception) { }
         }
 
-    var selectedTab by remember { mutableStateOf(Tab.HOME) }
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showAddCategoryDialogTab by remember { mutableStateOf(false) }
-    var editingTransaction by remember { mutableStateOf<AppTransaction?>(null) }
-    var showAddCategoryQuick by remember { mutableStateOf(false) }
-    var addCategoryQuickType by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var categoryTabType by remember { mutableStateOf(CategoryType.EXPENSE) }
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Tab.HOME.route
 
     // §5 回收站：软删 + 撤销 Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
@@ -121,15 +123,27 @@ fun JianjiApp(
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
 
+    // 对话框 / 表单状态
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddCategoryDialogTab by remember { mutableStateOf(false) }
+    var editingTransaction by remember { mutableStateOf<AppTransaction?>(null) }
+    var showAddCategoryQuick by remember { mutableStateOf(false) }
+    var addCategoryQuickType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var categoryTabType by remember { mutableStateOf(CategoryType.EXPENSE) }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
                 listOf(Tab.HOME, Tab.STATISTICS, Tab.CATEGORIES, Tab.HISTORY, Tab.SETTINGS).forEach { tab ->
                     NavigationBarItem(
-                        selected = selectedTab == tab,
+                        selected = currentRoute == tab.route,
                         onClick = {
-                            selectedTab = tab
-                            if (tab != Tab.HOME) { isSearching = false; searchQuery = "" }
+                            navController.navigate(tab.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                            if (tab.route != Tab.HOME.route) { isSearching = false; searchQuery = "" }
                         },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
                         label = { Text(tab.label) }
@@ -138,10 +152,12 @@ fun JianjiApp(
             }
         },
         floatingActionButton = {
-            if (selectedTab != Tab.SETTINGS && selectedTab != Tab.CALENDAR && selectedTab != Tab.RECYCLE && selectedTab != Tab.TAGS && !isSearching) {
+            if (currentRoute != Tab.SETTINGS.route && currentRoute != Tab.CALENDAR.route &&
+                currentRoute != Tab.RECYCLE.route && currentRoute != Tab.TAGS.route && !isSearching
+            ) {
                 FloatingActionButton(
                     onClick = {
-                        if (selectedTab == Tab.CATEGORIES) {
+                        if (currentRoute == Tab.CATEGORIES.route) {
                             showAddCategoryDialogTab = true
                         } else {
                             editingTransaction = null
@@ -156,9 +172,13 @@ fun JianjiApp(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding)) {
-            when (selectedTab) {
-                Tab.HOME -> HomeScreen(
+        NavHost(
+            navController = navController,
+            startDestination = Tab.HOME.route,
+            modifier = Modifier.fillMaxSize().padding(innerPadding)
+        ) {
+            composable(Tab.HOME.route) {
+                HomeScreen(
                     transactions = transactions,
                     categories = categories,
                     monthlyIncome = monthlyIncome,
@@ -175,7 +195,7 @@ fun JianjiApp(
                     onTransactionClick = { editingTransaction = it },
                     onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
                     transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
-                    onOpenCalendar = { selectedTab = Tab.CALENDAR },
+                    onOpenCalendar = { navController.navigate(Tab.CALENDAR.route) },
                     onUseTemplate = { template ->
                         viewModel.useTemplate(template.id)
                         viewModel.addTransaction(
@@ -189,11 +209,15 @@ fun JianjiApp(
                     },
                     onProcessRecurring = { viewModel.processRecurringDue() }
                 )
-                Tab.STATISTICS -> StatisticsScreen(
+            }
+            composable(Tab.STATISTICS.route) {
+                StatisticsScreen(
                     transactions = transactions,
                     categories = categories
                 )
-                Tab.CATEGORIES -> CategoryManagementScreen(
+            }
+            composable(Tab.CATEGORIES.route) {
+                CategoryManagementScreen(
                     categories = categories,
                     onAddCategory = { name, icon, type ->
                         val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
@@ -210,7 +234,21 @@ fun JianjiApp(
                     onDismissAddDialog = { showAddCategoryDialogTab = false },
                     onTypeChanged = { categoryTabType = if (it == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME }
                 )
-                Tab.SETTINGS -> SettingsScreen(
+            }
+            composable(Tab.HISTORY.route) {
+                HistoryScreen(
+                    transactions = transactions,
+                    categories = categories,
+                    accounts = allAccounts,
+                    tags = viewModel.tags.collectAsState().value,
+                    transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
+                    onTransactionClick = { editingTransaction = it },
+                    onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
+                    onOpenRecycle = { navController.navigate(Tab.RECYCLE.route) }
+                )
+            }
+            composable(Tab.SETTINGS.route) {
+                SettingsScreen(
                     transactions = transactions,
                     categories = categories,
                     accounts = allAccounts,
@@ -220,36 +258,32 @@ fun JianjiApp(
                     onDataCleared = { viewModel.clearAllData() },
                     darkMode = darkMode,
                     onDarkModeChange = onDarkModeChange,
-                    onOpenTags = { selectedTab = Tab.TAGS }
+                    onOpenTags = { navController.navigate(Tab.TAGS.route) }
                 )
-                Tab.HISTORY -> HistoryScreen(
+            }
+            composable(Tab.CALENDAR.route) {
+                CalendarScreen(
                     transactions = transactions,
                     categories = categories,
-                    accounts = allAccounts,
-                    tags = viewModel.tags.collectAsState().value,
-                    transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
-                    onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
-                    onOpenRecycle = { selectedTab = Tab.RECYCLE }
+                    onBack = { navController.popBackStack() }
                 )
-                Tab.CALENDAR -> CalendarScreen(
-                    transactions = transactions,
-                    categories = categories,
-                    onBack = { selectedTab = Tab.HOME }
-                )
-                Tab.RECYCLE -> RecycleBinScreen(
+            }
+            composable(Tab.RECYCLE.route) {
+                RecycleBinScreen(
                     viewModel = viewModel,
                     categories = categories,
-                    onBack = { selectedTab = Tab.HISTORY }
+                    onBack = { navController.popBackStack() }
                 )
-                Tab.TAGS -> TagsScreen(
+            }
+            composable(Tab.TAGS.route) {
+                TagsScreen(
                     viewModel = viewModel,
-                    onBack = { selectedTab = Tab.SETTINGS }
+                    onBack = { navController.popBackStack() }
                 )
             }
         }
 
-        // Transaction dialog
+        // 交易录入 / 标签 / 分类 弹层：状态驱动，独立于导航栈
         if (showAddDialog || editingTransaction != null) {
             AddTransactionDialog(
                 categories = categories,
@@ -305,7 +339,7 @@ fun JianjiApp(
         }
 
         if (showAddCategoryQuick) {
-                CategoryFormDialog(
+            CategoryFormDialog(
                 title = "添加分类",
                 categoryType = addCategoryQuickType,
                 onConfirm = { name, icon ->
