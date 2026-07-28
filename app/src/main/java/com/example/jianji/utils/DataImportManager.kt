@@ -90,10 +90,11 @@ data class ImportData(
     val quickTemplates: List<TemplateImport>? = null
 )
 
-/** 恢复结果：交易条数 + 是否为全量恢复（version=2，含账户/预算/周期/模板） */
+/** 恢复结果：成功导入交易条数 + 是否为全量恢复 + 跳过的无效记录数 */
 data class ImportResult(
     val transactionCount: Int,
-    val isFullRestore: Boolean
+    val isFullRestore: Boolean,
+    val skippedCount: Int = 0
 )
 
 class DataImportManager {
@@ -123,7 +124,7 @@ class DataImportManager {
                 TransactionImport(
                     id = t.id, categoryId = t.categoryId, accountId = t.accountId,
                     toAccountId = t.toAccountId,
-                    amount = t.amount, type = t.type.name, description = t.description,
+                    amount = t.amountCents / 100.0, type = t.type.name, description = t.description,
                     date = t.date.toString(),
                     createdAt = t.createdAt.toString(), updatedAt = t.updatedAt.toString()
                 )
@@ -183,6 +184,9 @@ class DataImportManager {
         if (txs.isEmpty() && cats.isEmpty()) return@withContext ImportResult(0, false)
 
         val isFull = data.version == 2
+        // 无效记录（日期/类型非法）逐条跳过并计数，避免单条坏数据导致整笔导入回滚
+        var skipped = 0
+        val validTxs = mutableListOf<Transaction>()
 
         db.withTransaction {
             db.transactionDao().deleteAll()
@@ -257,26 +261,36 @@ class DataImportManager {
                 }.let { db.quickTemplateDao().insertAll(it) }
             }
 
-            // 交易（最后写入，引用分类/账户已就位）
-            db.transactionDao().insertAll(txs.map { t ->
-                Transaction(
-                    id = t.id ?: 0,
-                    categoryId = t.categoryId,
-                    accountId = t.accountId,
-                    toAccountId = t.toAccountId,
-                    amount = t.amount,
-                    type = when (t.type) {
+            // 交易（最后写入，引用分类/账户已就位）；非法记录跳过并计数
+            for (t in txs) {
+                try {
+                    val date = LocalDateTime.parse(t.date)
+                    val type = when (t.type) {
                         "INCOME" -> TransactionType.INCOME
                         "TRANSFER" -> TransactionType.TRANSFER
-                        else -> TransactionType.EXPENSE
-                    },
-                    description = t.description,
-                    date = LocalDateTime.parse(t.date),
-                    createdAt = t.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now(),
-                    updatedAt = t.updatedAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now()
-                )
-            })
+                        "EXPENSE" -> TransactionType.EXPENSE
+                        else -> throw IllegalArgumentException("unknown type: ${t.type}")
+                    }
+                    validTxs.add(
+                        Transaction(
+                            id = t.id ?: 0,
+                            categoryId = t.categoryId,
+                            accountId = t.accountId,
+                            toAccountId = t.toAccountId,
+                            amountCents = (t.amount * 100).toLong(),
+                            type = type,
+                            description = t.description,
+                            date = date,
+                            createdAt = t.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now(),
+                            updatedAt = t.updatedAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now()
+                        )
+                    )
+                } catch (e: Exception) {
+                    skipped++
+                }
+            }
+            if (validTxs.isNotEmpty()) db.transactionDao().insertAll(validTxs)
         }
-        ImportResult(txs.size, isFull)
+        ImportResult(validTxs.size, isFull, skipped)
     }
 }
