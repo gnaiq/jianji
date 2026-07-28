@@ -8,6 +8,9 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Label
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.utils.BackupScheduler
@@ -24,10 +28,12 @@ import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.components.CategoryFormDialog
+import com.example.jianji.ui.components.TagFormDialog
 import com.example.jianji.ui.screens.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
 import com.example.jianji.data.Transaction as AppTransaction
+import java.time.LocalDate
 
 // §4 五页签迁移底部 NavigationBar：图标 + 短标签，「分类管理」更名「分类」
 enum class Tab(val label: String, val icon: ImageVector) {
@@ -35,7 +41,10 @@ enum class Tab(val label: String, val icon: ImageVector) {
     STATISTICS("统计", Icons.Filled.BarChart),
     CATEGORIES("分类", Icons.Filled.Category),
     HISTORY("历史", Icons.Filled.History),
-    SETTINGS("设置", Icons.Filled.Settings)
+    SETTINGS("设置", Icons.Filled.Settings),
+    CALENDAR("日历", Icons.Filled.DateRange),
+    RECYCLE("回收站", Icons.Filled.DeleteSweep),
+    TAGS("标签", Icons.Filled.Label)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
@@ -92,6 +101,22 @@ fun JianjiApp(
     var addCategoryQuickType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var categoryTabType by remember { mutableStateOf(CategoryType.EXPENSE) }
 
+    // §5 回收站：软删 + 撤销 Snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingUndo by remember { mutableStateOf<AppTransaction?>(null) }
+    var showTagForm by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingUndo) {
+        pendingUndo?.let { tx ->
+            val result = snackbarHostState.showSnackbar(
+                message = "已移入回收站",
+                actionLabel = "撤销",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) viewModel.restoreTransaction(tx.id)
+            pendingUndo = null
+        }
+    }
+
     // 搜索状态
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
@@ -99,7 +124,7 @@ fun JianjiApp(
     Scaffold(
         bottomBar = {
             NavigationBar {
-                Tab.entries.forEach { tab ->
+                listOf(Tab.HOME, Tab.STATISTICS, Tab.CATEGORIES, Tab.HISTORY, Tab.SETTINGS).forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
                         onClick = {
@@ -113,7 +138,7 @@ fun JianjiApp(
             }
         },
         floatingActionButton = {
-            if (selectedTab != Tab.SETTINGS && !isSearching) {
+            if (selectedTab != Tab.SETTINGS && selectedTab != Tab.CALENDAR && selectedTab != Tab.RECYCLE && selectedTab != Tab.TAGS && !isSearching) {
                 FloatingActionButton(
                     onClick = {
                         if (selectedTab == Tab.CATEGORIES) {
@@ -128,7 +153,8 @@ fun JianjiApp(
                     Icon(Icons.Default.Add, contentDescription = "Add")
                 }
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
@@ -147,7 +173,9 @@ fun JianjiApp(
                     onSearchQueryChange = { searchQuery = it },
                     onToggleSearch = { isSearching = !isSearching },
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                    onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
+                    transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
+                    onOpenCalendar = { selectedTab = Tab.CALENDAR },
                     onUseTemplate = { template ->
                         viewModel.useTemplate(template.id)
                         viewModel.addTransaction(
@@ -191,14 +219,32 @@ fun JianjiApp(
                     viewModel = viewModel,
                     onDataCleared = { viewModel.clearAllData() },
                     darkMode = darkMode,
-                    onDarkModeChange = onDarkModeChange
+                    onDarkModeChange = onDarkModeChange,
+                    onOpenTags = { selectedTab = Tab.TAGS }
                 )
                 Tab.HISTORY -> HistoryScreen(
                     transactions = transactions,
                     categories = categories,
                     accounts = allAccounts,
+                    tags = viewModel.tags.collectAsState().value,
+                    transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { viewModel.deleteTransaction(it) }
+                    onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
+                    onOpenRecycle = { selectedTab = Tab.RECYCLE }
+                )
+                Tab.CALENDAR -> CalendarScreen(
+                    transactions = transactions,
+                    categories = categories,
+                    onBack = { selectedTab = Tab.HOME }
+                )
+                Tab.RECYCLE -> RecycleBinScreen(
+                    viewModel = viewModel,
+                    categories = categories,
+                    onBack = { selectedTab = Tab.HISTORY }
+                )
+                Tab.TAGS -> TagsScreen(
+                    viewModel = viewModel,
+                    onBack = { selectedTab = Tab.SETTINGS }
                 )
             }
         }
@@ -211,26 +257,32 @@ fun JianjiApp(
                 templates = allTemplates,
                 accounts = allAccounts,
                 accountBalances = viewModel.accountBalances.value,
+                tags = viewModel.tags.value,
+                initialTagIds = editingTransaction?.let {
+                    viewModel.transactionTagMap.value[it.id]?.map { t -> t.id } ?: emptyList()
+                } ?: emptyList(),
+                onRequestAddTag = { showTagForm = true },
                 onDismiss = {
                     showAddDialog = false
                     editingTransaction = null
                 },
-                onConfirm = { categoryId, amount, type, description, date, accountId, toAccountId ->
+                onConfirm = { categoryId, amount, type, description, date, accountId, toAccountId, tagIds ->
                     if (editingTransaction != null) {
                         viewModel.updateTransaction(
                             editingTransaction!!.copy(
                                 categoryId = categoryId,
-                                amount = amount,
+                                amountCents = (amount * 100).toLong(),
                                 type = type,
                                 description = description,
                                 date = date,
                                 accountId = accountId,
                                 // P1：非转账类型强制清空 toAccountId，避免「转账→收/支」切换后残留脏字段
                                 toAccountId = if (type == TransactionType.TRANSFER) toAccountId else null
-                            )
+                            ),
+                            tagIds = tagIds
                         )
                     } else {
-                        viewModel.addTransaction(categoryId, amount, type, description, date, accountId, toAccountId)
+                        viewModel.addTransaction(categoryId, amount, type, description, date, accountId, toAccountId, tagIds)
                     }
                     showAddDialog = false
                     editingTransaction = null
@@ -239,6 +291,16 @@ fun JianjiApp(
                     addCategoryQuickType = type
                     showAddCategoryQuick = true
                 }
+            )
+        }
+
+        if (showTagForm) {
+            TagFormDialog(
+                onConfirm = { name, color, icon ->
+                    viewModel.addTag(name, color, icon)
+                    showTagForm = false
+                },
+                onDismiss = { showTagForm = false }
             )
         }
 
