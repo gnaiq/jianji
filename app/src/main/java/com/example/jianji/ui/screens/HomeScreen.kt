@@ -18,9 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -63,7 +66,9 @@ fun HomeScreen(
     onTransactionClick: (Transaction) -> Unit = {},
     onDeleteTransaction: (Transaction) -> Unit = {},
     onUseTemplate: (QuickTemplate) -> Unit = {},
-    onProcessRecurring: () -> Unit = {}
+    onProcessRecurring: () -> Unit = {},
+    transactionTagMap: Map<Long, List<Tag>> = emptyMap(),
+    onOpenCalendar: () -> Unit = {}
 ) {
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
@@ -96,7 +101,7 @@ fun HomeScreen(
     }
 
     val todayIncome = remember(todayTransactions) {
-        todayTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        todayTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amountCents / 100.0 }
     }
 
     // 预算计算（使用真实设置的月度预算；未设置则为 0，表示不限）
@@ -111,10 +116,10 @@ fun HomeScreen(
         last7Days.map { date ->
             val dayIncome = transactions
                 .filter { it.date.toLocalDate() == date && it.type == TransactionType.INCOME }
-                .sumOf { it.amount }
+                .sumOf { it.amountCents / 100.0 }
             val dayExpense = transactions
                 .filter { it.date.toLocalDate() == date && it.type == TransactionType.EXPENSE }
-                .sumOf { it.amount }
+                .sumOf { it.amountCents / 100.0 }
             Triple(date, dayIncome, dayExpense)
         }
     }
@@ -372,7 +377,18 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("最近 7 天", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("最近 7 天", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            TextButton(onClick = onOpenCalendar) {
+                                Icon(Icons.Default.DateRange, "日历视图", modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("月历", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -465,6 +481,7 @@ fun HomeScreen(
                     category = categoryMap[transaction.categoryId],
                     accountName = transaction.accountId?.let { accountMap[it]?.name },
                     toAccountName = transaction.toAccountId?.let { accountMap[it]?.name },
+                    tags = transactionTagMap[transaction.id] ?: emptyList(),
                     onClick = { onTransactionClick(transaction) },
                     onDelete = { onDeleteTransaction(transaction) }
                 )
@@ -482,6 +499,7 @@ fun SwipeToDeleteItem(
     category: Category?,
     accountName: String? = null,
     toAccountName: String? = null,
+    tags: List<Tag> = emptyList(),
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -499,7 +517,7 @@ fun SwipeToDeleteItem(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("删除交易") },
-            text = { Text("确定要删除这笔交易记录吗？删除后无法恢复。") },
+            text = { Text("将移入回收站，可在“回收站”中恢复。确定删除这笔交易吗？") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -538,7 +556,7 @@ fun SwipeToDeleteItem(
     ) {
         TransactionItemCard(
             transaction = transaction, category = category,
-            accountName = accountName, toAccountName = toAccountName, onClick = onClick,
+            accountName = accountName, toAccountName = toAccountName, tags = tags, onClick = onClick,
             onRequestDelete = { showConfirm = true }
         )
     }
@@ -574,6 +592,7 @@ fun TransactionItemCard(
     category: Category? = null,
     accountName: String? = null,
     toAccountName: String? = null,
+    tags: List<Tag> = emptyList(),
     onClick: () -> Unit = {},
     onRequestDelete: () -> Unit = {}
 ) {
@@ -627,14 +646,36 @@ fun TransactionItemCard(
                         Text(transaction.description, style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
+                    if (tags.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            tags.forEach { tag ->
+                                val tagColor = runCatching {
+                                    Color(android.graphics.Color.parseColor(tag.color))
+                                }.getOrDefault(MaterialTheme.colorScheme.primary)
+                                SuggestionChip(
+                                    onClick = { },
+                                    label = { Text("${tag.icon} ${tag.name}",
+                                        style = MaterialTheme.typography.labelSmall) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = tagColor.copy(alpha = 0.15f),
+                                        labelColor = tagColor
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     when {
-                        transaction.type == TransactionType.INCOME -> "+¥${formatAmount(transaction.amount)}"
-                        isTransfer -> "⇄ ¥${formatAmount(transaction.amount)}"
-                        else -> "-¥${formatAmount(transaction.amount)}"
+                        transaction.type == TransactionType.INCOME -> "+¥${formatAmount(transaction.amountCents / 100.0)}"
+                        isTransfer -> "⇄ ¥${formatAmount(transaction.amountCents / 100.0)}"
+                        else -> "-¥${formatAmount(transaction.amountCents / 100.0)}"
                     },
                     style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
                     color = when {
