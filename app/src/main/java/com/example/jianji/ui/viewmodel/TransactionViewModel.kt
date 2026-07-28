@@ -48,6 +48,23 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     val recurringTransactions: StateFlow<List<RecurringTransaction>> = recurringRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // 标签系统（§6）：用户自定义标签，记账时可多选打标，并按标签筛选
+    private val tagRepo = TagRepository(database.tagDao())
+    val tags: StateFlow<List<Tag>> = tagRepo.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 回收站（§5）：软删后保留在此，可还原或彻底清空
+    val deletedTransactions: StateFlow<List<Transaction>> = transactionRepository.getDeletedTransactions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 交易→标签映射（卡片展示标签用）：随标签与 crossRef 变化自动重算
+    val transactionTagMap: StateFlow<Map<Long, List<Tag>>> =
+        tagRepo.observeAllCrossRefs().combine(tags) { cross, tagList ->
+            val tagById = tagList.associateBy { it.id }
+            cross.groupBy({ it.transactionId }, { tagById[it.tagId] })
+                .mapValues { it.value.filterNotNull() }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     // 当月收支（§1 P0 查询下推：SQL SUM + date 索引替代全表内存过滤；
     // Room Flow 随表变化自动重查，月份边界由 currentMonthFlow 驱动切换区间）
     val monthlyIncome: StateFlow<Double> = currentMonthFlow()
@@ -116,11 +133,11 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
             }
             for (t in txs) {
                 when (t.type) {
-                    TransactionType.INCOME -> add(t.accountId, t.amount)
-                    TransactionType.EXPENSE -> add(t.accountId, -t.amount)
+                    TransactionType.INCOME -> add(t.accountId, t.amountCents / 100.0)
+                    TransactionType.EXPENSE -> add(t.accountId, -t.amountCents / 100.0)
                     TransactionType.TRANSFER -> {
-                        add(t.accountId, -t.amount)
-                        add(t.toAccountId, t.amount)
+                        add(t.accountId, -t.amountCents / 100.0)
+                        add(t.toAccountId, t.amountCents / 100.0)
                     }
                 }
             }
@@ -136,13 +153,14 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         description: String,
         date: LocalDateTime,
         accountId: Long? = null,
-        toAccountId: Long? = null
+        toAccountId: Long? = null,
+        tagIds: List<Long> = emptyList()
     ) {
         viewModelScope.launch {
-            transactionRepository.insertTransaction(
+            val insertedId = transactionRepository.insertTransaction(
                 Transaction(
                     categoryId = categoryId,
-                    amount = amount,
+                    amountCents = (amount * 100).toLong(),
                     type = type,
                     description = description,
                     date = date,
@@ -150,17 +168,48 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
                     toAccountId = toAccountId
                 )
             )
+            if (tagIds.isNotEmpty()) tagRepo.setTransactionTags(insertedId, tagIds)
         }
     }
 
-    fun updateTransaction(transaction: Transaction) {
+    fun updateTransaction(transaction: Transaction, tagIds: List<Long> = emptyList()) {
         viewModelScope.launch {
             transactionRepository.updateTransaction(transaction.copy(updatedAt = LocalDateTime.now()))
+            tagRepo.setTransactionTags(transaction.id, tagIds)
         }
     }
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch { transactionRepository.deleteTransaction(transaction) }
+    }
+
+    // -- 回收站（软删 + 还原 + 清空）--
+    fun softDelete(transaction: Transaction) {
+        viewModelScope.launch { transactionRepository.softDelete(transaction) }
+    }
+
+    fun restoreTransaction(id: Long) {
+        viewModelScope.launch { transactionRepository.restoreTransaction(id) }
+    }
+
+    fun purgeDeleted() {
+        viewModelScope.launch { transactionRepository.purgeDeleted() }
+    }
+
+    fun getTransactionsByTagIds(ids: Set<Long>): Flow<List<Transaction>> =
+        transactionRepository.getTransactionsByTagIds(ids.toList())
+
+    // -- 标签 CRUD --
+    fun addTag(name: String, color: String, icon: String) {
+        viewModelScope.launch { tagRepo.insert(Tag(name = name, color = color, icon = icon)) }
+    }
+
+    fun updateTag(tag: Tag) {
+        viewModelScope.launch { tagRepo.update(tag) }
+    }
+
+    fun deleteTag(tag: Tag) {
+        viewModelScope.launch { tagRepo.delete(tag) }
     }
 
     // -- Category CRUD --
@@ -281,7 +330,7 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
                         transactionRepository.insertTransaction(
                             Transaction(
                                 categoryId = rtx.categoryId,
-                                amount = rtx.amount,
+                                amountCents = (rtx.amount * 100).toLong(),
                                 type = rtx.type,
                                 description = rtx.description,
                                 date = date,
