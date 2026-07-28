@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ private sealed interface SettingsDestination {
     data object About : SettingsDestination
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsSubScaffold(
     title: String,
