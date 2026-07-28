@@ -10,7 +10,20 @@ class BudgetRepository(private val dao: BudgetDao) {
 
     suspend fun getTotalBudget(year: Int, month: Int): Budget? = dao.getTotalBudget(year, month)
     fun observeTotalBudget(year: Int, month: Int): Flow<Budget?> = dao.observeTotalBudget(year, month)
-    suspend fun setBudget(budget: Budget) = dao.insert(budget)
+    // 预算设置：upsert 语义。先按 (categoryId, year, month) 查已有记录，
+    // 存在则复用其主键 id 执行 update（避免 @PrimaryKey(autoGenerate) + REPLACE
+    // 在 id=0 时每次生成新行、导致"第二次修改无效"的缺陷），否则 insert。
+    suspend fun setBudget(budget: Budget) {
+        val existing = if (budget.categoryId == null)
+            getTotalBudget(budget.year, budget.month)
+        else
+            getCategoryBudget(budget.categoryId, budget.year, budget.month)
+        if (existing != null) {
+            update(budget.copy(id = existing.id))
+        } else {
+            insert(budget)
+        }
+    }
     suspend fun update(budget: Budget) = dao.update(budget)
     suspend fun delete(budget: Budget) = dao.delete(budget)
     suspend fun deleteAll() = dao.deleteAll()
