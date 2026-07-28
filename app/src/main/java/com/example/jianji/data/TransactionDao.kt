@@ -49,32 +49,7 @@ interface TransactionDao {
     """)
     fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>>
 
-    // Search by description text
-    @Query("""
-        SELECT * FROM transactions 
-        WHERE description LIKE '%' || :query || '%' 
-        ORDER BY date DESC
-    """)
-    fun searchByDescription(query: String): Flow<List<Transaction>>
-
-    // Search by amount range
-    @Query("""
-        SELECT * FROM transactions 
-        WHERE amount >= :minAmount AND amount <= :maxAmount 
-        ORDER BY date DESC
-    """)
-    fun searchByAmountRange(minAmount: Double, maxAmount: Double): Flow<List<Transaction>>
-
-    // Combined search
-    @Query("""
-        SELECT * FROM transactions 
-        WHERE description LIKE '%' || :query || '%' 
-        AND amount >= :minAmount AND amount <= :maxAmount
-        ORDER BY date DESC
-    """)
-    fun searchByDescriptionAndAmount(query: String, minAmount: Double, maxAmount: Double): Flow<List<Transaction>>
-
-    // Filter by account
+    // Filter by account（历史搜索「账户」筛选复用；其余未用的搜索查询已按路线图清理）
     @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY date DESC")
     fun getByAccount(accountId: Long): Flow<List<Transaction>>
 

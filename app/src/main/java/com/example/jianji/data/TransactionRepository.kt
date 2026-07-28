@@ -16,15 +16,6 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> =
         transactionDao.getTransactionsByType(type)
 
-    fun searchByDescription(query: String): Flow<List<Transaction>> =
-        transactionDao.searchByDescription(query)
-
-    fun searchByAmountRange(minAmount: Double, maxAmount: Double): Flow<List<Transaction>> =
-        transactionDao.searchByAmountRange(minAmount, maxAmount)
-
-    fun searchByDescriptionAndAmount(query: String, minAmount: Double, maxAmount: Double): Flow<List<Transaction>> =
-        transactionDao.searchByDescriptionAndAmount(query, minAmount, maxAmount)
-
     fun getByAccount(accountId: Long): Flow<List<Transaction>> =
         transactionDao.getByAccount(accountId)
 

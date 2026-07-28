@@ -1,23 +1,30 @@
 package com.example.jianji.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * 历史交易：列出全部交易（按日期分组、可搜索），点击进入查看/修改，
+ * 历史交易：列出全部交易（按日期分组、可搜索/筛选），点击进入查看/修改，
  * 滑动删除。复用 HomeScreen 的 SwipeToDeleteItem 与现有编辑弹窗，保持行为一致。
+ *
+ * §1 P1 搜索过滤增强：在原有「描述/分类名」文本搜索基础上，新增
+ * 类型 / 账户 / 金额区间 / 日期区间 多维筛选（复用已加载全量交易，内存过滤）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,31 +36,19 @@ fun HistoryScreen(
     onDeleteTransaction: (Transaction) -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
+    var filters by remember { mutableStateOf(SearchFilters()) }
+    var showFilters by remember { mutableStateOf(false) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+    // 金额区间用字符串中间态，避免非法输入直接崩；空串=不限制
+    var minAmountText by remember { mutableStateOf("") }
+    var maxAmountText by remember { mutableStateOf("") }
+
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val accountMap = remember(accounts) { accounts.associateBy { it.id } }
-
-    val filtered = remember(transactions, query) {
-        val base = transactions.sortedByDescending { it.date }
-        if (query.isBlank()) base else base.filter { tx ->
-            val cat = categoryMap[tx.categoryId]
-            cat?.name?.contains(query, ignoreCase = true) == true ||
-                tx.description.contains(query, ignoreCase = true)
-        }
-    }
-
-    // 按日期分组：相邻同日期只显示一次日期头
-    val rows = remember(filtered) {
-        val list = mutableListOf<Any>()
-        var lastDate: LocalDate? = null
-        for (tx in filtered) {
-            val d = tx.date.toLocalDate()
-            if (d != lastDate) {
-                list.add(d)
-                lastDate = d
-            }
-            list.add(tx)
-        }
-        list
+    val effectiveFilters = remember(filters, query) { filters.copy(text = query) }
+    val filtered = remember(transactions, query, filters, categoryMap) {
+        transactions.applySearchFilters(effectiveFilters, categoryMap)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -67,10 +62,128 @@ fun HistoryScreen(
             shape = RoundedCornerShape(12.dp)
         )
 
+        // 筛选开关 + 清除（复用 SettingsScreen 的 FilterChip 模式）
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = showFilters,
+                onClick = { showFilters = !showFilters },
+                label = { Text(if (showFilters) "收起筛选" else "筛选") }
+            )
+            if (!effectiveFilters.isEmpty) {
+                Text(
+                    "${filtered.size} 条",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {
+                    filters = SearchFilters()
+                    minAmountText = ""
+                    maxAmountText = ""
+                }) { Text("清除") }
+            }
+        }
+
+        if (showFilters) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 类型
+                Text("类型", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        null to "全部",
+                        TransactionType.INCOME to "收入",
+                        TransactionType.EXPENSE to "支出",
+                        TransactionType.TRANSFER to "转账"
+                    ).forEach { (t, label) ->
+                        FilterChip(
+                            selected = filters.type == t,
+                            onClick = { filters = filters.copy(type = t) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                // 账户
+                Text("账户", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = filters.accountId == null,
+                        onClick = { filters = filters.copy(accountId = null) },
+                        label = { Text("全部") }
+                    )
+                    accounts.forEach { acc ->
+                        FilterChip(
+                            selected = filters.accountId == acc.id,
+                            onClick = { filters = filters.copy(accountId = acc.id) },
+                            label = { Text(acc.name) }
+                        )
+                    }
+                }
+
+                // 金额区间
+                Text("金额区间", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = minAmountText,
+                        onValueChange = {
+                            minAmountText = it
+                            filters = filters.copy(minAmount = it.toDoubleOrNull())
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("最小") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = maxAmountText,
+                        onValueChange = {
+                            maxAmountText = it
+                            filters = filters.copy(maxAmount = it.toDoubleOrNull())
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("最大") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+
+                // 日期区间（含端：结束日 +1 天转为半开区间）
+                Text("日期区间", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { showStartPicker = true }) {
+                        Text(
+                            filters.startDate?.toLocalDate()?.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                                ?: "起始日"
+                        )
+                    }
+                    OutlinedButton(onClick = { showEndPicker = true }) {
+                        Text(
+                            filters.endDate?.toLocalDate()?.minusDays(1)
+                                ?.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) ?: "结束日"
+                        )
+                    }
+                }
+            }
+        }
+
         if (filtered.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    if (query.isBlank()) "还没有任何交易记录" else "无匹配交易",
+                    if (effectiveFilters.isEmpty) "还没有任何交易记录" else "无匹配交易",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
@@ -81,7 +194,7 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(16.dp)
             ) {
-                items(rows, key = {
+                items(rows(filtered), key = {
                     when (it) {
                         is LocalDate -> "h_$it"
                         is Transaction -> it.id
@@ -111,4 +224,63 @@ fun HistoryScreen(
             }
         }
     }
+
+    if (showStartPicker) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = filters.startDate?.toLocalDate()?.toEpochDay()?.times(86_400_000L)
+                ?: LocalDate.now().toEpochDay() * 86_400_000L
+        )
+        DatePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        val d = LocalDate.ofEpochDay(millis / 86_400_000L)
+                        filters = filters.copy(startDate = d.atStartOfDay())
+                    }
+                    showStartPicker = false
+                }) { Text("确定") }
+            },
+            dismissButton = { TextButton(onClick = { showStartPicker = false }) { Text("取消") } }
+        ) { DatePicker(state = state) }
+    }
+
+    if (showEndPicker) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = (filters.endDate?.toLocalDate()?.minusDays(1))
+                ?.toEpochDay()?.times(86_400_000L)
+                ?: LocalDate.now().toEpochDay() * 86_400_000L
+        )
+        DatePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        val d = LocalDate.ofEpochDay(millis / 86_400_000L)
+                        // 结束日含端：转为次日 00:00 的半开区间上界
+                        filters = filters.copy(endDate = d.plusDays(1).atStartOfDay())
+                    }
+                    showEndPicker = false
+                }) { Text("确定") }
+            },
+            dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text("取消") } }
+        ) { DatePicker(state = state) }
+    }
+}
+
+/**
+ * 按日期分组：相邻同日期只显示一次日期头。抽离为顶层函数便于复用与测试。
+ */
+private fun rows(list: List<Transaction>): List<Any> {
+    val result = mutableListOf<Any>()
+    var lastDate: LocalDate? = null
+    for (tx in list) {
+        val d = tx.date.toLocalDate()
+        if (d != lastDate) {
+            result.add(d)
+            lastDate = d
+        }
+        result.add(tx)
+    }
+    return result
 }
