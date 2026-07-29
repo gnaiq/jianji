@@ -451,7 +451,6 @@ fun AddTransactionDialog(
                 Spacer(Modifier.height(16.dp))
             }
         }
-    }
     // === 动态计算器键盘（点击金额时弹出）===
     if (showCalculator) {
         ModalBottomSheet(
@@ -497,6 +496,7 @@ fun AddTransactionDialog(
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
     }
 
 // 计算器表达式求值（支持 + − × ÷，含运算符优先级），非法返回 null
