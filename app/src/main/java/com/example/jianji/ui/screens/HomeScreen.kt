@@ -420,7 +420,7 @@ fun HomeScreen(
                                             color = if (isSelected) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                         if (expense > 0) {
-                                            Text("¥${expense.toInt()}",
+                                            Text("¥${numberFormat.format(expense)}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFFF44336),
