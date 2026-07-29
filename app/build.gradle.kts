@@ -33,7 +33,7 @@ android {
         // 避免覆盖安装时因签名不一致失败；同时让“同版本号重装”也能通过。
         // 本地未配置 KEYSTORE_FILE 时保留默认 debug 密钥，不影响日常开发。
         getByName("debug") {
-            if (System.getenv("KEYSTORE_FILE") != null) {
+            if (!System.getenv("KEYSTORE_FILE").isNullOrEmpty()) {
                 storeFile = file(System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotEmpty() } ?: "release.keystore")
                 storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: ""
@@ -48,7 +48,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // 有 CI 签名密钥时用固定 release keystore，否则回退 debug（本地开发）
-            signingConfig = if (System.getenv("KEYSTORE_FILE") != null)
+            signingConfig = if (!System.getenv("KEYSTORE_FILE").isNullOrEmpty())
                 signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
         debug {
