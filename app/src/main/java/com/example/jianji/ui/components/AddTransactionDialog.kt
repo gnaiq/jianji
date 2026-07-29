@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -32,6 +33,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.jianji.data.*
@@ -92,24 +95,29 @@ fun AddTransactionDialog(
 
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val sheetState = rememberModalBottomSheetState()
     // 动态计算器键盘：点击金额时弹出（修复键盘常驻遮挡描述框）
     var showCalculator by remember { mutableStateOf(false) }
     val calcSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { HorizontalDivider(thickness = 4.dp, modifier = Modifier.padding(vertical = 8.dp)) }
+    // 全屏表单：用 Dialog 取代 ModalBottomSheet，消除底部弹层上方 scrim 区域；
+    // onDismissRequest = {} 屏蔽「点外部 / 返回键」误触关闭，仅界面内显式按钮（关闭 X / 取消）可退出
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState())
-                // 输入法安全内边距：系统键盘（9宫格/26字母全键盘）弹出时，内容整体上移
-                // 并留出底部空间，杜绝遮挡金额显示与自定义计算器按钮，保证两种键盘模式下交互顺畅
-                .imePadding(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
         ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -451,6 +459,7 @@ fun AddTransactionDialog(
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
     // === 动态计算器键盘（点击金额时弹出）===
     if (showCalculator) {
         ModalBottomSheet(
