@@ -1,5 +1,6 @@
 package com.example.jianji.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -98,7 +100,6 @@ fun AddTransactionDialog(
     val keyboardController = LocalSoftwareKeyboardController.current
     // 动态计算器键盘：点击金额时弹出（修复键盘常驻遮挡描述框）
     var showCalculator by remember { mutableStateOf(false) }
-    val calcSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // 全屏表单：用 Dialog 取代 ModalBottomSheet，消除底部弹层上方 scrim 区域；
     // onDismissRequest = {} 屏蔽「点外部 / 返回键」误触关闭，仅界面内显式按钮（关闭 X / 取消）可退出
@@ -110,6 +111,7 @@ fun AddTransactionDialog(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
+            Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxSize()
                     .statusBarsPadding()
@@ -459,51 +461,61 @@ fun AddTransactionDialog(
                 }
                 Spacer(Modifier.height(16.dp))
             }
-        }
-    }
-    // === 动态计算器键盘（点击金额时弹出）===
-    if (showCalculator) {
-        ModalBottomSheet(
-            onDismissRequest = { showCalculator = false },
-            sheetState = calcSheetState,
-            dragHandle = { HorizontalDivider(thickness = 4.dp, modifier = Modifier.padding(vertical = 8.dp)) }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .navigationBarsPadding(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = if (amount.isEmpty()) "0.00" else amount,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End,
-                    maxLines = 1
-                )
-                CalculatorKeypad { key ->
-                    when (key) {
-                        "⌫" -> amount = if (amount.isNotEmpty()) amount.dropLast(1) else ""
-                        "C" -> amount = ""
-                        "=" -> { val r = evalExpression(amount); if (r != null) amount = formatCalc(r) }
-                        else -> {
-                            val last = amount.lastOrNull()
-                            val ops = setOf('+', '−', '×', '÷')
-                            when {
-                                key in listOf("+", "−", "×", "÷") ->
-                                    if (amount.isNotEmpty() && last !in ops && last != '.') amount += key
-                                key == "." -> {
-                                    val seg = amount.split(Regex("[-+×÷]")).last()
-                                    amount += if (amount.isEmpty() || last in ops) "0." else if ("." !in seg) "." else ""
+            if (showCalculator) {
+                // 同窗口底部浮层：遮罩 + 底部锚定计算器面板，规避嵌套 ModalBottomSheet 的窗口层级/焦点问题
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                        .clickable { showCalculator = false }
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = if (amount.isEmpty()) "0.00" else amount,
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                                CalculatorKeypad { key ->
+                                    when (key) {
+                                        "⌫" -> amount = if (amount.isNotEmpty()) amount.dropLast(1) else ""
+                                        "C" -> amount = ""
+                                        "=" -> { val r = evalExpression(amount); if (r != null) amount = formatCalc(r) }
+                                        else -> {
+                                            val last = amount.lastOrNull()
+                                            val ops = setOf('+', '−', '×', '÷')
+                                            when {
+                                                key in listOf("+", "−", "×", "÷") ->
+                                                    if (amount.isNotEmpty() && last !in ops && last != '.') amount += key
+                                                key == "." -> {
+                                                    val seg = amount.split(Regex("[-+×÷]")).last()
+                                                    amount += if (amount.isEmpty() || last in ops) "0." else if ("." !in seg) "." else ""
+                                                }
+                                                else -> amount += key
+                                            }
+                                        }
+                                    }
                                 }
-                                else -> amount += key
+                                Button(onClick = { showCalculator = false }, modifier = Modifier.fillMaxWidth()) { Text("完成") }
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
                     }
                 }
-                Button(onClick = { showCalculator = false }, modifier = Modifier.fillMaxWidth()) { Text("完成") }
-                Spacer(Modifier.height(8.dp))
+            }
             }
         }
     }
