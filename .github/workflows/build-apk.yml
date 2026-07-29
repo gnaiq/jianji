@@ -29,11 +29,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -48,7 +43,7 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Release APK
-        run: gradle assembleRelease
+        run: ./gradlew assembleRelease
         env:
           KEYSTORE_FILE: ${{ env.KEYSTORE_FILE || '' }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -56,7 +51,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Run unit tests
-        run: gradle testDebugUnitTest
+        run: ./gradlew testDebugUnitTest
 
       # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag
       - name: Guard versionCode strictly increases
