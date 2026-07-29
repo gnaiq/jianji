@@ -236,31 +236,31 @@ class PosterGenerator(private val context: Context) {
 
         // Save：写入媒体库公共图片目录（相册可见、卸载后保留、可正常分享打开）
         val resolver = context.contentResolver
-        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "简记_${stats.year}年度账单.png")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/简记海报")
+        val uri = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "简记_${stats.year}年度账单.png")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/简记海报")
+                }
+                val inserted = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw RuntimeException("无法写入媒体库")
+                resolver.openOutputStream(inserted)?.use { os ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, os)
+                    os.flush()
+                } ?: throw RuntimeException("无法写入图片")
+                inserted
+            } else {
+                val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
+                val posterDir = File(baseDir, "简记海报")
+                posterDir.mkdirs()
+                val file = File(posterDir, "简记_${stats.year}年度账单.png")
+                FileOutputStream(file).use { fos ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                    fos.flush()
+                }
+                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             }
-            val inserted = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: throw RuntimeException("无法写入媒体库")
-            resolver.openOutputStream(inserted)?.use { os ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, os)
-                os.flush()
-            } ?: throw RuntimeException("无法写入图片")
-            inserted
-        } else {
-            val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
-            val posterDir = File(baseDir, "简记海报")
-            posterDir.mkdirs()
-            val file = File(posterDir, "简记_${stats.year}年度账单.png")
-            FileOutputStream(file).use { fos ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
-                fos.flush()
-            }
-            try {
-            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        }
         } finally {
             bitmap.recycle()
         }
