@@ -48,7 +48,7 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: gradle assembleRelease
         env:
           KEYSTORE_FILE: ${{ env.KEYSTORE_FILE || '' }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -56,7 +56,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Run unit tests
-        run: ./gradlew testDebugUnitTest
+        run: gradle testDebugUnitTest
 
       # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag
       - name: Guard versionCode strictly increases
