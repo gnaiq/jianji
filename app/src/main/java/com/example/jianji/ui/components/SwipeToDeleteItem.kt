@@ -48,7 +48,7 @@ fun SwipeToDeleteItem(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("删除交易") },
-            text = { Text("将移入回收站，可在"回收站"中恢复。确定删除这笔交易吗？") },
+            text = { Text("将移入回收站，可在[回收站]中恢复。确定删除这笔交易吗？") },
             confirmButton = {
                 TextButton(
                     onClick = {

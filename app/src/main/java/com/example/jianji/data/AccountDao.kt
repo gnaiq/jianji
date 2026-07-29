@@ -33,7 +33,7 @@ interface AccountDao {
     suspend fun setDefault(id: Long)
 
     // 原子化设置默认账户：避免两步操作间的竞态条件导致无默认账户
-    @Transaction
+    @androidx.room.Transaction
     suspend fun setDefaultAtomic(id: Long) {
         clearDefaults()
         setDefault(id)

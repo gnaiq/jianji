@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
+import com.example.jianji.ui.components.SwipeToDeleteItem
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 

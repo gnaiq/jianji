@@ -3,6 +3,7 @@ package com.example.jianji.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.example.jianji.data.*
 import com.example.jianji.utils.DateUtils
 import kotlinx.coroutines.delay

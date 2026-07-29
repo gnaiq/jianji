@@ -39,7 +39,7 @@ interface BudgetDao {
     suspend fun deleteAll()
 
     // 原子化 upsert：避免 TOCTOU 竞态（检查与插入之间的并发冲突）
-    @Transaction
+    @androidx.room.Transaction
     suspend fun upsertBudget(budget: Budget) {
         val existing = if (budget.categoryId == null)
             getTotalBudget(budget.year, budget.month)
