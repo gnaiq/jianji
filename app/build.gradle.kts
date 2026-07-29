@@ -23,7 +23,7 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+            storeFile = file(System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotEmpty() } ?: "release.keystore")
             storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
             keyAlias = System.getenv("KEY_ALIAS") ?: ""
             keyPassword = System.getenv("KEY_PASSWORD") ?: ""
@@ -34,7 +34,7 @@ android {
         // 本地未配置 KEYSTORE_FILE 时保留默认 debug 密钥，不影响日常开发。
         getByName("debug") {
             if (System.getenv("KEYSTORE_FILE") != null) {
-                storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+                storeFile = file(System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotEmpty() } ?: "release.keystore")
                 storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: ""
                 keyPassword = System.getenv("KEY_PASSWORD") ?: ""
