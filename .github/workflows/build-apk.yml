@@ -9,6 +9,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,28 +34,28 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Decode signing keystore
+      - name: Decode signing keystore (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          if [ -n “$KEYSTORE_BASE64” ]; then
-            echo “$KEYSTORE_BASE64” | base64 -d > “$GITHUB_WORKSPACE/release.keystore”
-            echo “KEYSTORE_FILE=$GITHUB_WORKSPACE/release.keystore” >> “$GITHUB_ENV”
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            echo "KEYSTORE_FILE=release.keystore" >> "$GITHUB_ENV"
           fi
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Release APK
+        run: ./gradlew assembleRelease
         env:
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_FILE: ${{ env.KEYSTORE_FILE || '' }}
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle assembleRelease
 
       - name: Run unit tests
-        run: gradle testDebugUnitTest
+        run: ./gradlew testDebugUnitTest
 
-      # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag。
-      # 否则已装用户（含本地高 versionCode 调试包）升级时会触发系统“已安装更高版本”
-      # 而失败。此步在打包后、上传前拦截，避免发布降级版本。
+      # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag
       - name: Guard versionCode strictly increases
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -59,19 +63,18 @@ jobs:
           NEW_VC=$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | grep -oE '[0-9]+')
           PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
           if [ -z "$PREV_TAG" ]; then
-            echo "无历史 tag，跳过 versionCode 守卫"
+            echo "No historical tag, skipping versionCode guard"
             exit 0
           fi
           PREV_VC=$(git show "$PREV_TAG:app/build.gradle.kts" | grep -oE 'versionCode = [0-9]+' | grep -oE '[0-9]+')
-          echo "上一个发布: $PREV_TAG (versionCode=$PREV_VC) | 本次: ${GITHUB_REF_NAME} (versionCode=$NEW_VC)"
+          echo "Previous release: $PREV_TAG (versionCode=$PREV_VC) | Current: ${GITHUB_REF_NAME} (versionCode=$NEW_VC)"
           if [ "$NEW_VC" -le "$PREV_VC" ]; then
-            echo "::error::versionCode $NEW_VC 未严格大于上一个发布 $PREV_TAG ($PREV_VC)。发布降级会导致已装用户升级时提示“已安装更高版本”而失败。请提高 versionCode 后重试。"
+            echo "::error::versionCode $NEW_VC is not strictly greater than previous release $PREV_TAG ($PREV_VC)"
             exit 1
           fi
-          echo "OK: versionCode 单调递增，可安全发布"
+          echo "OK: versionCode is monotonically increasing"
 
-      # 一致性守卫：versionName 必须与 tag 完全一致，避免“检查更新(versionName)”
-      # 与“安装守卫(versionCode)”口径脱节，导致误拦截或把问题甩给系统。
+      # 一致性守卫：versionName 必须与 tag 一致
       - name: Guard versionName matches tag
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -80,26 +83,27 @@ jobs:
           EXPECTED_VN="${GITHUB_REF_NAME#v}"
           echo "tag=$EXPECTED_VN | versionName=$NEW_VN"
           if [ "$NEW_VN" != "$EXPECTED_VN" ]; then
-            echo "::error::build.gradle 的 versionName($NEW_VN) 与 tag($EXPECTED_VN) 不一致，会导致检查更新与安装守卫口径冲突。"
+            echo "::error::versionName($NEW_VN) does not match tag($EXPECTED_VN)"
             exit 1
           fi
-          echo "OK: versionName 与 tag 一致"
-
-      - name: Find and rename APK
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -1)
-          echo "Found APK: $APK_FILE"
-          cp "$APK_FILE" jianji-${{ github.ref_name }}.apk
+          echo "OK: versionName matches tag"
 
       - name: Upload APK artifact
-        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: jianji-release-apk
           path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          compression-level: 0
 
-      # 幂等守卫：同一 tag 已发布过 Release 则跳过，避免重复生成 APK Release
+      - name: Find and rename APK (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -1)
+          echo "Found APK: $APK_FILE"
+          cp "$APK_FILE" "jianji-${{ github.ref_name }}.apk"
+
+      # 幂等守卫：同一 tag 已发布过 Release 则跳过
       - name: Check if release already exists
         id: check_release
         if: startsWith(github.ref, 'refs/tags/')
@@ -109,7 +113,7 @@ jobs:
           TAG="${{ github.ref_name }}"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release for $TAG already exists, will skip creation to avoid duplicates."
+            echo "Release for $TAG already exists, skipping creation."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
