@@ -32,6 +32,13 @@ interface AccountDao {
     @Query("UPDATE accounts SET isDefault = 1 WHERE id = :id")
     suspend fun setDefault(id: Long)
 
+    // 原子化设置默认账户：避免两步操作间的竞态条件导致无默认账户
+    @Transaction
+    suspend fun setDefaultAtomic(id: Long) {
+        clearDefaults()
+        setDefault(id)
+    }
+
     @Query("SELECT * FROM accounts WHERE isDefault = 1 LIMIT 1")
     suspend fun getDefault(): Account?
 

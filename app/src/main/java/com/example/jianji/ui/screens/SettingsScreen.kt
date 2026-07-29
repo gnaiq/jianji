@@ -31,6 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
+import com.example.jianji.ui.viewmodel.CategoryViewModel
+import com.example.jianji.ui.viewmodel.AccountViewModel
+import com.example.jianji.ui.viewmodel.BudgetViewModel
+import com.example.jianji.ui.viewmodel.TagViewModel
+import com.example.jianji.ui.viewmodel.SettingsViewModel
 import com.example.jianji.utils.*
 import com.example.jianji.BuildConfig
 import kotlinx.coroutines.flow.first
@@ -83,7 +88,12 @@ fun SettingsScreen(
     accounts: List<Account> = emptyList(),
     templates: List<QuickTemplate> = emptyList(),
     recurringTransactions: List<RecurringTransaction> = emptyList(),
-    viewModel: TransactionViewModel? = null,
+    transactionVM: TransactionViewModel? = null,
+    categoryVM: CategoryViewModel? = null,
+    accountVM: AccountViewModel? = null,
+    budgetVM: BudgetViewModel? = null,
+    tagVM: TagViewModel? = null,
+    settingsVM: SettingsViewModel? = null,
     onDataCleared: () -> Unit = {},
     darkMode: Int = 0,
     onDarkModeChange: (Int) -> Unit = {},
@@ -198,7 +208,7 @@ fun SettingsScreen(
                     showExportProgress = true
                     scope.launch {
                         try {
-                            val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
+                            val all = transactionVM?.getAllTransactionsSnapshot() ?: emptyList()
                             if (all.isEmpty()) {
                                 Toast.makeText(context, "暂无数据可导出", Toast.LENGTH_SHORT).show()
                             } else {
@@ -329,7 +339,7 @@ fun SettingsScreen(
                     ensureStoragePermission {
                         scope.launch {
                             try {
-                                val all = viewModel?.getAllTransactionsSnapshot() ?: emptyList()
+                                val all = transactionVM?.getAllTransactionsSnapshot() ?: emptyList()
                                 if (all.isEmpty()) {
                                     Toast.makeText(context, "暂无数据可备份", Toast.LENGTH_SHORT).show()
                                     return@launch
@@ -553,7 +563,7 @@ fun SettingsScreen(
 
     if (showBudgetDialog) {
         BudgetSettingsDialog(
-            viewModel = viewModel,
+            budgetVM = budgetVM,
             onDismiss = { showBudgetDialog = false }
         )
     }
@@ -588,8 +598,8 @@ fun SettingsScreen(
     if (showAccountDialog) {
         AccountManagementDialog(
             accounts = accounts,
-            viewModel = viewModel,
-            accountBalances = viewModel?.accountBalances?.value ?: emptyMap(),
+            accountVM = accountVM,
+            accountBalances = transactionVM?.accountBalances?.value ?: emptyMap(),
             onDismiss = { showAccountDialog = false }
         )
     }
@@ -598,7 +608,7 @@ fun SettingsScreen(
         TemplateManagementDialog(
             templates = templates,
             categories = categories,
-            viewModel = viewModel,
+            settingsVM = settingsVM,
             onDismiss = { showTemplateDialog = false }
         )
     }
@@ -608,7 +618,7 @@ fun SettingsScreen(
             recurringTransactions = recurringTransactions,
             categories = categories,
             accounts = accounts,
-            viewModel = viewModel,
+            settingsVM = settingsVM,
             onDismiss = { showRecurringDialog = false }
         )
     }
@@ -624,7 +634,7 @@ fun SettingsScreen(
 
     if (showImportDialog) {
         ImportDialog(
-            viewModel = viewModel,
+            transactionVM = transactionVM,
             ensureStoragePermission = ensureStoragePermission,
             onDismiss = { showImportDialog = false }
         )
@@ -680,7 +690,7 @@ fun SettingsCard(
 
 // ======== Budget Dialog ========
 @Composable
-fun BudgetSettingsDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit) {
+fun BudgetSettingsDialog(budgetVM: BudgetViewModel?, onDismiss: () -> Unit) {
     val year = YearMonth.now().year
     val month = YearMonth.now().monthValue
     var budgetAmount by remember { mutableStateOf("") }
@@ -705,7 +715,7 @@ fun BudgetSettingsDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit
             Button(onClick = {
                 val amt = budgetAmount.toDoubleOrNull() ?: return@Button
                 scope.launch {
-                    viewModel?.setBudget(Budget(
+                    budgetVM?.setBudget(Budget(
                         amount = amt, period = BudgetPeriod.MONTHLY,
                         year = year, month = month
                     ))
@@ -719,7 +729,7 @@ fun BudgetSettingsDialog(viewModel: TransactionViewModel?, onDismiss: () -> Unit
 
 // ======== Account Dialog ========
 @Composable
-fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewModel?, onDismiss: () -> Unit, accountBalances: Map<Long, Double> = emptyMap()) {
+fun AccountManagementDialog(accounts: List<Account>, accountVM: AccountViewModel?, onDismiss: () -> Unit, accountBalances: Map<Long, Double> = emptyMap()) {
     var showAdd by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newIcon by remember { mutableStateOf("💳") }
@@ -753,7 +763,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
                             }
                             Row {
                                 if (!acc.isDefault) {
-                                    TextButton(onClick = { viewModel?.setDefaultAccount(acc.id) }) { Text("默认") }
+                                    TextButton(onClick = { accountVM?.setDefaultAccount(acc.id) }) { Text("默认") }
                                 }
                                 if (accounts.size > 1 && !acc.isDefault) {
                                     TextButton(onClick = { pendingDelete = acc },
@@ -780,7 +790,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
         confirmButton = {
             if (showAdd) {
                 Button(onClick = {
-                    if (newName.isNotBlank()) { viewModel?.addAccount(newName, newIcon); showAdd = false; newName = "" }
+                    if (newName.isNotBlank()) { accountVM?.addAccount(newName, newIcon); showAdd = false; newName = "" }
                 }, enabled = newName.isNotBlank()) { Text("添加") }
             }
         },
@@ -795,7 +805,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel?.deleteAccountCascade(pendingDelete!!)
+                        accountVM?.deleteAccountCascade(pendingDelete!!)
                         pendingDelete = null
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -811,7 +821,7 @@ fun AccountManagementDialog(accounts: List<Account>, viewModel: TransactionViewM
 fun TemplateManagementDialog(
     templates: List<QuickTemplate>,
     categories: List<Category>,
-    viewModel: TransactionViewModel?,
+    settingsVM: SettingsViewModel?,
     onDismiss: () -> Unit
 ) {
     var showAdd by remember { mutableStateOf(false) }
@@ -850,7 +860,7 @@ fun TemplateManagementDialog(
                                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                                 }
                             }
-                            TextButton(onClick = { viewModel?.deleteTemplate(t) },
+                            TextButton(onClick = { settingsVM?.deleteTemplate(t) },
                                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
                         }
                     }
@@ -894,7 +904,7 @@ fun TemplateManagementDialog(
                 Button(onClick = {
                     val amt = tmpAmount.toDoubleOrNull() ?: return@Button
                     val catId = tmpCatId ?: return@Button
-                    viewModel?.addTemplate(QuickTemplate(categoryId = catId, amount = amt, type = tmpType, description = tmpDesc))
+                    settingsVM?.addTemplate(QuickTemplate(categoryId = catId, amount = amt, type = tmpType, description = tmpDesc))
                     showAdd = false; tmpAmount = ""; tmpDesc = ""; tmpCatId = null
                 }, enabled = tmpAmount.toDoubleOrNull() != null && tmpCatId != null) { Text("添加") }
             }
@@ -911,7 +921,7 @@ fun RecurringManagementDialog(
     recurringTransactions: List<RecurringTransaction>,
     categories: List<Category>,
     accounts: List<Account>,
-    viewModel: TransactionViewModel?,
+    settingsVM: SettingsViewModel?,
     onDismiss: () -> Unit
 ) {
     var showAdd by remember { mutableStateOf(false) }
@@ -953,7 +963,7 @@ fun RecurringManagementDialog(
                                 Text("${if (rt.type == TransactionType.EXPENSE) "-" else "+"}¥${rt.amount} · ${rt.frequency.name} · 下次: ${rt.nextRunDate.format(DateTimeFormatter.ofPattern("MM/dd"))}",
                                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                             }
-                            TextButton(onClick = { viewModel?.deleteRecurring(rt) },
+                            TextButton(onClick = { settingsVM?.deleteRecurring(rt) },
                                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除") }
                         }
                     }
@@ -1057,8 +1067,8 @@ fun RecurringManagementDialog(
                     val dom = rDayOfMonth.toIntOrNull() ?: 1
                     val interval = rInterval.toIntOrNull() ?: 1
                     val dow = rDayOfWeek.toIntOrNull() ?: 1
-                    val nextRun = computeRecurringNextRun(rFreq, dom, interval, dow)
-                    viewModel?.addRecurring(RecurringTransaction(
+                    val nextRun = computeRecurringNextRun(rFreq, dom, interval, dow, rMonthOfYear.toIntOrNull() ?: 1)
+                    settingsVM?.addRecurring(RecurringTransaction(
                         categoryId = catId, amount = amt, type = rType, description = rDesc,
                         frequency = rFreq, interval = interval, dayOfMonth = dom,
                         monthOfYear = rMonthOfYear.toIntOrNull() ?: 1,
@@ -1151,7 +1161,7 @@ fun AnnualPosterDialog(
 // ======== Import Dialog ========
 @Composable
 fun ImportDialog(
-    viewModel: TransactionViewModel?,
+    transactionVM: TransactionViewModel?,
     ensureStoragePermission: (() -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {

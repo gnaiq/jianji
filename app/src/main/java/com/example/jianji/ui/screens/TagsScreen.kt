@@ -21,15 +21,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.Tag
 import com.example.jianji.ui.components.TagFormDialog
-import com.example.jianji.ui.viewmodel.TransactionViewModel
+import com.example.jianji.ui.viewmodel.TagViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagsScreen(
-    viewModel: TransactionViewModel,
+    tagVM: TagViewModel,
     onBack: () -> Unit = {}
 ) {
-    val tags by viewModel.tags.collectAsState()
+    val tags by tagVM.tags.collectAsState()
     var showForm by remember { mutableStateOf(false) }
     var editingTag by remember { mutableStateOf<Tag?>(null) }
 
@@ -61,7 +61,7 @@ fun TagsScreen(
                     TagItem(
                         tag = tag,
                         onEdit = { editingTag = tag; showForm = true },
-                        onDelete = { viewModel.deleteTag(tag) }
+                        onDelete = { tagVM.deleteTag(tag) }
                     )
                 }
             }
@@ -73,9 +73,9 @@ fun TagsScreen(
             initial = editingTag,
             onConfirm = { name, color, icon ->
                 if (editingTag != null) {
-                    viewModel.updateTag(editingTag!!.copy(name = name, color = color, icon = icon))
+                    tagVM.updateTag(editingTag!!.copy(name = name, color = color, icon = icon))
                 } else {
-                    viewModel.addTag(name, color, icon)
+                    tagVM.addTag(name, color, icon)
                 }
                 showForm = false
                 editingTag = null

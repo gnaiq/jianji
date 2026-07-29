@@ -258,9 +258,12 @@ class PosterGenerator(private val context: Context) {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
                 fos.flush()
             }
+            try {
             FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         }
-        bitmap.recycle()
+        } finally {
+            bitmap.recycle()
+        }
         return uri
     }
 

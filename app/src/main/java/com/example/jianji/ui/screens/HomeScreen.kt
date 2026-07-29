@@ -1,7 +1,5 @@
 package com.example.jianji.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,34 +16,29 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.jianji.data.*
-import java.text.NumberFormat
+import com.example.jianji.ui.components.SummaryCard
+import com.example.jianji.ui.components.SwipeToDeleteItem
+import com.example.jianji.ui.components.formatAmount
+import com.example.jianji.ui.theme.AppColors
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,11 +65,6 @@ fun HomeScreen(
 ) {
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
-    val numberFormat = remember {
-        NumberFormat.getNumberInstance(Locale.getDefault()).apply {
-            minimumFractionDigits = 2; maximumFractionDigits = 2
-        }
-    }
 
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val accountMap = remember(accounts) { accounts.associateBy { it.id } }
@@ -184,18 +172,18 @@ fun HomeScreen(
                 SummaryCard(
                     modifier = Modifier.weight(1f),
                     title = "本月收入", amount = monthlyIncome,
-                    color = Color(0xFF4CAF50)
+                    color = AppColors.IncomeGreen
                 )
                 SummaryCard(
                     modifier = Modifier.weight(1f),
                     title = "本月支出", amount = monthlyExpense,
-                    color = Color(0xFFF44336)
+                    color = AppColors.ExpenseRed
                 )
                 val balance = monthlyIncome - monthlyExpense
                 SummaryCard(
                     modifier = Modifier.weight(1f),
                     title = "结余", amount = balance,
-                    color = if (balance >= 0) Color(0xFF2196F3) else Color(0xFFFF5722)
+                    color = if (balance >= 0) AppColors.BalanceBlue else AppColors.BalanceNegative
                 )
             }
         }
@@ -215,9 +203,9 @@ fun HomeScreen(
                         Text("月度预算", style = MaterialTheme.typography.labelMedium)
                         if (monthlyBudget > 0) {
                             Text(
-                                "¥${numberFormat.format(monthlyExpense)} / ¥${numberFormat.format(monthlyBudget)}",
+                                "¥${formatAmount(monthlyExpense)} / ¥${formatAmount(monthlyBudget)}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (monthlyExpense > monthlyBudget) Color(0xFFF44336)
+                                color = if (monthlyExpense > monthlyBudget) AppColors.ExpenseRed
                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                         } else {
@@ -232,9 +220,9 @@ fun HomeScreen(
                         Spacer(Modifier.height(6.dp))
                         val progress = (monthlyExpense / monthlyBudget).coerceIn(0.0, 1.0)
                         val barColor = when {
-                            progress > 1.0 -> Color(0xFFF44336)
-                            progress > 0.8 -> Color(0xFFFF9800)
-                            else -> Color(0xFF4CAF50)
+                            progress > 1.0 -> AppColors.BudgetOverrun
+                            progress > 0.8 -> AppColors.BudgetWarning
+                            else -> AppColors.BudgetSafe
                         }
                         LinearProgressIndicator(
                             progress = { progress.toFloat() },
@@ -246,16 +234,16 @@ fun HomeScreen(
                         if (monthlyExpense > monthlyBudget) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "已超支 ¥${numberFormat.format(monthlyExpense - monthlyBudget)}",
+                                "已超支 ¥${formatAmount(monthlyExpense - monthlyBudget)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFF44336)
+                                color = AppColors.ExpenseRed
                             )
                         } else if (progress > 0.8) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "剩余 ¥${numberFormat.format(monthlyBudget - monthlyExpense)}",
+                                "剩余 ¥${formatAmount(monthlyBudget - monthlyExpense)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFFF9800)
+                                color = AppColors.BudgetWarning
                             )
                         }
                     }
@@ -278,7 +266,7 @@ fun HomeScreen(
                     Column {
                         Text("今日支出", style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                        Text("¥${numberFormat.format(dailyExpense)}",
+                        Text("¥${formatAmount(dailyExpense)}",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -288,9 +276,9 @@ fun HomeScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                         if (todayIncome > 0) {
-                            Text("收入 ¥${numberFormat.format(todayIncome)}",
+                            Text("收入 ¥${formatAmount(todayIncome)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                                color = AppColors.IncomeGreen, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -329,8 +317,8 @@ fun HomeScreen(
                                         modifier = Modifier.clickable { onUseTemplate(template) },
                                         colors = CardDefaults.cardColors(
                                             containerColor = if (template.type == TransactionType.EXPENSE)
-                                                Color(0xFFF44336).copy(alpha = 0.08f)
-                                            else Color(0xFF4CAF50).copy(alpha = 0.08f)
+                                                AppColors.ExpenseRed.copy(alpha = 0.08f)
+                                            else AppColors.IncomeGreen.copy(alpha = 0.08f)
                                         ),
                                         shape = RoundedCornerShape(20.dp)
                                     ) {
@@ -352,7 +340,7 @@ fun HomeScreen(
                                                         "¥${template.amount.toInt()}",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = if (template.type == TransactionType.EXPENSE)
-                                                        Color(0xFFF44336) else Color(0xFF4CAF50)
+                                                        AppColors.ExpenseRed else AppColors.IncomeGreen
                                                 )
                                             }
                                         }
@@ -420,10 +408,10 @@ fun HomeScreen(
                                             color = if (isSelected) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                         if (expense > 0) {
-                                            Text("¥${numberFormat.format(expense)}",
+                                            Text("¥${formatAmount(expense)}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFF44336),
+                                                color = AppColors.ExpenseRed,
                                                 textAlign = TextAlign.Center)
                                         }
                                     }
@@ -490,215 +478,4 @@ fun HomeScreen(
 
         item { Spacer(Modifier.size(80.dp)) }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SwipeToDeleteItem(
-    transaction: Transaction,
-    category: Category?,
-    accountName: String? = null,
-    toAccountName: String? = null,
-    tags: List<Tag> = emptyList(),
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var showConfirm by remember { mutableStateOf(false) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                showConfirm = true
-                false // 不自动删除，等二次确认
-            } else false
-        }
-    )
-
-    if (showConfirm) {
-        AlertDialog(
-            onDismissRequest = { showConfirm = false },
-            title = { Text("删除交易") },
-            text = { Text("将移入回收站，可在“回收站”中恢复。确定删除这笔交易吗？") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirm = false
-                        onDelete()
-                    }
-                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("取消") }
-            }
-        )
-    }
-
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            val color by animateColorAsState(
-                targetValue = when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.EndToStart -> Color.Red.copy(alpha = 0.8f)
-                    else -> Color.Transparent
-                }
-            )
-            Box(
-                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
-                    .background(color).padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
-                    Icon(Icons.Default.Delete, "删除", tint = Color.White)
-                }
-            }
-        },
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true
-    ) {
-        TransactionItemCard(
-            transaction = transaction, category = category,
-            accountName = accountName, toAccountName = toAccountName, tags = tags, onClick = onClick,
-            onRequestDelete = { showConfirm = true }
-        )
-    }
-}
-
-@Composable
-fun SummaryCard(modifier: Modifier = Modifier, title: String, amount: Double, color: Color) {
-    val nf = remember {
-        NumberFormat.getNumberInstance(Locale.getDefault()).apply {
-            minimumFractionDigits = 2; maximumFractionDigits = 2
-        }
-    }
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
-        shape = RoundedCornerShape(10.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.7f))
-            Text("¥${nf.format(amount)}", style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold, color = color)
-        }
-    }
-}
-
-@Composable
-fun TransactionItemCard(
-    transaction: Transaction,
-    category: Category? = null,
-    accountName: String? = null,
-    toAccountName: String? = null,
-    tags: List<Tag> = emptyList(),
-    onClick: () -> Unit = {},
-    onRequestDelete: () -> Unit = {}
-) {
-    val isTransfer = transaction.type == TransactionType.TRANSFER
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape)
-                        .background(
-                            if (isTransfer) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
-                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (isTransfer) "🔄" else (category?.icon ?: "📁"),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            if (isTransfer) "转账" else (category?.name ?: "未分类"),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        val accountLabel = when {
-                            isTransfer && accountName != null && toAccountName != null -> "$accountName → $toAccountName"
-                            accountName != null -> accountName
-                            else -> null
-                        }
-                        if (accountLabel != null) {
-                            Text(accountLabel, style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                        }
-                    }
-                    if (transaction.description.isNotEmpty()) {
-                        Text(transaction.description, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    }
-                    if (tags.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            tags.forEach { tag ->
-                                val tagColor = runCatching {
-                                    Color(android.graphics.Color.parseColor(tag.color))
-                                }.getOrDefault(MaterialTheme.colorScheme.primary)
-                                SuggestionChip(
-                                    onClick = { },
-                                    label = { Text("${tag.icon} ${tag.name}",
-                                        style = MaterialTheme.typography.labelSmall) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = tagColor.copy(alpha = 0.15f),
-                                        labelColor = tagColor
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    when {
-                        transaction.type == TransactionType.INCOME -> "+¥${formatAmount(transaction.amountCents / 100.0)}"
-                        isTransfer -> "⇄ ¥${formatAmount(transaction.amountCents / 100.0)}"
-                        else -> "-¥${formatAmount(transaction.amountCents / 100.0)}"
-                    },
-                    style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
-                    color = when {
-                        transaction.type == TransactionType.INCOME -> Color(0xFF4CAF50)
-                        isTransfer -> MaterialTheme.colorScheme.tertiary
-                        else -> Color(0xFFF44336)
-                    }
-                )
-                Text(transaction.date.format(DateTimeFormatter.ofPattern("HH:mm")),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-            }
-            IconButton(onClick = onRequestDelete) {
-                Icon(Icons.Default.Delete, "删除", tint = Color.Red.copy(alpha = 0.6f))
-            }
-        }
-    }
-}
-
-fun formatAmount(amount: Double): String {
-    // 兜底：异常数据（NaN/Infinity）统一显示为 0.00，避免界面崩溃（v1.5.1）
-    val v = if (amount.isNaN() || amount.isInfinite()) 0.0 else amount
-    return NumberFormat.getNumberInstance(Locale.getDefault()).apply {
-        minimumFractionDigits = 2; maximumFractionDigits = 2
-    }.format(v)
 }

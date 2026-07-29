@@ -30,9 +30,9 @@ import com.example.jianji.ui.components.AddTransactionDialog
 import com.example.jianji.ui.components.CategoryFormDialog
 import com.example.jianji.ui.components.TagFormDialog
 import com.example.jianji.ui.screens.*
-import com.example.jianji.ui.viewmodel.TransactionViewModel
-import com.example.jianji.ui.viewmodel.TransactionViewModelFactory
+import com.example.jianji.ui.viewmodel.*
 import com.example.jianji.data.Transaction as AppTransaction
+import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.NavHost
@@ -60,18 +60,21 @@ fun JianjiApp(
     onDarkModeChange: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val viewModel: TransactionViewModel = viewModel(
-        factory = TransactionViewModelFactory(context.applicationContext as android.app.Application)
-    )
-    val transactions by viewModel.transactions.collectAsState()
-    val categories by viewModel.categories.collectAsState()
-    val monthlyIncome by viewModel.monthlyIncome.collectAsState()
-    val monthlyExpense by viewModel.monthlyExpense.collectAsState()
-    val dailyExpense by viewModel.dailyExpense.collectAsState()
-    val monthlyBudget by viewModel.monthlyBudget.collectAsState()
-    val allAccounts by viewModel.allAccounts.collectAsState()
-    val allTemplates by viewModel.allTemplates.collectAsState()
-    val allRecurring by viewModel.recurringTransactions.collectAsState()
+    val transactionVM: TransactionViewModel = koinViewModel()
+    val categoryVM: CategoryViewModel = koinViewModel()
+    val accountVM: AccountViewModel = koinViewModel()
+    val budgetVM: BudgetViewModel = koinViewModel()
+    val tagVM: TagViewModel = koinViewModel()
+    val settingsVM: SettingsViewModel = koinViewModel()
+    val transactions by transactionVM.transactions.collectAsState()
+    val categories by categoryVM.categories.collectAsState()
+    val monthlyIncome by transactionVM.monthlyIncome.collectAsState()
+    val monthlyExpense by transactionVM.monthlyExpense.collectAsState()
+    val dailyExpense by transactionVM.dailyExpense.collectAsState()
+    val monthlyBudget by budgetVM.getMonthlyBudget(java.time.YearMonth.now()).collectAsState(initial = 0.0)
+    val allAccounts by accountVM.allAccounts.collectAsState()
+    val allTemplates by settingsVM.allTemplates.collectAsState()
+    val allRecurring by settingsVM.recurringTransactions.collectAsState()
 
     // 自动备份：数据变化时写入共享目录（卸载后仍可恢复）
     LaunchedEffect(Unit) {
@@ -85,7 +88,7 @@ fun JianjiApp(
                 .debounce(5_000)
                 .collect {
                     if (BackupScheduler.isImmediateBackupEnabled(context)) {
-                        viewModel.autoBackup()
+                        settingsVM.autoBackup()
                     }
                 }
         }
@@ -114,7 +117,7 @@ fun JianjiApp(
                 actionLabel = "撤销",
                 duration = SnackbarDuration.Short
             )
-            if (result == SnackbarResult.ActionPerformed) viewModel.restoreTransaction(tx.id)
+            if (result == SnackbarResult.ActionPerformed) transactionVM.restoreTransaction(tx.id)
             pendingUndo = null
         }
     }
@@ -193,12 +196,12 @@ fun JianjiApp(
                     onSearchQueryChange = { searchQuery = it },
                     onToggleSearch = { isSearching = !isSearching },
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
-                    transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
+                    onDeleteTransaction = { tx -> transactionVM.softDelete(tx); pendingUndo = tx },
+                    transactionTagMap = tagVM.transactionTagMap.collectAsState().value,
                     onOpenCalendar = { navController.navigate(Tab.CALENDAR.route) },
                     onUseTemplate = { template ->
-                        viewModel.useTemplate(template.id)
-                        viewModel.addTransaction(
+                        settingsVM.useTemplate(template.id)
+                        transactionVM.addTransaction(
                             categoryId = template.categoryId,
                             amount = template.amount,
                             type = template.type,
@@ -207,7 +210,7 @@ fun JianjiApp(
                             accountId = template.accountId
                         )
                     },
-                    onProcessRecurring = { viewModel.processRecurringDue() }
+                    onProcessRecurring = { transactionVM.processRecurringDue() }
                 )
             }
             composable(Tab.STATISTICS.route) {
@@ -221,15 +224,15 @@ fun JianjiApp(
                     categories = categories,
                     onAddCategory = { name, icon, type ->
                         val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                        viewModel.addCategory(name, icon, ct)
+                        categoryVM.addCategory(name, icon, ct)
                     },
                     onAddSubCategory = { name, icon, color, type, parentId ->
                         val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                        viewModel.addCategory(name, icon, ct, parentId, color)
+                        categoryVM.addCategory(name, icon, ct, parentId, color)
                     },
-                    onDeleteCategory = { viewModel.deleteCategory(it) },
-                    onUpdateCategory = { viewModel.updateCategory(it) },
-                    onMoveCategory = { category, delta -> viewModel.moveCategory(category, delta) },
+                    onDeleteCategory = { categoryVM.deleteCategory(it) },
+                    onUpdateCategory = { categoryVM.updateCategory(it) },
+                    onMoveCategory = { category, delta -> categoryVM.moveCategory(category, delta) },
                     showAddCategoryDialog = showAddCategoryDialogTab,
                     onDismissAddDialog = { showAddCategoryDialogTab = false },
                     onTypeChanged = { categoryTabType = if (it == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME }
@@ -240,10 +243,10 @@ fun JianjiApp(
                     transactions = transactions,
                     categories = categories,
                     accounts = allAccounts,
-                    tags = viewModel.tags.collectAsState().value,
-                    transactionTagMap = viewModel.transactionTagMap.collectAsState().value,
+                    tags = tagVM.tags.collectAsState().value,
+                    transactionTagMap = tagVM.transactionTagMap.collectAsState().value,
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { tx -> viewModel.softDelete(tx); pendingUndo = tx },
+                    onDeleteTransaction = { tx -> transactionVM.softDelete(tx); pendingUndo = tx },
                     onOpenRecycle = { navController.navigate(Tab.RECYCLE.route) }
                 )
             }
@@ -254,8 +257,21 @@ fun JianjiApp(
                     accounts = allAccounts,
                     templates = allTemplates,
                     recurringTransactions = allRecurring,
-                    viewModel = viewModel,
-                    onDataCleared = { viewModel.clearAllData() },
+                    transactionVM = transactionVM,
+                    categoryVM = categoryVM,
+                    accountVM = accountVM,
+                    tagVM = tagVM,
+                    settingsVM = settingsVM,
+                    onDataCleared = {
+                        transactionVM.deleteAll()
+                        categoryVM.deleteAll()
+                        accountVM.deleteAll()
+                        budgetVM.deleteAll()
+                        settingsVM.deleteAllTemplates()
+                        settingsVM.deleteAllRecurring()
+                        categoryVM.seedDefaults()
+                        accountVM.seedDefaults()
+                    },
                     darkMode = darkMode,
                     onDarkModeChange = onDarkModeChange,
                     onOpenTags = { navController.navigate(Tab.TAGS.route) }
@@ -270,14 +286,14 @@ fun JianjiApp(
             }
             composable(Tab.RECYCLE.route) {
                 RecycleBinScreen(
-                    viewModel = viewModel,
+                    transactionVM = transactionVM,
                     categories = categories,
                     onBack = { navController.popBackStack() }
                 )
             }
             composable(Tab.TAGS.route) {
                 TagsScreen(
-                    viewModel = viewModel,
+                    tagVM = tagVM,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -290,10 +306,10 @@ fun JianjiApp(
                 editingTransaction = editingTransaction,
                 templates = allTemplates,
                 accounts = allAccounts,
-                accountBalances = viewModel.accountBalances.value,
-                tags = viewModel.tags.value,
+                accountBalances = transactionVM.accountBalances.value,
+                tags = tagVM.tags.value,
                 initialTagIds = editingTransaction?.let {
-                    viewModel.transactionTagMap.value[it.id]?.map { t -> t.id } ?: emptyList()
+                    tagVM.transactionTagMap.value[it.id]?.map { t -> t.id } ?: emptyList()
                 } ?: emptyList(),
                 onRequestAddTag = { showTagForm = true },
                 onDismiss = {
@@ -302,7 +318,7 @@ fun JianjiApp(
                 },
                 onConfirm = { categoryId, amount, type, description, date, accountId, toAccountId, tagIds ->
                     if (editingTransaction != null) {
-                        viewModel.updateTransaction(
+                        transactionVM.updateTransaction(
                             editingTransaction!!.copy(
                                 categoryId = categoryId,
                                 amountCents = (amount * 100).toLong(),
@@ -312,11 +328,10 @@ fun JianjiApp(
                                 accountId = accountId,
                                 // P1：非转账类型强制清空 toAccountId，避免「转账→收/支」切换后残留脏字段
                                 toAccountId = if (type == TransactionType.TRANSFER) toAccountId else null
-                            ),
-                            tagIds = tagIds
+                            )
                         )
                     } else {
-                        viewModel.addTransaction(categoryId, amount, type, description, date, accountId, toAccountId, tagIds)
+                        transactionVM.addTransaction(categoryId, amount, type, description, date, accountId, toAccountId, tagIds)
                     }
                     showAddDialog = false
                     editingTransaction = null
@@ -331,7 +346,7 @@ fun JianjiApp(
         if (showTagForm) {
             TagFormDialog(
                 onConfirm = { name, color, icon ->
-                    viewModel.addTag(name, color, icon)
+                    tagVM.addTag(name, color, icon)
                     showTagForm = false
                 },
                 onDismiss = { showTagForm = false }
@@ -344,7 +359,7 @@ fun JianjiApp(
                 categoryType = addCategoryQuickType,
                 onConfirm = { name, icon ->
                     val ct = if (addCategoryQuickType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                    viewModel.addCategory(name, icon, ct)
+                    categoryVM.addCategory(name, icon, ct)
                     showAddCategoryQuick = false
                 },
                 onDismiss = { showAddCategoryQuick = false }

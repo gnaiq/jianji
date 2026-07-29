@@ -38,3 +38,31 @@
 # Keep Compose
 -keep class androidx.compose.** { *; }
 -keepclasseswithmembernames class androidx.compose.** { *; }
+
+# Keep Gson serialization
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
+-keep class com.google.gson.** { *; }
+-keep class com.example.jianji.data.** { *; }
+
+# Keep Timber (for tag-based filtering)
+-dontwarn timber.log.**
+-keep class timber.log.** { *; }
+
+# Keep kotlinx-serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+-keepclasseswithmembers class kotlinx.serialization.json.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep,includedescriptorclasses class com.example.jianji.**$$serializer { *; }
+-keepclassmembers class com.example.jianji.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.example.jianji.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}

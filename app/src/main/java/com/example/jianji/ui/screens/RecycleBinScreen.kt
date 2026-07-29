@@ -24,11 +24,11 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecycleBinScreen(
-    viewModel: TransactionViewModel,
+    transactionVM: TransactionViewModel,
     categories: List<Category> = emptyList(),
     onBack: () -> Unit = {}
 ) {
-    val deleted by viewModel.deletedTransactions.collectAsState()
+    val deleted by transactionVM.deletedTransactions.collectAsState()
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     var showClearConfirm by remember { mutableStateOf(false) }
 
@@ -59,8 +59,8 @@ fun RecycleBinScreen(
                         tx = tx,
                         categoryName = categoryMap[tx.categoryId]?.name ?: "未分类",
                         categoryIcon = categoryMap[tx.categoryId]?.icon ?: "💰",
-                        onRestore = { viewModel.restoreTransaction(tx.id) },
-                        onDelete = { viewModel.deleteTransaction(tx) }
+                        onRestore = { transactionVM.restoreTransaction(tx.id) },
+                        onDelete = { transactionVM.deleteTransaction(tx) }
                     )
                 }
             }
@@ -73,7 +73,7 @@ fun RecycleBinScreen(
             title = { Text("清空回收站") },
             text = { Text("将彻底删除 ${deleted.size} 笔交易，此操作不可恢复。确定吗？") },
             confirmButton = {
-                Button(onClick = { showClearConfirm = false; viewModel.purgeDeleted() }) { Text("清空") }
+                Button(onClick = { showClearConfirm = false; transactionVM.purgeDeleted() }) { Text("清空") }
             },
             dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("取消") } }
         )

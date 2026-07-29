@@ -37,7 +37,8 @@ data class SearchFilters(
  */
 fun List<Transaction>.applySearchFilters(
     filters: SearchFilters,
-    categoryMap: Map<Long, Category>
+    categoryMap: Map<Long, Category>,
+    transactionTagMap: Map<Long, List<Long>> = emptyMap()
 ): List<Transaction> {
     return filter { tx ->
         if (filters.text.isNotBlank()) {
@@ -49,6 +50,11 @@ fun List<Transaction>.applySearchFilters(
         if (filters.type != null && tx.type != filters.type) return@filter false
         if (filters.accountId != null && tx.accountId != filters.accountId) return@filter false
         if (filters.selectedCategories.isNotEmpty() && tx.categoryId !in filters.selectedCategories) return@filter false
+        // 多选标签过滤：AND 语义（交易必须命中全部选中标签）
+        if (filters.selectedTags.isNotEmpty()) {
+            val txTags = transactionTagMap[tx.id] ?: emptyList()
+            if (!filters.selectedTags.all { it in txTags }) return@filter false
+        }
         if (filters.minAmount != null && (tx.amountCents / 100.0) < filters.minAmount) return@filter false
         if (filters.maxAmount != null && (tx.amountCents / 100.0) > filters.maxAmount) return@filter false
         if (filters.startDate != null && tx.date < filters.startDate) return@filter false

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 强制所有域名 HTTPS，禁止明文 HTTP 通信 -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- GitHub API 更新检查：仅允许 api.github.com 域名的 HTTPS 通信 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.github.com</domain>
+    </domain-config>
+</network-security-config>

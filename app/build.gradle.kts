@@ -44,8 +44,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // 有 CI 签名密钥时用固定 release keystore，否则回退 debug（本地开发）
             signingConfig = if (System.getenv("KEYSTORE_FILE") != null)
@@ -133,6 +133,13 @@ dependencies {
 
     // Glance AppWidget
     implementation("androidx.glance:glance-appwidget:1.1.0")
+
+    // Logging (Timber - 结构化日志，替代静默 catch 和崩溃日志写文件)
+    implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // Koin DI (轻量依赖注入，替代手动实例化)
+    implementation("io.insert-koin:koin-android:3.5.0")
+    implementation("io.insert-koin:koin-androidx-compose:3.5.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

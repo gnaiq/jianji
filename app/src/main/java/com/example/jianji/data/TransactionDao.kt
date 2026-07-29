@@ -100,4 +100,8 @@ interface TransactionDao {
     // 删除账户前把其交易解绑（accountId 置 NULL），避免悬空外键引用
     @Query("UPDATE transactions SET accountId = NULL WHERE accountId = :accountId")
     suspend fun clearAccount(accountId: Long)
+
+    // 删除账户前同时清空转账目标账户引用（P1-4 账户删除治理）
+    @Query("UPDATE transactions SET toAccountId = NULL WHERE toAccountId = :accountId")
+    suspend fun clearToAccount(accountId: Long)
 }

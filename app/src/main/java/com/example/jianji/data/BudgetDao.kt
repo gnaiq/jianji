@@ -37,4 +37,18 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets")
     suspend fun deleteAll()
+
+    // 原子化 upsert：避免 TOCTOU 竞态（检查与插入之间的并发冲突）
+    @Transaction
+    suspend fun upsertBudget(budget: Budget) {
+        val existing = if (budget.categoryId == null)
+            getTotalBudget(budget.year, budget.month)
+        else
+            getCategoryBudget(budget.categoryId, budget.year, budget.month)
+        if (existing != null) {
+            update(budget.copy(id = existing.id))
+        } else {
+            insert(budget)
+        }
+    }
 }

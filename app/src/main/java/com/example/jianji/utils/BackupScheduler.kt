@@ -57,7 +57,7 @@ object BackupScheduler {
     }
 
     private fun pendingIntent(context: Context): PendingIntent {
-        val intent = Intent(context, AutoBackupReceiver::class.java).apply {
+        val intent = Intent(context, AutoBackupTriggerReceiver::class.java).apply {
             action = ACTION_AUTO_BACKUP
         }
         return PendingIntent.getBroadcast(
