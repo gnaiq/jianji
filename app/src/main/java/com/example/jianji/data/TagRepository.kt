@@ -11,6 +11,8 @@ class TagRepository(private val tagDao: TagDao) {
 
     suspend fun update(tag: Tag) = tagDao.update(tag)
 
+    suspend fun deleteAll() = tagDao.deleteAll()
+
     suspend fun delete(tag: Tag) {
         tagDao.deleteCrossRefsByTag(tag.id)
         tagDao.delete(tag)
