@@ -71,7 +71,7 @@ fun CategoryManagementScreen(
     remember(selectedType) { onTypeChanged(selectedType) }
 
     val ct = if (selectedType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-    val filtered = categories.filter { it.type == ct }
+    val filtered = categories.filter { it.type == ct && !it.isSystem }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),

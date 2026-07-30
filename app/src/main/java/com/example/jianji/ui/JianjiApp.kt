@@ -264,14 +264,7 @@ fun JianjiApp(
                     tagVM = tagVM,
                     settingsVM = settingsVM,
                     onDataCleared = {
-                        transactionVM.deleteAll()
-                        categoryVM.deleteAll()
-                        accountVM.deleteAll()
-                        budgetVM.deleteAll()
-                        settingsVM.deleteAllTemplates()
-                        settingsVM.deleteAllRecurring()
-                        categoryVM.seedDefaults()
-                        accountVM.seedDefaults()
+                        settingsVM.clearAllData()
                     },
                     darkMode = darkMode,
                     onDarkModeChange = onDarkModeChange,

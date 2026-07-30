@@ -3,7 +3,8 @@ package com.example.jianji.utils
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.example.jianji.data.JianjiDatabase
+import com.example.jianji.data.*
+import com.example.jianji.ui.viewmodel.SettingsViewModel
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -22,6 +23,10 @@ import org.junit.runner.RunWith
  *  ③ 坏记录逐条跳过且 skippedCount 正确
  *  ④ 金额精度：8.20 元恢复后 amountCents == 820
  *  ⑤ version=3 标签及交易-标签关联往返恢复
+ *  ⑥ version=4 系统分类 isSystem 往返
+ *  ⑦ 旧备份（v<4）同名「转账」升格为系统分类
+ *  ⑧ 回收站（软删）交易在备份中保留
+ *  ⑨ 清除数据重置默认分类并清空标签
  */
 @RunWith(AndroidJUnit4::class)
 class DataImportManagerTest {
@@ -82,7 +87,10 @@ class DataImportManagerTest {
         assertEquals(0, result.skippedCount)
         // 6 张表逐一断言数据齐全
         assertEquals(2, db.transactionDao().getAllSnapshot().size)
-        assertEquals(2, db.categoryDao().getAllCategories().first().size)
+        // 旧备份（v<4）无 isSystem 字段且未含「转账」分类，按「找不到才新建」自动补种系统转账分类
+        val restoredCats = db.categoryDao().getAllCategories().first()
+        assertEquals(3, restoredCats.size)
+        assertTrue("应自动补种系统转账分类", restoredCats.any { it.name == "转账" && it.isSystem })
         assertEquals(1, db.accountDao().getAll().size)
         assertEquals(1, db.budgetDao().getAll().size)
         assertEquals(1, db.recurringTransactionDao().getAll().size)
@@ -149,7 +157,10 @@ class DataImportManagerTest {
         assertTrue("旧格式不应为全量恢复", !result.isFullRestore)
         assertEquals(1, result.transactionCount)
         assertEquals(1, db.transactionDao().getAllSnapshot().size)
-        assertEquals(1, db.categoryDao().getAllCategories().first().size)
+        // 旧格式恢复同样按「找不到才新建」补种系统转账分类（餐饮 + 转账 = 2）
+        val restoredCatsLegacy = db.categoryDao().getAllCategories().first()
+        assertEquals(2, restoredCatsLegacy.size)
+        assertTrue("应自动补种系统转账分类", restoredCatsLegacy.any { it.name == "转账" && it.isSystem })
         // 账户/预算表应保留，未被清空
         assertEquals(1, db.accountDao().getAll().size)
         assertEquals(1, db.budgetDao().getAll().size)
@@ -204,5 +215,105 @@ class DataImportManagerTest {
         val restored = db.transactionDao().getAllSnapshot()
         assertEquals(1, restored.size)
         assertEquals(820L, restored[0].amountCents)
+    }
+
+    // ---------- 场景⑥：version=4 系统分类 isSystem 正确往返（P0-3）----------
+    @Test
+    fun roundTrip_version4_preservesSystemCategory() = runBlocking {
+        db.categoryDao().insertAll(listOf(
+            Category(
+                id = 1, name = "转账", type = CategoryType.EXPENSE,
+                icon = "🔄", color = "#6200EE", isSystem = true, sortOrder = 999
+            )
+        ))
+        val json = manager.generateExportJson(db)
+        val exported = gson.fromJson(json, ImportData::class.java)
+        assertEquals(4, exported.version)
+        assertTrue(exported.categories.any { it.name == "转账" && it.isSystem })
+
+        manager.importFromJson(json, db)
+        val restored = db.categoryDao().getAllCategories().first()
+        assertTrue("恢复后系统转账分类应保留 isSystem", restored.any { it.name == "转账" && it.isSystem })
+    }
+
+    // ---------- 场景⑦：旧备份（v<4）同名「转账」升级为系统分类（P0-3）----------
+    @Test
+    fun legacyUpgrade_transferCategoryBecomesSystem() = runBlocking {
+        val data = ImportData(
+            version = 3,
+            categories = listOf(
+                CategoryImport(id = 1, name = "转账", type = "EXPENSE", icon = "🔄"),
+                CategoryImport(id = 2, name = "餐饮", type = "EXPENSE")
+            ),
+            transactions = listOf(
+                TransactionImport(id = 1, categoryId = 1, amount = 100.0, type = "TRANSFER", date = "2026-04-15T12:00:00")
+            )
+        )
+        manager.importFromJson(gson.toJson(data), db)
+        val restored = db.categoryDao().getAllCategories().first()
+        val transfer = restored.find { it.name == "转账" }
+        assertTrue("「转账」应升级为系统分类", transfer != null && transfer.isSystem)
+        val tx = db.transactionDao().getAllSnapshot()
+        assertEquals(1, tx.size)
+        assertEquals(1L, tx[0].categoryId) // 升格保留原 id，转账交易引用不断裂
+    }
+
+    // ---------- 场景⑧：回收站（软删）交易在备份中保留（P1-7）----------
+    @Test
+    fun recycleBin_preservedAcrossBackup() = runBlocking {
+        db.categoryDao().insertAll(listOf(Category(id = 1, name = "餐饮", type = CategoryType.EXPENSE)))
+        db.transactionDao().insertAll(listOf(
+            Transaction(
+                id = 1, categoryId = 1, amountCents = 500, type = TransactionType.EXPENSE,
+                date = java.time.LocalDateTime.parse("2026-04-15T12:00:00")
+            ),
+            Transaction(
+                id = 2, categoryId = 1, amountCents = 800, type = TransactionType.EXPENSE,
+                date = java.time.LocalDateTime.parse("2026-04-16T12:00:00"),
+                deletedAt = java.time.LocalDateTime.parse("2026-04-20T12:00:00")
+            )
+        ))
+
+        val json = manager.generateExportJson(db)
+        val exported = gson.fromJson(json, ImportData::class.java)
+        assertEquals(2, exported.transactions.size)
+        assertTrue(exported.transactions.any { it.deletedAt != null })
+
+        manager.importFromJson(json, db)
+        val all = db.transactionDao().getAllIncludingDeletedSnapshot()
+        assertEquals(2, all.size)
+        assertTrue("软删交易恢复后仍在回收站", all.any { it.deletedAt != null })
+    }
+
+    // ---------- 场景⑨：清除数据重置默认分类并清空标签（P0-2 / P0-1）----------
+    @Test
+    fun clearAllData_reseedsDefaultsAndClearsTags() = runBlocking {
+        db.categoryDao().insertAll(listOf(Category(id = 1, name = "餐饮", type = CategoryType.EXPENSE)))
+        db.tagDao().insertAll(listOf(Tag(id = 1, name = "临时")))
+        db.transactionDao().insertAll(listOf(
+            Transaction(id = 1, categoryId = 1, amountCents = 100, type = TransactionType.EXPENSE, date = java.time.LocalDateTime.parse("2026-04-15T12:00:00"))
+        ))
+
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val settingsVM = SettingsViewModel(
+            app,
+            QuickTemplateRepository(db.quickTemplateDao()),
+            RecurringTransactionRepository(db.recurringTransactionDao()),
+            TransactionRepository(db.transactionDao()),
+            CategoryRepository(db.categoryDao()),
+            AccountRepository(db.accountDao()),
+            BudgetRepository(db.budgetDao()),
+            TagRepository(db.tagDao()),
+            db
+        )
+        settingsVM.performClear()
+
+        // 分类应被重置为默认（含系统转账），数量 > 0
+        val cats = db.categoryDao().getAllCategories().first()
+        assertTrue("清除后应补种默认分类", cats.size > 0)
+        // 标签应被清空
+        assertEquals(0, db.tagDao().getAll().size)
+        // 交易应被清空
+        assertEquals(0, db.transactionDao().getAllSnapshot().size)
     }
 }

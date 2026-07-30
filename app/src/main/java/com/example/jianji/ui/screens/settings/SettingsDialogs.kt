@@ -23,6 +23,7 @@ import com.example.jianji.ui.viewmodel.AccountViewModel
 import com.example.jianji.ui.viewmodel.BudgetViewModel
 import com.example.jianji.ui.viewmodel.SettingsViewModel
 import com.example.jianji.utils.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -38,15 +39,23 @@ import java.time.format.DateTimeFormatter
 fun BudgetSettingsDialog(budgetVM: BudgetViewModel?, onDismiss: () -> Unit) {
     val year = YearMonth.now().year
     val month = YearMonth.now().monthValue
+    // 回显当前月度预算（P2-11）：预算 VM 可用时读取已设定值并预填，避免「保存后看不到原值」的困惑
+    var currentBudget by remember { mutableStateOf(0.0) }
+    LaunchedEffect(budgetVM) {
+        budgetVM?.getMonthlyBudget(YearMonth.of(year, month))?.first()?.let { currentBudget = it }
+    }
     var budgetAmount by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(currentBudget) {
+        if (currentBudget > 0 && budgetAmount.isEmpty()) budgetAmount = "%.2f".format(currentBudget)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("预算设置") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("设定 ${year}年${month}月 月度预算", style = MaterialTheme.typography.bodyMedium)
+                Text("设定 ${year}年${month}月 月度预算（当前：¥${"%.2f".format(currentBudget)}）", style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(
                     value = budgetAmount,
                     onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) budgetAmount = it },

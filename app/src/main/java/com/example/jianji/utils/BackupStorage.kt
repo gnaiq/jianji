@@ -43,7 +43,7 @@ object BackupStorage {
     }
 
     private const val AUTO_PREFIX = "简记备份_自动"
-    private const val AUTO_KEEP = 3
+    private const val AUTO_KEEP = 7
 
     /**
      * 自动备份：每次写入新的带时间戳文件并只保留最近 AUTO_KEEP 份（轮转）。

@@ -97,6 +97,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY date DESC")
     suspend fun getAllSnapshot(): List<Transaction>
 
+    // 含回收站（软删）交易的全量快照，用于「操作前快照」与备份导出，避免恢复后丢失回收站（P1-7）
+    @Query("SELECT * FROM transactions ORDER BY date DESC")
+    suspend fun getAllIncludingDeletedSnapshot(): List<Transaction>
+
     // 删除账户前把其交易解绑（accountId 置 NULL），避免悬空外键引用
     @Query("UPDATE transactions SET accountId = NULL WHERE accountId = :accountId")
     suspend fun clearAccount(accountId: Long)

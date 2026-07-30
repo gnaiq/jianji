@@ -284,7 +284,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("确认清除") },
-            text = { Text("将删除所有交易记录、自定义分类和设置。此操作不可撤销！") },
+            text = { Text("将清空全部交易、分类、账户、预算、周期交易与模板，并恢复为默认分类与默认账户（应用设置如深色模式将保留）。此操作不可撤销！") },
             confirmButton = {
                 Button(onClick = { onDataCleared(); showClearDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
                     Text("确认清除")
@@ -367,7 +367,6 @@ fun SettingsScreen(
 
     if (showImportDialog) {
         ImportDialog(
-            transactionVM = transactionVM,
             ensureStoragePermission = ensureStoragePermission,
             onDismiss = { showImportDialog = false }
         )

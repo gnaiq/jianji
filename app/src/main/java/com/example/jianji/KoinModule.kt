@@ -39,5 +39,5 @@ val appModule = module {
     viewModel { AccountViewModel(get(), get()) }
     viewModel { BudgetViewModel(get(), get()) }
     viewModel { TagViewModel(get()) }
-    viewModel { SettingsViewModel(androidApplication(), get(), get(), get(), get()) }
+    viewModel { SettingsViewModel(androidApplication(), get(), get(), get(), get(), get(), get(), get(), get()) }
 }

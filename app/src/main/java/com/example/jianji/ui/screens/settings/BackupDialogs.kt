@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
-import com.example.jianji.ui.viewmodel.TransactionViewModel
 import com.example.jianji.utils.*
 import kotlinx.coroutines.launch
 
@@ -28,7 +27,6 @@ import kotlinx.coroutines.launch
 // ======== Import Dialog ========
 @Composable
 fun ImportDialog(
-    transactionVM: TransactionViewModel?,
     ensureStoragePermission: (() -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -37,6 +35,7 @@ fun ImportDialog(
     var importing by remember { mutableStateOf(false) }
     var backups by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
+    var selectedName by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     // 执行恢复：清空现有交易并按备份重新写入（替换语义）
@@ -46,16 +45,23 @@ fun ImportDialog(
                 importing = true
                 scope.launch {
                     try {
+                        // 破坏性操作（覆盖现有全部数据）前先落一份「操作前快照」备份，
+                        // 命名前缀「简记备份_操作前_」不参与自动备份轮转，给误操作留后悔药（P1-8）
+                        AutoBackup.snapshotBeforeDestructive(context, "恢复备份前")
                         val importer = DataImportManager()
                         val result = importer.importFromJson(
                             jsonText, JianjiDatabase.getDatabase(context.applicationContext)
                         )
                         importing = false
-                        if (result.transactionCount > 0) {
+                        val ok = result.transactionCount > 0 || result.categoryCount > 0
+                        if (ok) {
                             val detail = if (result.isFullRestore) "（已恢复账户/预算/周期/模板）"
                                 else "（旧格式备份，仅恢复交易+分类）"
+                            val parts = mutableListOf<String>()
+                            if (result.transactionCount > 0) parts.add("${result.transactionCount} 笔交易")
+                            if (result.categoryCount > 0) parts.add("${result.categoryCount} 个分类")
                             val skipNote = if (result.skippedCount > 0) "，跳过 ${result.skippedCount} 笔无效记录" else ""
-                            Toast.makeText(context, "恢复成功，导入 ${result.transactionCount} 笔$detail$skipNote", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "恢复成功，导入 ${parts.joinToString("、")}$detail$skipNote", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         } else {
                             Toast.makeText(context, "未导入数据，请检查文件格式", Toast.LENGTH_SHORT).show()
@@ -107,6 +113,7 @@ fun ImportDialog(
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             jsonText = BackupStorage.read(context, entry.uri)
+                                            selectedName = entry.name
                                         } catch (e: Exception) {
                                             Toast.makeText(context, "读取失败: ${e.message}", Toast.LENGTH_SHORT).show()
                                         }
@@ -128,9 +135,23 @@ fun ImportDialog(
                 Button(onClick = { filePicker.launch("application/json") }) {
                     Text("选择备份文件")
                 }
+                // 大备份 JSON 直接塞进可编辑 TextField 会触发 Compose 布局超大文本导致 ANR（P1-6）：
+                // 仅用截断预览展示，完整内容仍保存在 jsonText 中用于导入；
+                // 超过 4000 字符改为只读，避免编辑/重排版时再次布局全量文本。
+                val jsonPreview = if (jsonText.length > 4000) {
+                    jsonText.take(4000) + "\n…(已截断显示，完整内容共 ${jsonText.length} 字符)"
+                } else jsonText
+                if (selectedName != null) {
+                    Text(
+                        "已选择备份：$selectedName（${jsonText.length} 字符）",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 OutlinedTextField(
-                    value = jsonText,
-                    onValueChange = { jsonText = it },
+                    value = jsonPreview,
+                    onValueChange = { if (jsonText.length <= 4000) jsonText = it },
+                    readOnly = jsonText.length > 4000,
                     label = { Text("JSON 数据") },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                     maxLines = 10
