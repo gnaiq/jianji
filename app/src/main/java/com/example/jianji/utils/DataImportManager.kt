@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
-// ===== 备份 JSON 结构（version=2：全量 6 张表；version 缺省视为旧格式，仅含交易+分类）=====
+// ===== 备份 JSON 结构 =====
+// version=3：全量 8 张表（6 张 + tags + transaction_tags）
+// version=2：全量 6 张表（无标签，恢复时标签表被清空后保持为空）
+// version 缺省：旧格式，仅含交易+分类
 
 data class TransactionImport(
     val id: Long? = null,
@@ -80,6 +83,20 @@ data class TemplateImport(
     val useCount: Int = 0
 )
 
+data class TagImport(
+    val id: Long? = null,
+    val name: String = "",
+    val color: String = "#6200EE",
+    val icon: String = "🏷️",
+    val sortOrder: Int = 0
+)
+
+/** 交易↔标签关联（多对多），恢复时按 id 原样重建 */
+data class TransactionTagImport(
+    val transactionId: Long = 0,
+    val tagId: Long = 0
+)
+
 data class ImportData(
     val version: Int? = null,
     val transactions: List<TransactionImport> = emptyList(),
@@ -87,7 +104,9 @@ data class ImportData(
     val accounts: List<AccountImport>? = null,
     val budgets: List<BudgetImport>? = null,
     val recurringTransactions: List<RecurringImport>? = null,
-    val quickTemplates: List<TemplateImport>? = null
+    val quickTemplates: List<TemplateImport>? = null,
+    val tags: List<TagImport>? = null,
+    val transactionTags: List<TransactionTagImport>? = null
 )
 
 /** 恢复结果：成功导入交易条数 + 是否为全量恢复 + 跳过的无效记录数 */
@@ -107,8 +126,8 @@ class DataImportManager {
     }
 
     /**
-     * 全量备份：读取全部 6 张表并序列化为 JSON（version=2）。
-     * 旧备份（仅交易+分类）恢复时仍能兼容（见 importFromJson）。
+     * 全量备份：读取全部 8 张表并序列化为 JSON（version=3，含标签及交易-标签关联）。
+     * 旧备份（version=2 无标签 / 无 version 仅交易+分类）恢复时仍能兼容（见 importFromJson）。
      */
     suspend fun generateExportJson(db: JianjiDatabase): String = withContext(Dispatchers.IO) {
         val transactions = db.transactionDao().getAllSnapshot()
@@ -117,9 +136,11 @@ class DataImportManager {
         val budgets = db.budgetDao().getAll()
         val recurring = db.recurringTransactionDao().getAll()
         val templates = db.quickTemplateDao().getAll()
+        val tags = db.tagDao().getAll()
+        val crossRefs = db.tagDao().getAllCrossRefs()
 
         val data = ImportData(
-            version = 2,
+            version = 3,
             transactions = transactions.map { t ->
                 TransactionImport(
                     id = t.id, categoryId = t.categoryId, accountId = t.accountId,
@@ -161,6 +182,12 @@ class DataImportManager {
                     type = t.type.name, description = t.description, sortOrder = t.sortOrder,
                     useCount = t.useCount
                 )
+            },
+            tags = tags.map { t ->
+                TagImport(id = t.id, name = t.name, color = t.color, icon = t.icon, sortOrder = t.sortOrder)
+            },
+            transactionTags = crossRefs.map { c ->
+                TransactionTagImport(transactionId = c.transactionId, tagId = c.tagId)
             }
         )
         Gson().toJson(data)
@@ -171,8 +198,9 @@ class DataImportManager {
      * 任意一步失败整笔回滚，绝不会出现「清完账却没有写回」的永久丢失（P0-4）。
      *
      * 兼容策略：
-     *  - 全量备份（version==2）：清空并恢复全部 6 张表。
-     *  - 旧格式备份（无 accounts 等字段）：仅恢复交易+分类，保留账户/预算/周期/模板，
+     *  - 全量备份（version>=2）：清空并恢复全部表。version=2 的旧全量备份不含标签，
+     *    其 tags/transactionTags 为 null，恢复后标签表为空（与备份内容一致）。
+     *  - 旧格式备份（无 version 字段）：仅恢复交易+分类，保留账户/预算/周期/模板/标签，
      *    避免恢复旧备份时意外清空这些表。
      *
      * @return 导入的交易条数；解析失败或为空返回 0
@@ -183,7 +211,9 @@ class DataImportManager {
         val cats = data.categories ?: emptyList()
         if (txs.isEmpty() && cats.isEmpty()) return@withContext ImportResult(0, false)
 
-        val isFull = data.version == 2
+        // 判定放宽为 >=2：新增 version=3（含标签）后仍须走全量恢复分支，
+        // 写死 ==2 会让 v3 备份被当成旧格式，只恢复交易+分类（P0 数据丢失）
+        val isFull = (data.version ?: 0) >= 2
         // 无效记录（日期/类型非法）逐条跳过并计数，避免单条坏数据导致整笔导入回滚
         var skipped = 0
         val validTxs = mutableListOf<Transaction>()
@@ -196,6 +226,8 @@ class DataImportManager {
                 db.budgetDao().deleteAll()
                 db.recurringTransactionDao().deleteAll()
                 db.quickTemplateDao().deleteAll()
+                // 标签表清空由外键 CASCADE 连带清理 transaction_tags
+                db.tagDao().deleteAll()
             }
 
             // 分类（父级优先，保证父->子引用成立）
@@ -268,6 +300,10 @@ class DataImportManager {
                         useCount = t.useCount
                     )
                 }.let { db.quickTemplateDao().insertAll(it) }
+
+                (data.tags ?: emptyList()).map { t ->
+                    Tag(id = t.id ?: 0, name = t.name, color = t.color, icon = t.icon, sortOrder = t.sortOrder)
+                }.let { if (it.isNotEmpty()) db.tagDao().insertAll(it) }
             }
 
             // 交易（最后写入，引用分类/账户已就位）；非法记录跳过并计数
@@ -299,6 +335,17 @@ class DataImportManager {
                 }
             }
             if (validTxs.isNotEmpty()) db.transactionDao().insertAll(validTxs)
+
+            // 交易-标签关联最后写入（外键要求交易与标签均已就位）。
+            // 仅保留双端 id 都存在的关联，跳过的坏交易/缺失标签不会引发外键约束失败。
+            if (isFull) {
+                val txIds = validTxs.mapTo(HashSet()) { it.id }
+                val tagIds = (data.tags ?: emptyList()).mapNotNullTo(HashSet()) { it.id }
+                val refs = (data.transactionTags ?: emptyList())
+                    .filter { it.transactionId in txIds && it.tagId in tagIds }
+                    .map { TransactionTagCrossRef(it.transactionId, it.tagId) }
+                if (refs.isNotEmpty()) db.tagDao().insertCrossRefs(refs)
+            }
         }
         ImportResult(validTxs.size, isFull, skipped)
     }

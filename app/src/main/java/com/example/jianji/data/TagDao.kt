@@ -5,7 +5,6 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction as RoomTransaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -20,11 +19,18 @@ interface TagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(tag: Tag): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tags: List<Tag>)
+
     @Update
     suspend fun update(tag: Tag)
 
     @Delete
     suspend fun delete(tag: Tag)
+
+    // 备份恢复用：整表清空（外键 CASCADE 会连带清理 transaction_tags）
+    @Query("DELETE FROM tags")
+    suspend fun deleteAll()
 
     // 某交易关联的标签 id 列表
     @Query("SELECT tagId FROM transaction_tags WHERE transactionId = :transactionId")
@@ -40,27 +46,14 @@ interface TagDao {
     @Query("DELETE FROM transaction_tags WHERE tagId = :tagId")
     suspend fun deleteCrossRefsByTag(tagId: Long)
 
-    // 按标签筛选交易（回收站之外的有效交易）
-    @RoomTransaction
-    @Query(
-        """SELECT t.* FROM transactions t
-           INNER JOIN transaction_tags tt ON tt.transactionId = t.id
-           WHERE tt.tagId = :tagId AND t.deleted_at IS NULL
-           ORDER BY t.date DESC"""
-    )
-    fun getTransactionsByTag(tagId: Long): Flow<List<Transaction>>
-
-    // 按多个标签筛选（IN 子句，OR 语义）
-    @RoomTransaction
-    @Query(
-        """SELECT t.* FROM transactions t
-           INNER JOIN transaction_tags tt ON tt.transactionId = t.id
-           WHERE tt.tagId IN (:tagIds) AND t.deleted_at IS NULL
-           ORDER BY t.date DESC"""
-    )
-    fun getTransactionsByTagIds(tagIds: List<Long>): Flow<List<Transaction>>
-
     // 全量 crossRef，用于构建 交易→标签 映射（卡片展示标签）
     @Query("SELECT transactionId, tagId FROM transaction_tags")
     fun observeAllCrossRefs(): Flow<List<TransactionTagCrossRef>>
+
+    // 备份导出用：crossRef 快照
+    @Query("SELECT transactionId, tagId FROM transaction_tags")
+    suspend fun getAllCrossRefs(): List<TransactionTagCrossRef>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCrossRefs(refs: List<TransactionTagCrossRef>)
 }

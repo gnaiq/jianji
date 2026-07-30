@@ -23,6 +23,7 @@ class TransactionViewModel(
     private val transactionRepository: TransactionRepository,
     private val accountRepo: AccountRepository,
     private val recurringRepo: RecurringTransactionRepository,
+    private val tagRepo: TagRepository,
     private val database: JianjiDatabase
 ) : AndroidViewModel(application) {
 
@@ -97,26 +98,32 @@ class TransactionViewModel(
         tagIds: List<Long> = emptyList()
     ) {
         viewModelScope.launch {
-            val insertedId = transactionRepository.insertTransaction(
-                Transaction(
-                    categoryId = categoryId,
-                    amountCents = Math.round(amount * 100),
-                    type = type,
-                    description = description,
-                    date = date,
-                    accountId = accountId ?: accountRepo.getDefault()?.id,
-                    toAccountId = toAccountId
+            // 交易与标签关联在同一事务内写入，避免中途失败产生「有交易无标签」的脏数据
+            database.withTransaction {
+                val insertedId = transactionRepository.insertTransaction(
+                    Transaction(
+                        categoryId = categoryId,
+                        amountCents = Math.round(amount * 100),
+                        type = type,
+                        description = description,
+                        date = date,
+                        accountId = accountId ?: accountRepo.getDefault()?.id,
+                        toAccountId = toAccountId
+                    )
                 )
-            )
-            if (tagIds.isNotEmpty()) {
-                // Tags handled by TagViewModel.setTransactionTags
+                if (tagIds.isNotEmpty()) tagRepo.setTransactionTags(insertedId, tagIds)
             }
         }
     }
 
-    fun updateTransaction(transaction: Transaction) {
+    // tagIds 必填：默认值会让漏传的调用方静默清空该交易的全部标签
+    fun updateTransaction(transaction: Transaction, tagIds: List<Long>) {
         viewModelScope.launch {
-            transactionRepository.updateTransaction(transaction.copy(updatedAt = LocalDateTime.now()))
+            database.withTransaction {
+                transactionRepository.updateTransaction(transaction.copy(updatedAt = LocalDateTime.now()))
+                // 全量覆盖：先清后插，支持「取消勾选全部标签」的清空语义
+                tagRepo.setTransactionTags(transaction.id, tagIds)
+            }
         }
     }
 

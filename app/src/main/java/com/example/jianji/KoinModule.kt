@@ -34,7 +34,7 @@ val appModule = module {
     single { TagRepository(get()) }
 
     // ViewModels - 按领域拆分
-    viewModel { TransactionViewModel(androidApplication(), get(), get(), get(), get()) }
+    viewModel { TransactionViewModel(androidApplication(), get(), get(), get(), get(), get()) }
     viewModel { CategoryViewModel(get()) }
     viewModel { AccountViewModel(get(), get()) }
     viewModel { BudgetViewModel(get(), get()) }

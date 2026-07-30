@@ -20,6 +20,7 @@ class TransactionViewModelFactory(private val application: Application) : ViewMo
                 db.transactionRepository(),
                 db.accountRepository(),
                 db.recurringTransactionRepository(),
+                db.tagRepository(),
                 db
             ) as T
         }
@@ -36,3 +37,6 @@ private fun JianjiDatabase.accountRepository() =
 
 private fun JianjiDatabase.recurringTransactionRepository() =
     com.example.jianji.data.RecurringTransactionRepository(recurringTransactionDao())
+
+private fun JianjiDatabase.tagRepository() =
+    com.example.jianji.data.TagRepository(tagDao())

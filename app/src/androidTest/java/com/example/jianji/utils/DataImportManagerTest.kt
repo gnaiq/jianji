@@ -21,6 +21,7 @@ import org.junit.runner.RunWith
  *  ② 旧格式（无 version）仅恢复交易+分类，其余表保留
  *  ③ 坏记录逐条跳过且 skippedCount 正确
  *  ④ 金额精度：8.20 元恢复后 amountCents == 820
+ *  ⑤ version=3 标签及交易-标签关联往返恢复
  */
 @RunWith(AndroidJUnit4::class)
 class DataImportManagerTest {
@@ -86,6 +87,39 @@ class DataImportManagerTest {
         assertEquals(1, db.budgetDao().getAll().size)
         assertEquals(1, db.recurringTransactionDao().getAll().size)
         assertEquals(1, db.quickTemplateDao().getAll().size)
+    }
+
+    // ---------- 场景⑤：version=3 标签 + 交易-标签关联往返恢复 ----------
+    @Test
+    fun fullRestore_version3_restoresTagsAndCrossRefs() = runBlocking {
+        val data = ImportData(
+            version = 3,
+            categories = listOf(CategoryImport(id = 1, name = "餐饮", type = "EXPENSE")),
+            transactions = listOf(
+                TransactionImport(
+                    id = 1, categoryId = 1, amount = 12.5, type = "EXPENSE",
+                    description = "午饭", date = "2026-04-15T12:00:00"
+                )
+            ),
+            tags = listOf(
+                TagImport(id = 1, name = "报销", color = "#E57373", icon = "💰"),
+                TagImport(id = 2, name = "出差", color = "#64B5F6", icon = "✈️")
+            ),
+            transactionTags = listOf(
+                TransactionTagImport(transactionId = 1, tagId = 1),
+                TransactionTagImport(transactionId = 1, tagId = 2),
+                // 悬空关联：交易 999 不存在，须被过滤而非触发外键失败
+                TransactionTagImport(transactionId = 999, tagId = 1)
+            )
+        )
+
+        val result = manager.importFromJson(gson.toJson(data), db)
+
+        assertTrue("version=3 应为全量恢复", result.isFullRestore)
+        assertEquals(2, db.tagDao().getAll().size)
+        val refs = db.tagDao().getAllCrossRefs()
+        assertEquals("悬空关联应被过滤", 2, refs.size)
+        assertEquals(setOf(1L, 2L), refs.map { it.tagId }.toSet())
     }
 
     // ---------- 场景②：旧格式（无 version）仅恢复交易+分类，账户等表保留 ----------
