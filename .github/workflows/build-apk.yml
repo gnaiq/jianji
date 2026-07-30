@@ -36,7 +36,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
             echo "KEYSTORE_FILE=release.keystore" >> "$GITHUB_ENV"
           fi
         env:
