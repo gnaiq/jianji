@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
 import com.example.jianji.utils.BackupScheduler
 import com.example.jianji.widget.JianjiWidget
+import timber.log.Timber
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.example.jianji.ui.components.AddTransactionDialog
@@ -99,7 +100,9 @@ fun JianjiApp(
                 manager.getGlanceIds(JianjiWidget::class.java).forEach { id: GlanceId ->
                     JianjiWidget().update(context, id)
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Timber.w(e, "刷新桌面小组件失败")
+            }
         }
 
     val navController = rememberNavController()
@@ -321,7 +324,7 @@ fun JianjiApp(
                         transactionVM.updateTransaction(
                             editingTransaction!!.copy(
                                 categoryId = categoryId,
-                                amountCents = (amount * 100).toLong(),
+                                amountCents = Math.round(amount * 100),
                                 type = type,
                                 description = description,
                                 date = date,

@@ -31,7 +31,7 @@ data class Transaction(
     val id: Long = 0,
     val categoryId: Long,
     // §8 金额迁移至 Long 分存储：避免 Double 浮点误差累积（尤其是 SUM 与跨账户转账对账）。
-    // 展示层用 amountCents / 100.0，输入层用 (yuan * 100).toLong() 反算。
+    // 展示层用 amountCents / 100.0，输入层用 Math.round(yuan * 100) 反算（四舍五入，避免截断误差）。
     @ColumnInfo(name = "amount_cents")
     val amountCents: Long,
     val type: TransactionType, // INCOME or EXPENSE

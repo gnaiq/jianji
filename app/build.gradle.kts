@@ -91,6 +91,15 @@ android {
             )
         }
     }
+
+    // Room 导出的 schema JSON 目录随 androidTest assets 打包，供 MigrationTestHelper 读取
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
+}
+
+// Room 编译期把每个 version 的 schema 导出到 app/schemas/（配合 JianjiDatabase exportSchema=true）
+// 首次由 CI 构建生成，生成后需将 schemas/ 提交入库，作为迁移测试基线（详见 docs/migration-testing.md）
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -143,6 +152,8 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    // Room 迁移测试（MigrationTestHelper），配合导出的 schema JSON 验证升级
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.6.8")

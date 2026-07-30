@@ -100,7 +100,7 @@ class TransactionViewModel(
             val insertedId = transactionRepository.insertTransaction(
                 Transaction(
                     categoryId = categoryId,
-                    amountCents = (amount * 100).toLong(),
+                    amountCents = Math.round(amount * 100),
                     type = type,
                     description = description,
                     date = date,
@@ -160,7 +160,7 @@ class TransactionViewModel(
                         transactionRepository.insertTransaction(
                             Transaction(
                                 categoryId = rtx.categoryId,
-                                amountCents = (rtx.amount * 100).toLong(),
+                                amountCents = Math.round(rtx.amount * 100),
                                 type = rtx.type,
                                 description = rtx.description,
                                 date = date,

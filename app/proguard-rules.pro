@@ -35,15 +35,16 @@
     @androidx.room.* <fields>;
 }
 
-# Keep Compose
--keep class androidx.compose.** { *; }
--keepclasseswithmembernames class androidx.compose.** { *; }
+# Compose: 无需手写 -keep，AGP 会应用 compose 库自带的 consumer ProGuard 规则。
+# 原先全量 keep androidx.compose.** 会让代码收缩几乎失效，已移除。
 
-# Keep Gson serialization
+# Gson serialization
 -keepattributes Signature
 -keepattributes *Annotation*
 -dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
+# Gson 库自带 consumer rules（META-INF/proguard/gson.pro）已覆盖其内部类，故移除 -keep com.google.gson.**。
+# 但业务数据类仍需保留：Room 实体 + Gson/序列化经由 utils 的 DTO 依赖字段名反射，
+# 收窄该规则需 CI 打包运行验证备份/导入/导出无误后再进行，本次保守保留。
 -keep class com.example.jianji.data.** { *; }
 
 # Keep Timber (for tag-based filtering)

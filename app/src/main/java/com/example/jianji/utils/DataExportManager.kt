@@ -13,12 +13,17 @@ import java.util.Locale
 
 class DataExportManager(private val context: Context) {
 
-    private val dateFormat = ThreadLocal<SimpleDateFormat>().apply {
-        set(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()))
+    private val dateFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     }
-    private val dateFormatShort = ThreadLocal<SimpleDateFormat>().apply {
-        set(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()))
+    private val dateFormatShort = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     }
+
+    /**
+     * CSV 单元格防公式注入：以 = + - @ 开头的用户输入前置单引号转义，防止表格软件当作公式执行
+     */
+    private fun sanitizeCell(v: String): String = if (v.firstOrNull() in setOf('=', '+', '-', '@')) "'$v" else v
 
     /**
      * 导出为 CSV 格式
@@ -43,10 +48,10 @@ class DataExportManager(private val context: Context) {
                         val category = categories[transaction.categoryId]?.name ?: "未知"
                         csvPrinter.printRecord(
                             transaction.id,
-                            category,
+                            sanitizeCell(category),
                             transaction.amountCents / 100.0,
                             transaction.type.name,
-                            transaction.description,
+                            sanitizeCell(transaction.description),
                             dateFormatShort.get()!!.format(Date.from(transaction.date.atZone(java.time.ZoneId.systemDefault()).toInstant())),
                             dateFormat.get()!!.format(Date.from(transaction.createdAt.atZone(java.time.ZoneId.systemDefault()).toInstant()))
                         )

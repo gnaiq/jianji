@@ -5,6 +5,7 @@ import com.example.jianji.data.JianjiDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /**
  * 统一的数据库自动备份逻辑：读取全部 6 张表生成 JSON 并写入自动备份文件。
@@ -21,7 +22,8 @@ object AutoBackup {
             val json = DataImportManager().generateExportJson(db)
             BackupStorage.saveAutoBackup(context.applicationContext, json)
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Timber.w(e, "自动备份失败")
             false
         }
     }

@@ -14,6 +14,7 @@ import com.example.jianji.ui.JianjiApp
 import com.example.jianji.ui.theme.JianjiTheme
 import com.example.jianji.utils.AppPrefs
 import com.example.jianji.utils.UpdateManager
+import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +40,9 @@ class MainActivity : ComponentActivity() {
                 up.edit().putBoolean("pending_clear", false).apply()
                 UpdateManager(this).clearUpdateCache()
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Timber.w(e, "启动时清理更新缓存失败")
+        }
 
         setContent {
             val ctx = this

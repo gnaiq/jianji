@@ -228,24 +228,33 @@ class DataImportManager {
                     )
                 }.let { db.budgetDao().insertAll(it) }
 
-                (data.recurringTransactions ?: emptyList()).map { r ->
-                    RecurringTransaction(
-                        id = r.id ?: 0,
-                        categoryId = r.categoryId,
-                        accountId = r.accountId,
-                        amount = r.amount,
-                        type = if (r.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
-                        description = r.description,
-                        frequency = RecurringFrequency.valueOf(r.frequency),
-                        interval = r.interval,
-                        dayOfMonth = r.dayOfMonth,
-                        monthOfYear = r.monthOfYear,
-                        dayOfWeek = r.dayOfWeek,
-                        nextRunDate = LocalDateTime.parse(r.nextRunDate),
-                        isActive = r.isActive,
-                        createdAt = r.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now()
-                    )
-                }.let { db.recurringTransactionDao().insertAll(it) }
+                // 周期交易：非法周期/日期逐条跳过并计数，与交易记录同款容错，避免单条坏数据令整笔回滚（P1-阶段二·项6）
+                val validRecurring = mutableListOf<RecurringTransaction>()
+                for (r in (data.recurringTransactions ?: emptyList())) {
+                    try {
+                        validRecurring.add(
+                            RecurringTransaction(
+                                id = r.id ?: 0,
+                                categoryId = r.categoryId,
+                                accountId = r.accountId,
+                                amount = r.amount,
+                                type = if (r.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
+                                description = r.description,
+                                frequency = RecurringFrequency.valueOf(r.frequency),
+                                interval = r.interval,
+                                dayOfMonth = r.dayOfMonth,
+                                monthOfYear = r.monthOfYear,
+                                dayOfWeek = r.dayOfWeek,
+                                nextRunDate = LocalDateTime.parse(r.nextRunDate),
+                                isActive = r.isActive,
+                                createdAt = r.createdAt?.let { LocalDateTime.parse(it) } ?: LocalDateTime.now()
+                            )
+                        )
+                    } catch (e: Exception) {
+                        skipped++
+                    }
+                }
+                if (validRecurring.isNotEmpty()) db.recurringTransactionDao().insertAll(validRecurring)
 
                 (data.quickTemplates ?: emptyList()).map { t ->
                     QuickTemplate(
@@ -277,7 +286,7 @@ class DataImportManager {
                             categoryId = t.categoryId,
                             accountId = t.accountId,
                             toAccountId = t.toAccountId,
-                            amountCents = (t.amount * 100).toLong(),
+                            amountCents = Math.round(t.amount * 100),
                             type = type,
                             description = t.description,
                             date = date,

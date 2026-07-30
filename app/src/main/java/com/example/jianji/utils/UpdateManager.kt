@@ -18,6 +18,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
+import timber.log.Timber
 
 class UpdateManager(private val context: Context) {
 
@@ -88,7 +89,10 @@ class UpdateManager(private val context: Context) {
             val latestVersion = tagName.removePrefix("v").trim()
             val currentVersion = try {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
-            } catch (_: Exception) { "0" }
+            } catch (e: Exception) {
+                Timber.w(e, "读取当前版本号失败，回退为 \"0\"")
+                "0"
+            }
 
             if (!isNewerVersion(currentVersion, latestVersion)) {
                 Result.success(null) // 已是最新版
@@ -230,7 +234,10 @@ class UpdateManager(private val context: Context) {
             PackageManager.GET_SIGNING_CERTIFICATES else 0
         val installed = try {
             pm.getPackageInfo(context.packageName, installedFlags)
-        } catch (_: Exception) { null }
+        } catch (e: Exception) {
+            Timber.w(e, "读取已安装包信息失败，回退为 null")
+            null
+        }
 
         if (installed != null) {
             val installedVc = PackageInfoCompat.getLongVersionCode(installed)
@@ -294,7 +301,10 @@ class UpdateManager(private val context: Context) {
             PackageInfoCompat.getLongVersionCode(
                 context.packageManager.getPackageInfo(context.packageName, 0)
             )
-        } catch (_: Exception) { 0L }
+        } catch (e: Exception) {
+            Timber.w(e, "hasLocalApk 读取已装版本号失败，回退为 0L")
+            0L
+        }
         return apkVer.code > installedVc
     }
 
@@ -312,7 +322,10 @@ class UpdateManager(private val context: Context) {
                 PackageInfoCompat.getLongVersionCode(
                     context.packageManager.getPackageInfo(context.packageName, 0)
                 )
-            } catch (_: Exception) { 0L }
+            } catch (e: Exception) {
+                Timber.w(e, "installLocalApk 读取已装版本号失败，回退为 0L")
+                0L
+            }
             if (apkVer.code <= installedVc) {
                 f.delete()
                 Toast.makeText(context,
@@ -382,6 +395,8 @@ class UpdateManager(private val context: Context) {
                     f.delete()
                 }
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Timber.w(e, "清理更新缓存失败")
+        }
     }
 }
