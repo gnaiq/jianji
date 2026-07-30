@@ -126,3 +126,55 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 仪器化测试（androidTest）：Room 真机/模拟器行为验证，覆盖备份恢复等
+  # 无法用纯 JVM 单测覆盖的路径。
+  # 只在 main push 与 PR 上运行——tag 的代码来自已验证的 main，
+  # 让 emulator 的偶发失败阻塞发版是负收益。
+  instrumentation-test:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # androidTest 的 assets 声明了 app/schemas（Room 导出目录，见 build.gradle.kts），
+      # 该目录由 ksp 在编译期生成；预建空目录避免 assets 合并阶段找不到路径
+      - name: Prepare Room schema dir
+        run: mkdir -p app/schemas
+
+      # emulator 依赖硬件加速，ubuntu-latest runner 需手动放开 KVM 设备权限
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew connectedDebugAndroidTest
+
+      - name: Upload instrumentation test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: androidTest-report
+          path: app/build/reports/androidTests/connected/
+          retention-days: 14
