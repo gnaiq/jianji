@@ -141,10 +141,15 @@ fun LazyListScope.dataManagementSection(
                         tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                     Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
                         Text("自动备份", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                        // 显示上次备份时间：让「定时备份从未执行」这类故障对用户立即可见
+                        val lastAt = BackupScheduler.getLastBackupAt(context)
+                        val lastText = if (lastAt > 0L) "上次备份 " + java.text.SimpleDateFormat(
+                            "MM-dd HH:mm", java.util.Locale.getDefault()
+                        ).format(java.util.Date(lastAt)) else "尚未执行过备份"
                         Text(
                             if (autoBackupEnabled) "已启用：每${
                                 when (autoBackupDays) { 1 -> "天"; 7 -> "周"; 30 -> "月"; else -> "$autoBackupDays 天" }
-                            }自动备份一次" else "未启用（数据变更时仍会即时备份）",
+                            }自动备份一次 · $lastText" else "未启用（数据变更时仍会即时备份）· $lastText",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )

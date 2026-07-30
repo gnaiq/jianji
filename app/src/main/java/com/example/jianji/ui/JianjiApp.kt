@@ -77,14 +77,12 @@ fun JianjiApp(
     val allTemplates by settingsVM.allTemplates.collectAsState()
     val allRecurring by settingsVM.recurringTransactions.collectAsState()
 
-    // 自动备份：数据变化时写入共享目录（卸载后仍可恢复）
-    LaunchedEffect(Unit) {
-        BackupScheduler.ensureScheduled(context)
-    }
+    // 周期备份排期由 JianjiApplication.onCreate 统一负责（KEEP 语义，此处重复调用已移除）
         // §1 P0 即时备份节流：跳过冷启动初始发射 + debounce 5s，
-        // 连续记 N 笔账仅在停止操作 5 秒后合并为一次全量落盘（原实现每次发射都写 MediaStore）
+        // 连续记 N 笔账仅在停止操作 5 秒后合并为一次全量落盘（原实现每次发射都写 MediaStore）。
+        // 覆盖交易/分类/账户/模板/周期记账变更（原实现仅监听交易，其余数据变更不触发备份）
         LaunchedEffect(Unit) {
-            snapshotFlow { transactions }
+            snapshotFlow { listOf(transactions, categories, allAccounts, allTemplates, allRecurring) }
                 .drop(1)
                 .debounce(5_000)
                 .collect {

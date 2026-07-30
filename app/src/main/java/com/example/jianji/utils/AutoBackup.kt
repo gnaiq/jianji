@@ -21,6 +21,7 @@ object AutoBackup {
             if (!hasData) return@withContext false
             val json = DataImportManager().generateExportJson(db)
             BackupStorage.saveAutoBackup(context.applicationContext, json)
+            BackupScheduler.setLastBackupAt(context.applicationContext, System.currentTimeMillis())
             true
         } catch (e: Exception) {
             Timber.w(e, "自动备份失败")

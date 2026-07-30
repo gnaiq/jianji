@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.jianji"
         minSdk = 24
         targetSdk = 34
-        versionCode = 53
-        versionName = "1.6.20"
+        versionCode = 54
+        versionName = "1.6.21"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -142,6 +142,9 @@ dependencies {
 
     // Glance AppWidget
     implementation("androidx.glance:glance-appwidget:1.1.0")
+
+    // WorkManager（周期自动备份：调度持久化、跨重启恢复、Doze 维护窗口内执行）
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // Logging (Timber - 结构化日志，替代静默 catch 和崩溃日志写文件)
     implementation("com.jakewharton.timber:timber:5.0.1")

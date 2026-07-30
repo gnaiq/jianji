@@ -1,20 +1,28 @@
 package com.example.jianji.utils
 
-import android.app.AlarmManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 
 /**
- * 自动备份调度：基于 AlarmManager 的周期性（不精确）闹钟，零额外依赖。
+ * 自动备份调度：基于 WorkManager 的周期任务（调度状态由 WorkManager 持久化，
+ * 跨进程/设备重启自动恢复，无需 BOOT_COMPLETED 广播）。
  * 默认每周执行一次，支持配置：每天 / 每周 / 每月 / 关闭。
+ *
+ * 关键语义：
+ * - ensureScheduled（App 启动时调用）使用 KEEP 策略——已在计时的周期不会被重置，
+ *   修复了旧 AlarmManager 实现「每次启动重置倒计时导致定时备份永不触发」的缺陷。
+ * - apply（用户变更设置时调用）使用 UPDATE 策略——立即按新周期生效。
  */
 object BackupScheduler {
     private const val PREFS = "jianji_backup_prefs"
     const val KEY_INTERVAL_DAYS = "auto_backup_interval_days"
     const val DEFAULT_DAYS = 7
-    const val ACTION_AUTO_BACKUP = "com.example.jianji.ACTION_AUTO_BACKUP"
     const val KEY_IMMEDIATE_BACKUP = "immediate_backup_enabled"
+    const val KEY_LAST_BACKUP_AT = "auto_backup_last_at"
+    private const val WORK_NAME = "auto_backup"
 
     fun getIntervalDays(context: Context): Int {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -32,39 +40,41 @@ object BackupScheduler {
             .edit().putBoolean(KEY_IMMEDIATE_BACKUP, enabled).apply()
     }
 
+    /** 上次自动备份完成时间（毫秒），0 表示尚未执行过 */
+    fun getLastBackupAt(context: Context): Long {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(KEY_LAST_BACKUP_AT, 0L)
+    }
+
+    fun setLastBackupAt(context: Context, at: Long) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putLong(KEY_LAST_BACKUP_AT, at).apply()
+    }
+
     fun saveIntervalDays(context: Context, days: Int) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putInt(KEY_INTERVAL_DAYS, days).apply()
         apply(context, days)
     }
 
-    /** 应用并设置闹钟；days<=0 表示关闭 */
+    /** 用户变更周期时调用：UPDATE 立即按新周期重排；days<=0 表示关闭 */
     fun apply(context: Context, days: Int) {
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pi = pendingIntent(context)
-        am.cancel(pi)
-        if (days <= 0) return
-        val interval = AlarmManager.INTERVAL_DAY * days
-        val triggerAt = System.currentTimeMillis() + interval
-        @Suppress("DEPRECATION")
-        am.setInexactRepeating(AlarmManager.RTC, triggerAt, interval, pi)
+        val wm = WorkManager.getInstance(context)
+        if (days <= 0) {
+            wm.cancelUniqueWork(WORK_NAME)
+            return
+        }
+        wm.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request(days))
     }
 
-    /** 应用启动时调用：仅当已启用（days>0）时确保已登记闹钟 */
+    /** 应用启动时调用：KEEP 策略，仅在未登记时排期，不重置已在计时的周期 */
     fun ensureScheduled(context: Context) {
         val days = getIntervalDays(context)
-        if (days > 0) apply(context, days)
+        if (days <= 0) return
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request(days))
     }
 
-    private fun pendingIntent(context: Context): PendingIntent {
-        val intent = Intent(context, AutoBackupTriggerReceiver::class.java).apply {
-            action = ACTION_AUTO_BACKUP
-        }
-        return PendingIntent.getBroadcast(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-    }
+    private fun request(days: Int) =
+        PeriodicWorkRequestBuilder<AutoBackupWorker>(days.toLong(), TimeUnit.DAYS).build()
 }
