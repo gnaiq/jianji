@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.jianji"
         minSdk = 24
         targetSdk = 34
-        versionCode = 55
-        versionName = "1.6.22"
+        versionCode = 56
+        versionName = "1.6.23"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

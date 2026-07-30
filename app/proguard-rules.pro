@@ -43,9 +43,13 @@
 -keepattributes *Annotation*
 -dontwarn sun.misc.**
 # Gson 库自带 consumer rules（META-INF/proguard/gson.pro）已覆盖其内部类，故移除 -keep com.google.gson.**。
-# 但业务数据类仍需保留：Room 实体 + Gson/序列化经由 utils 的 DTO 依赖字段名反射，
-# 收窄该规则需 CI 打包运行验证备份/导入/导出无误后再进行，本次保守保留。
+# 业务序列化 DTO 必须保留：备份/恢复的 ImportData 及 *Import 系列 DTO 全部位于 utils 包，
+# Gson 依赖「字段名反射 + 字段泛型签名（List<TransactionImport> 等）」做反序列化。
+# 若这些类被 R8 混淆/裁剪，嵌套 List 的元素类型在运行时会绑定到错误类，
+# 触发 gson 内部 checkcast 失败：典型报错 "p6.n cannot be cast to z5.h"（仅 release 混淆包出现）。
+# 因此 data.** 与 utils.** 两类 DTO 都必须 -keep 且保留字段名。
 -keep class com.example.jianji.data.** { *; }
+-keep class com.example.jianji.utils.** { *; }
 
 # Keep Timber (for tag-based filtering)
 -dontwarn timber.log.**
