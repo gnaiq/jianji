@@ -19,6 +19,9 @@ class BudgetViewModel(
         budgetRepo.observeTotalBudget(yearMonth.year, yearMonth.monthValue)
             .map { it?.amount ?: 0.0 }
 
+    suspend fun getMonthlyBudgetEntity(yearMonth: YearMonth): Budget? =
+        budgetRepo.getTotalBudget(yearMonth.year, yearMonth.monthValue)
+
     fun setBudget(budget: Budget) {
         viewModelScope.launch { budgetRepo.setBudget(budget) }
     }

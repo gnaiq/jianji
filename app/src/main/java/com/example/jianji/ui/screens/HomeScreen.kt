@@ -112,18 +112,27 @@ fun HomeScreen(
         }
     }
 
-    if (categories.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("正在加载数据...", style = MaterialTheme.typography.bodyLarge)
-        }
-        return
-    }
+    // 首次安装时应用启动异步 seed 默认分类/账户，首帧 categories 可能仍为空。
+    // 不再以 return 永久阻塞整屏，仅以一条轻量提示占位；seed 完成后 categories 非空，
+    // 本 Composable 自动重组并正常渲染（避免“正在加载”永久卡死，修复 DEF-001 UI 端）。
+    val isInitializing = categories.isEmpty()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(16.dp)
     ) {
+        // === 首次初始化占位（仅在 categories 尚未 seed 完成时显示） ===
+        if (isInitializing) {
+            item {
+                Text(
+                    "正在初始化默认数据...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         // === 标题 + 搜索按钮 ===
         item {
             Row(
@@ -337,7 +346,7 @@ fun HomeScreen(
                                                 )
                                                 Text(
                                                     (if (template.type == TransactionType.EXPENSE) "-" else "+") +
-                                                        "¥${template.amount.toInt()}",
+                                                        "¥${"%.2f".format(template.amountCents / 100.0)}",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = if (template.type == TransactionType.EXPENSE)
                                                         AppColors.ExpenseRed else AppColors.IncomeGreen

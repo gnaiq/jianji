@@ -8,6 +8,7 @@ import com.example.jianji.data.*
 import com.example.jianji.utils.AutoBackup
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import timber.log.Timber
 
 /**
@@ -24,6 +25,8 @@ class SettingsViewModel(
     private val tagRepo: TagRepository,
     private val database: JianjiDatabase
 ) : AndroidViewModel(application) {
+
+    private val clearing = AtomicBoolean(false)
 
     val allTemplates: StateFlow<List<QuickTemplate>> = templateRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -96,7 +99,11 @@ class SettingsViewModel(
      * 破坏性操作前先落一份「操作前快照」备份，该文件不参与自动备份轮转，给误操作留后悔药。
      */
     fun clearAllData() {
-        viewModelScope.launch { performClear() }
+        if (!clearing.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try { performClear() }
+            finally { clearing.set(false) }
+        }
     }
 
     /**

@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -109,17 +110,19 @@ fun JianjiApp(
 
     // §5 回收站：软删 + 撤销 Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingUndo by remember { mutableStateOf<AppTransaction?>(null) }
+    // 用 Channel 做撤销队列，避免把 State 当副作用触发源导致的 LaunchedEffect 重入竞态
+    // （原实现 LaunchedEffect(pendingUndo) 每次 drop(1) 生成新 list 触发 effect 重启，
+    // 会使挂起的 showSnackbar 被取消，可能丢失“撤销”点击。Channel 天然串行消费，无此隐患）。
+    val undoChannel = remember { Channel<AppTransaction>(Channel.UNLIMITED) }
     var showTagForm by remember { mutableStateOf(false) }
-    LaunchedEffect(pendingUndo) {
-        pendingUndo?.let { tx ->
+    LaunchedEffect(Unit) {
+        for (tx in undoChannel) {
             val result = snackbarHostState.showSnackbar(
                 message = "已移入回收站",
                 actionLabel = "撤销",
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) transactionVM.restoreTransaction(tx.id)
-            pendingUndo = null
         }
     }
 
@@ -197,14 +200,14 @@ fun JianjiApp(
                     onSearchQueryChange = { searchQuery = it },
                     onToggleSearch = { isSearching = !isSearching },
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { tx -> transactionVM.softDelete(tx); pendingUndo = tx },
+                    onDeleteTransaction = { tx -> transactionVM.softDelete(tx); undoChannel.trySend(tx) },
                     transactionTagMap = tagVM.transactionTagMap.collectAsState().value,
                     onOpenCalendar = { navController.navigate(Tab.CALENDAR.route) },
                     onUseTemplate = { template ->
                         settingsVM.useTemplate(template.id)
                         transactionVM.addTransaction(
                             categoryId = template.categoryId,
-                            amount = template.amount,
+                            amount = template.amountCents / 100.0,
                             type = template.type,
                             description = template.description,
                             date = java.time.LocalDateTime.now(),
@@ -247,7 +250,7 @@ fun JianjiApp(
                     tags = tagVM.tags.collectAsState().value,
                     transactionTagMap = tagVM.transactionTagMap.collectAsState().value,
                     onTransactionClick = { editingTransaction = it },
-                    onDeleteTransaction = { tx -> transactionVM.softDelete(tx); pendingUndo = tx },
+                    onDeleteTransaction = { tx -> transactionVM.softDelete(tx); undoChannel.trySend(tx) },
                     onOpenRecycle = { navController.navigate(Tab.RECYCLE.route) }
                 )
             }

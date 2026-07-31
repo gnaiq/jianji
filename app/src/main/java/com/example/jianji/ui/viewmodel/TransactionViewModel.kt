@@ -172,7 +172,7 @@ class TransactionViewModel(
                         transactionRepository.insertTransaction(
                             Transaction(
                                 categoryId = rtx.categoryId,
-                                amountCents = Math.round(rtx.amount * 100),
+                                amountCents = rtx.amountCents,
                                 type = rtx.type,
                                 description = rtx.description,
                                 date = date,

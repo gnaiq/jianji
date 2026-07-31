@@ -3,6 +3,10 @@ package com.example.jianji
 import android.app.Application
 import android.os.Build
 import com.example.jianji.utils.BackupScheduler
+import com.example.jianji.data.CategoryRepository
+import com.example.jianji.data.AccountRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import timber.log.Timber
@@ -25,6 +29,12 @@ class JianjiApplication : Application() {
         // 诊断优先：先装崩溃捕获器，确保任何后续启动异常都能落盘，便于无 adb 环境下定位根因
         installCrashHandler()
         BackupScheduler.ensureScheduled(this)
+        // 首次安装时种植默认分类与账户（seedDefaults 自带判空守卫，已存在数据则跳过）
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            val db = JianjiDatabase.getDatabase(this@JianjiApplication)
+            CategoryRepository(db.categoryDao()).seedDefaults()
+            AccountRepository(db.accountDao()).seedDefaults()
+        }
     }
 
     /** 诊断用：捕获未处理异常并写入 crash_log.txt，供下次启动弹窗展示 */

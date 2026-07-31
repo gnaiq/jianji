@@ -48,9 +48,9 @@ class StatisticsCalculator {
         yearMonth: YearMonth = YearMonth.now()
     ): PeriodStatistics {
         val startDate = yearMonth.atDay(1).atStartOfDay()
-        val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59)
+        val endDate = yearMonth.plusMonths(1).atDay(1).atStartOfDay()
         val monthTransactions = transactions.filter {
-            it.date >= startDate && it.date <= endDate
+            it.date >= startDate && it.date < endDate
         }
         return calculatePeriodStatistics(monthTransactions, categories, yearMonth.toString())
     }
@@ -64,9 +64,9 @@ class StatisticsCalculator {
         year: Int = java.time.Year.now().value
     ): PeriodStatistics {
         val startDate = LocalDateTime.of(year, 1, 1, 0, 0, 0)
-        val endDate = LocalDateTime.of(year, 12, 31, 23, 59, 59)
+        val endDate = LocalDateTime.of(year + 1, 1, 1, 0, 0, 0)
         val yearTransactions = transactions.filter {
-            it.date >= startDate && it.date <= endDate
+            it.date >= startDate && it.date < endDate
         }
         return calculatePeriodStatistics(yearTransactions, categories, "$year 年")
     }
@@ -97,9 +97,9 @@ class StatisticsCalculator {
         return (0 until months).map { i ->
             val yearMonth = now.minusMonths(i.toLong())
             val startDate = yearMonth.atDay(1).atStartOfDay()
-            val endDate = yearMonth.atEndOfMonth().atTime(23, 59, 59)
+            val endDate = yearMonth.atEndOfMonth().plusDays(1).atStartOfDay()
             val monthTotal = transactions
-                .filter { it.date >= startDate && it.date <= endDate && it.type == TransactionType.EXPENSE }
+                .filter { it.date >= startDate && it.date < endDate && it.type == TransactionType.EXPENSE }
                 .sumOf { it.amountCents / 100.0 }
             yearMonth.toString() to monthTotal
         }.reversed()

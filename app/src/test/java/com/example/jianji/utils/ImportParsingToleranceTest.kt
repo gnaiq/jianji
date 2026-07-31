@@ -2,7 +2,10 @@ package com.example.jianji.utils
 
 import com.example.jianji.data.RecurringFrequency
 import com.example.jianji.data.TransactionType
+import com.example.jianji.utils.DataImportManager
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,5 +66,25 @@ class ImportParsingToleranceTest {
         assertEquals(820L, Math.round(8.20 * 100))
         assertEquals(1250L, Math.round(12.5 * 100))
         assertTrue(Math.round(0.1 * 100 + 0.2 * 100) == 30L)
+    }
+
+    @Test
+    fun oldBackupWithAccountBalanceField_parsesWithoutCrash() {
+        // DEF-004 回归：AccountImport 已移除 balance 字段，但旧版备份 JSON 仍含 balance。
+        // Gson 默认忽略未知字段，应正常解析（不抛异常、不返回 null），防止旧备份恢复失败。
+        val legacyJson = """
+        {
+          "version": 4,
+          "accounts": [
+            { "id": 1, "name": "现金", "icon": "💵", "isDefault": true, "balance": 1234.56 }
+          ],
+          "transactions": [],
+          "categories": []
+        }
+        """.trimIndent()
+        val data = runBlocking { DataImportManager().parseJson(legacyJson) }
+        assertNotNull("旧备份含 balance 字段仍应解析成功", data)
+        assertEquals(1, data?.accounts?.size)
+        assertEquals("现金", data?.accounts?.first()?.name)
     }
 }

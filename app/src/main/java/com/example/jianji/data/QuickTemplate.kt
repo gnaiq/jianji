@@ -1,5 +1,6 @@
 package com.example.jianji.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -8,7 +9,8 @@ data class QuickTemplate(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val categoryId: Long,
-    val amount: Double,
+    @ColumnInfo(name = "amount_cents")
+    val amountCents: Long,
     val type: TransactionType,
     val description: String = "",
     val accountId: Long? = null,

@@ -45,7 +45,6 @@ data class AccountImport(
     val id: Long? = null,
     val name: String = "",
     val icon: String = "💳",
-    val balance: Double = 0.0,
     val isDefault: Boolean = false
 )
 
@@ -166,7 +165,7 @@ class DataImportManager {
                 )
             },
             accounts = accounts.map { a ->
-                AccountImport(id = a.id, name = a.name, icon = a.icon, balance = a.balance, isDefault = a.isDefault)
+                AccountImport(id = a.id, name = a.name, icon = a.icon, isDefault = a.isDefault)
             },
             budgets = budgets.map { b ->
                 BudgetImport(
@@ -176,7 +175,7 @@ class DataImportManager {
             },
             recurringTransactions = recurring.map { r ->
                 RecurringImport(
-                    id = r.id, categoryId = r.categoryId, accountId = r.accountId, amount = r.amount,
+                    id = r.id, categoryId = r.categoryId, accountId = r.accountId, amount = r.amountCents / 100.0,
                     type = r.type.name, description = r.description, frequency = r.frequency.name,
                     interval = r.interval, dayOfMonth = r.dayOfMonth, monthOfYear = r.monthOfYear,
                     dayOfWeek = r.dayOfWeek,
@@ -186,7 +185,7 @@ class DataImportManager {
             },
             quickTemplates = templates.map { t ->
                 TemplateImport(
-                    id = t.id, categoryId = t.categoryId, accountId = t.accountId, amount = t.amount,
+                    id = t.id, categoryId = t.categoryId, accountId = t.accountId, amount = t.amountCents / 100.0,
                     type = t.type.name, description = t.description, sortOrder = t.sortOrder,
                     useCount = t.useCount
                 )
@@ -286,7 +285,7 @@ class DataImportManager {
 
             if (isFull) {
                 (data.accounts ?: emptyList()).map { a ->
-                    Account(id = a.id ?: 0, name = a.name, icon = a.icon, balance = a.balance, isDefault = a.isDefault)
+                    Account(id = a.id ?: 0, name = a.name, icon = a.icon, isDefault = a.isDefault)
                 }.let { db.accountDao().insertAll(it) }
 
                 (data.budgets ?: emptyList()).map { b ->
@@ -309,7 +308,7 @@ class DataImportManager {
                                 id = r.id ?: 0,
                                 categoryId = r.categoryId,
                                 accountId = r.accountId,
-                                amount = r.amount,
+                                amountCents = Math.round(r.amount * 100),
                                 type = if (r.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
                                 description = r.description,
                                 frequency = RecurringFrequency.valueOf(r.frequency),
@@ -333,7 +332,7 @@ class DataImportManager {
                         id = t.id ?: 0,
                         categoryId = t.categoryId,
                         accountId = t.accountId,
-                        amount = t.amount,
+                        amountCents = Math.round(t.amount * 100),
                         type = if (t.type == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE,
                         description = t.description,
                         sortOrder = t.sortOrder,

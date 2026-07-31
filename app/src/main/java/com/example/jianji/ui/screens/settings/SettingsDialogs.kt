@@ -39,10 +39,16 @@ import java.time.format.DateTimeFormatter
 fun BudgetSettingsDialog(budgetVM: BudgetViewModel?, onDismiss: () -> Unit) {
     val year = YearMonth.now().year
     val month = YearMonth.now().monthValue
-    // 回显当前月度预算（P2-11）：预算 VM 可用时读取已设定值并预填，避免「保存后看不到原值」的困惑
-    var currentBudget by remember { mutableStateOf(0.0) }
+    // 回显当前月度预算：保存完整 Budget 实体以支持删除（需 id）
+    var currentBudgetEntity by remember { mutableStateOf<Budget?>(null) }
+    val currentBudget = currentBudgetEntity?.amount ?: 0.0
     LaunchedEffect(budgetVM) {
-        budgetVM?.getMonthlyBudget(YearMonth.of(year, month))?.first()?.let { currentBudget = it }
+        budgetVM?.let { vm ->
+            val ym = YearMonth.of(year, month)
+            // 通过 Repository 直接读取完整 Budget 实体
+            val budget = vm.getMonthlyBudgetEntity(ym)
+            currentBudgetEntity = budget
+        }
     }
     var budgetAmount by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -66,18 +72,34 @@ fun BudgetSettingsDialog(budgetVM: BudgetViewModel?, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val amt = budgetAmount.toDoubleOrNull() ?: return@Button
-                scope.launch {
-                    budgetVM?.setBudget(Budget(
-                        amount = amt, period = BudgetPeriod.MONTHLY,
-                        year = year, month = month
-                    ))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    if (currentBudgetEntity != null) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    budgetVM?.deleteBudget(currentBudgetEntity!!)
+                                }
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) { Text("删除预算") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onDismiss) { Text("取消") }
+                        Button(onClick = {
+                            val amt = budgetAmount.toDoubleOrNull() ?: return@Button
+                            scope.launch {
+                                budgetVM?.setBudget(Budget(
+                                    amount = amt, period = BudgetPeriod.MONTHLY,
+                                    year = year, month = month
+                                ))
+                            }
+                            onDismiss()
+                        }) { Text("保存") }
+                    }
                 }
-                onDismiss()
-            }) { Text("保存") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+            },
+            dismissButton = {}
     )
 }
 
@@ -210,7 +232,7 @@ fun TemplateManagementDialog(
                                 Text(cat?.icon ?: "📁")
                                 Column {
                                     Text(t.description.ifEmpty { cat?.name ?: "" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                    Text("${if (t.type == TransactionType.EXPENSE) "-" else "+"}¥${t.amount} · 使用${t.useCount}次",
+                                    Text("${if (t.type == TransactionType.EXPENSE) "-" else "+"}¥${"%.2f".format(t.amountCents / 100.0)} · 使用${t.useCount}次",
                                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                                 }
                             }
@@ -258,7 +280,7 @@ fun TemplateManagementDialog(
                 Button(onClick = {
                     val amt = tmpAmount.toDoubleOrNull() ?: return@Button
                     val catId = tmpCatId ?: return@Button
-                    settingsVM?.addTemplate(QuickTemplate(categoryId = catId, amount = amt, type = tmpType, description = tmpDesc))
+                    settingsVM?.addTemplate(QuickTemplate(categoryId = catId, amountCents = Math.round(amt * 100), type = tmpType, description = tmpDesc))
                     showAdd = false; tmpAmount = ""; tmpDesc = ""; tmpCatId = null
                 }, enabled = tmpAmount.toDoubleOrNull() != null && tmpCatId != null) { Text("添加") }
             }

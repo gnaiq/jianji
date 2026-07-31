@@ -9,6 +9,6 @@ data class Account(
     val id: Long = 0,
     val name: String,
     val icon: String = "💳",
-    val balance: Double = 0.0,
+    // balance removed — account balances are computed dynamically from transactions
     val isDefault: Boolean = false
 )

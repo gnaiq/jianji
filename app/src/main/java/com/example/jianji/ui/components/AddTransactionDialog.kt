@@ -89,11 +89,13 @@ fun AddTransactionDialog(
     val transferCategory = categories.firstOrNull { it.isSystem }
     // 支持计算器表达式（如 12+3.5）；纯数字也能直接解析
     val parsedAmount = evalExpression(amount) ?: amount.toDoubleOrNull() ?: 0.0
+    // 金额格式错误提示：表达式解析失败且无法作为纯数字解析时显示错误
+    val isAmountError = amount.isNotEmpty() && evalExpression(amount) == null && amount.toDoubleOrNull() == null
     val isValid = if (selectedType == TransactionType.TRANSFER) {
         parsedAmount > 0 && selectedAccountId != null && selectedToAccountId != null
             && selectedAccountId != selectedToAccountId && transferCategory != null
     } else {
-        selectedCategory != null && parsedAmount > 0
+        selectedCategory != null && parsedAmount > 0 && parsedAmount <= 99_999_999.99
     }
 
     val context = LocalContext.current
@@ -171,7 +173,7 @@ fun AddTransactionDialog(
                             Card(
                                 modifier = Modifier.clickable {
                                     selectedCategoryId = template.categoryId
-                                    amount = template.amount.toString()
+                                    amount = (template.amountCents / 100.0).toString()
                                     description = template.description
                                     selectedAccountId = template.accountId
                                 },
@@ -194,7 +196,7 @@ fun AddTransactionDialog(
                                             maxLines = 1
                                         )
                                         Text(
-                                            "¥${template.amount.toInt()}",
+                                            "¥${"%.2f".format(template.amountCents / 100.0)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (template.type == TransactionType.EXPENSE)
                                                 MaterialTheme.colorScheme.error
@@ -380,6 +382,16 @@ fun AddTransactionDialog(
                             maxLines = 1
                         )
                     }
+                }
+
+                // 金额格式错误提示
+                if (isAmountError) {
+                    Text(
+                        "金额格式无效，请输入数字或计算表达式（如 12+3.5）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
 
                 // 标签多选（§6）

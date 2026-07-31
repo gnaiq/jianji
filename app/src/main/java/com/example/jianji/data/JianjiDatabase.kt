@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Tag::class,
         TransactionTagCrossRef::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -203,6 +203,75 @@ abstract class JianjiDatabase : RoomDatabase() {
             }
         }
 
+        // v1.6.24：金额 Long 分存储统一（recurring_transactions + quick_templates）+ 清理 accounts.balance 死字段
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // recurring_transactions: amount REAL → amount_cents INTEGER
+                db.execSQL("""
+                    CREATE TABLE recurring_transactions_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        categoryId INTEGER NOT NULL,
+                        amount_cents INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        accountId INTEGER,
+                        frequency TEXT NOT NULL,
+                        interval INTEGER NOT NULL DEFAULT 1,
+                        dayOfMonth INTEGER NOT NULL DEFAULT 1,
+                        dayOfWeek INTEGER NOT NULL DEFAULT 1,
+                        nextRunDate TEXT NOT NULL,
+                        isActive INTEGER NOT NULL DEFAULT 1,
+                        monthOfYear INTEGER NOT NULL DEFAULT 1,
+                        createdAt TEXT NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO recurring_transactions_new SELECT
+                        id, categoryId, CAST(ROUND(amount * 100) AS INTEGER),
+                        type, description, accountId, frequency, interval,
+                        dayOfMonth, dayOfWeek, nextRunDate, isActive, monthOfYear, createdAt
+                    FROM recurring_transactions
+                """)
+                db.execSQL("DROP TABLE recurring_transactions")
+                db.execSQL("ALTER TABLE recurring_transactions_new RENAME TO recurring_transactions")
+
+                // quick_templates: amount REAL → amount_cents INTEGER
+                db.execSQL("""
+                    CREATE TABLE quick_templates_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        categoryId INTEGER NOT NULL,
+                        amount_cents INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        accountId INTEGER,
+                        sortOrder INTEGER NOT NULL DEFAULT 0,
+                        useCount INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO quick_templates_new SELECT
+                        id, categoryId, CAST(ROUND(amount * 100) AS INTEGER),
+                        type, description, accountId, sortOrder, useCount
+                    FROM quick_templates
+                """)
+                db.execSQL("DROP TABLE quick_templates")
+                db.execSQL("ALTER TABLE quick_templates_new RENAME TO quick_templates")
+
+                // accounts: 移除 balance 列（余额已改为动态计算）
+                db.execSQL("""
+                    CREATE TABLE accounts_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        icon TEXT NOT NULL DEFAULT '💳',
+                        isDefault INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+                db.execSQL("INSERT INTO accounts_new SELECT id, name, icon, isDefault FROM accounts")
+                db.execSQL("DROP TABLE accounts")
+                db.execSQL("ALTER TABLE accounts_new RENAME TO accounts")
+            }
+        }
+
         fun getDatabase(context: Context): JianjiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -210,7 +279,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                     JianjiDatabase::class.java,
                     "jianji_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     // 版本回退机制：允许 schema 降级时走破坏性迁移，避免回退到旧版
                     // （如从未来 v1.6.7 DB v7 回退到本版 v1.6.6 DB v6）时因 Room 拒绝降级而闪退。
                     // 代价是回退会清空 DB，属回退预期内的数据损失，已在 rollback 脚本中说明。

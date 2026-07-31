@@ -68,7 +68,7 @@ fun RecurringManagementDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("${cat?.icon ?: "📁"} ${rt.description.ifEmpty { cat?.name ?: "" }}",
                                     style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                Text("${if (rt.type == TransactionType.EXPENSE) "-" else "+"}¥${rt.amount} · ${rt.frequency.name} · 下次: ${rt.nextRunDate.format(DateTimeFormatter.ofPattern("MM/dd"))}",
+                                Text("${if (rt.type == TransactionType.EXPENSE) "-" else "+"}¥${"%.2f".format(rt.amountCents / 100.0)} · ${rt.frequency.name} · 下次: ${rt.nextRunDate.format(DateTimeFormatter.ofPattern("MM/dd"))}",
                                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                             }
                             TextButton(onClick = { settingsVM?.deleteRecurring(rt) },
@@ -177,7 +177,7 @@ fun RecurringManagementDialog(
                     val dow = rDayOfWeek.toIntOrNull() ?: 1
                     val nextRun = computeRecurringNextRun(rFreq, dom, interval, dow, rMonthOfYear.toIntOrNull() ?: 1)
                     settingsVM?.addRecurring(RecurringTransaction(
-                        categoryId = catId, amount = amt, type = rType, description = rDesc,
+                        categoryId = catId, amountCents = Math.round(amt * 100), type = rType, description = rDesc,
                         frequency = rFreq, interval = interval, dayOfMonth = dom,
                         monthOfYear = rMonthOfYear.toIntOrNull() ?: 1,
                         dayOfWeek = dow, nextRunDate = nextRun
