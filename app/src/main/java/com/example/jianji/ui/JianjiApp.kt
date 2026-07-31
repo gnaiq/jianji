@@ -261,6 +261,7 @@ fun JianjiApp(
                     transactionVM = transactionVM,
                     categoryVM = categoryVM,
                     accountVM = accountVM,
+                    budgetVM = budgetVM,
                     tagVM = tagVM,
                     settingsVM = settingsVM,
                     onDataCleared = {

@@ -84,7 +84,12 @@ class TransactionViewModel(
             }
             map
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+        // ⚠️ 必须保持 Eagerly，不可改回 WhileSubscribed：
+        // SettingsScreen 与 JianjiApp 的账户弹窗是以 `accountBalances.value` 快照方式读取的
+        // （读 .value 不构成订阅）。若改回 WhileSubscribed，上游在无订阅者时不会启动收集，
+        // .value 将恒为初始 emptyMap()，账户余额会再次全部显示为 ¥0.00。
+        // 此处 Eagerly 同时兼任上游 transactions(WhileSubscribed) 的常驻订阅者。
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     // -- Transaction CRUD --
     fun addTransaction(
