@@ -5,6 +5,7 @@ import android.os.Build
 import com.example.jianji.utils.BackupScheduler
 import com.example.jianji.data.CategoryRepository
 import com.example.jianji.data.AccountRepository
+import com.example.jianji.data.JianjiDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext
