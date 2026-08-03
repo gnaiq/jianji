@@ -25,6 +25,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -87,6 +88,8 @@ fun AddTransactionDialog(
     val filteredTemplates = templates.filter { it.type == selectedType }
     val selectedCategory = categories.find { it.id == selectedCategoryId }
     val transferCategory = categories.firstOrNull { it.isSystem }
+    // 高频分类：同类型下取排序前 6 个非 major 子类（复用现有 categories，不新增数据层调用）
+    val topCategories = filteredCategories.filter { !it.isMajor }.take(6)
     // 支持计算器表达式（如 12+3.5）；纯数字也能直接解析
     val parsedAmount = evalExpression(amount) ?: amount.toDoubleOrNull() ?: 0.0
     // 金额格式错误提示：表达式解析失败且无法作为纯数字解析时显示错误
@@ -100,8 +103,10 @@ fun AddTransactionDialog(
 
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    // 动态计算器键盘：点击金额时弹出（修复键盘常驻遮挡描述框）
+    // 动态计算器键盘：点击 🧮 时弹出（v2 §5.2 渐进披露，不再常驻遮挡描述框）
     var showCalculator by remember { mutableStateOf(false) }
+    // 更多选项折叠状态（v2 §5.4 / B-4）：日期/标签/描述默认收起
+    var showMore by remember { mutableStateOf(false) }
 
     // 全屏表单：用 Dialog 取代 ModalBottomSheet，消除底部弹层上方 scrim 区域；
     // onDismissRequest = {} 屏蔽「点外部 / 返回键」误触关闭，仅界面内显式按钮（关闭 X / 取消）可退出
@@ -209,19 +214,30 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 分类选择（转账无需分类）
+                // 分类选择（转账无需分类）——v2 §5.3 高频 Chip + 更多
                 if (selectedType != TransactionType.TRANSFER) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable { showCategoryPicker = true },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(selectedCategory?.name ?: "选择分类", style = MaterialTheme.typography.bodyLarge)
-                            Text(selectedCategory?.icon ?: "📁", style = MaterialTheme.typography.bodyLarge)
+                        items(topCategories) { cat ->
+                            val selected = cat.id == selectedCategoryId
+                            FilterChip(
+                                selected = selected,
+                                onClick = { selectedCategoryId = cat.id },
+                                label = { Text("${cat.icon} ${cat.name}") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                        item {
+                            AssistChip(
+                                onClick = { showCategoryPicker = true },
+                                label = { Text("更多") },
+                                leadingIcon = { Icon(Icons.Default.Add, null) }
+                            )
                         }
                     }
                 }
@@ -301,6 +317,13 @@ fun AddTransactionDialog(
                     }
                 }
 
+                // 「更多选项」折叠区（v2 §5.4 / B-4）：日期、标签、描述默认收起
+                TextButton(
+                    onClick = { showMore = !showMore },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (showMore) "收起更多选项 ▲" else "更多选项（日期 / 标签 / 描述）▼") }
+
+                if (showMore) {
                 // 日期时间选择
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Card(
@@ -358,31 +381,28 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 金额输入（§6 计算器键盘：点击动态弹出，不再常驻遮挡描述框）
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { showCalculator = true },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("金额", style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                            Text("点击输入", style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary)
+                // 金额输入（v2 §5.2）：系统数字键盘直接输入 + 🧮 渐进唤起计算器
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = {
+                        if (it.length <= 16 && (it.isEmpty() || it.matches(Regex("^[0-9.]*$")))) amount = it
+                    },
+                    label = { Text("金额") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = isAmountError,
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.End),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+                    trailingIcon = {
+                        IconButton(onClick = { showCalculator = true }) {
+                            Icon(Icons.Filled.Calculate, contentDescription = "打开计算器")
                         }
-                        Text(
-                            text = if (amount.isEmpty()) "0.00" else amount,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.End,
-                            maxLines = 1
-                        )
                     }
-                }
+                )
 
                 // 金额格式错误提示
                 if (isAmountError) {
@@ -437,6 +457,7 @@ fun AddTransactionDialog(
                     ),
                     keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() })
                 )
+                } // end if (showMore)
 
                 // 分类选择器
                 if (showCategoryPicker) {
@@ -448,29 +469,23 @@ fun AddTransactionDialog(
                     )
                 }
 
-                // 底部操作按钮（底部弹层内确认/取消）
+                // 底部单一保存键（v2 §5.4 / B-5）：去掉取消键，关闭走顶部 X
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("取消") }
-                    Button(
-                        onClick = {
-                            if (!isValid) return@Button
-                            val categoryId = if (selectedType == TransactionType.TRANSFER)
-                                transferCategory?.id ?: 0L else (selectedCategory?.id ?: 0L)
-                            onConfirm(
-                                categoryId, parsedAmount, selectedType, description,
-                                selectedDate.withNano(0), selectedAccountId,
-                                if (selectedType == TransactionType.TRANSFER) selectedToAccountId else null,
-                                selectedTagIds.toList()
-                            )
-                        },
-                        enabled = isValid,
-                        modifier = Modifier.weight(2f)
-                    ) { Text(if (editingTransaction != null) "保存" else "确认") }
-                }
+                Button(
+                    onClick = {
+                        if (!isValid) return@Button
+                        val categoryId = if (selectedType == TransactionType.TRANSFER)
+                            transferCategory?.id ?: 0L else (selectedCategory?.id ?: 0L)
+                        onConfirm(
+                            categoryId, parsedAmount, selectedType, description,
+                            selectedDate.withNano(0), selectedAccountId,
+                            if (selectedType == TransactionType.TRANSFER) selectedToAccountId else null,
+                            selectedTagIds.toList()
+                        )
+                    },
+                    enabled = isValid,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text(if (editingTransaction != null) "保存修改" else "记一笔", style = MaterialTheme.typography.titleMedium) }
                 Spacer(Modifier.height(16.dp))
             }
             if (showCalculator) {
