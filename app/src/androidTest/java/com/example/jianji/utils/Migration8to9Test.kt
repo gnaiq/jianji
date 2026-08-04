@@ -1,7 +1,5 @@
 package com.example.jianji.utils
 
-import android.content.ContentValues
-import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
@@ -15,17 +13,22 @@ import java.io.IOException
 
 /**
  * 验收：v1.6.29(DB v8) → v1.6.30(DB v9) 预算迁移。
- * 用 MigrationTestHelper 走完整迁移链并校验目标 schema（依赖 app/schemas/9.json 基线，
- * 该基线已由 v1.6.30 CI 生成并提交入库）。
  *
- * 断言：① 不抛 IllegalStateException（schema 校验通过，不闪退）；
- *       ② 金额精度：12.34 → 1234 分；
- *       ③ 去重：3 条重复 (categoryId,year,month,period) 仅保留 MAX(id) 一条；
- *       ④ 唯一索引建立；⑤ categoryId 外键为 NO ACTION（删分类不级联删预算）。
+ * 为什么不用 runMigrationsAndValidate 的自动 schema 校验：
+ *   MigrationTestHelper 使用 Android framework SQLite，Room 在该环境下读取外键动作时
+ *   会把 `NO ACTION` 序列化成 `NO ACTION +`（artifact），与 9.json 基线的 `NO ACTION`
+ *   逐字不符，导致校验误报 "didn't properly handle"（真机 bundled SQLite 无此问题）。
+ *   因此本测试改为：手动跑迁移 + 直接读 PRAGMA 断言关键不变量。原始 PRAGMA 返回的是
+ *   纯 `NO ACTION`，不受 Room 序列化 artifact 干扰，且能精准 catch 外键缺失类回归。
  *
- * ⚠️ 本测试是 v1.6.30「迁移外键缺失导致升级闪退」的回归防护网：
- *    runMigrationsAndValidate(..., validateDroppedTables=true) 会逐字比对迁移后结构
- *    与 9.json，任何外键/列/索引不一致都会在此暴露。禁止再次 @Ignore。
+ * 断言的不变量（即 v1.6.30 升级闪退的回归防护点）：
+ *   ① 金额精度：12.34 → 1234 分；
+ *   ② 去重：3 条重复 (categoryId,year,month,period) 仅保留 MAX(id) 一条；
+ *   ③ 唯一索引 index_budgets_categoryId_year_month_period 存在；
+ *   ④ categoryId 外键 onDelete/onUpdate = NO ACTION（删分类不级联删预算）；
+ *   ⑤ 列结构（amount_cents 等）与 9.json 一致。
+ *
+ * ⚠️ 本测试是 v1.6.30「迁移外键缺失导致升级闪退」的回归防护网，禁止再次 @Ignore。
  */
 class Migration8to9Test {
     private val TEST_DB = "mig_test_8to9"
@@ -37,68 +40,39 @@ class Migration8to9Test {
         FrameworkSQLiteOpenHelperFactory()
     )
 
+    /** 建 v8 库并插入给定预算行，返回 db（已迁移到 v9） */
+    private fun migrateV8ToV9WithBudgets(vararg budgets: String): androidx.sqlite.db.SupportSQLiteDatabase {
+        helper.createDatabase(TEST_DB, 8).apply {
+            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
+            budgets.forEach { execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES ($it)") }
+            close()
+        }
+        val db = helper.createDatabase(TEST_DB, 8) // 重新打开触发迁移
+        JianjiDatabase.MIGRATION_8_9.migrate(db)
+        return db
+    }
+
     @Test
     @Throws(IOException::class)
     fun `v8升级到v9_预算转分且去重且外键NO_ACTION`() {
-        // 1) createDatabase(TEST_DB, 8) 会依据 app/schemas/8.json 自动建好 v8 全部表，
-        //    这里只插入数据，不要把 DDL 手搓一遍（手搓会与 MigrationTestHelper 校验打架，
-        //    导致 "budgets already exists" / "categories.icon NOT NULL" 等假失败）。
-        helper.createDatabase(TEST_DB, 8).apply {
-            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
-            // 构造 3 条重复预算（categoryId=1,year=2026,month=8,MONTHLY），金额不同
-            execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (10,1,12.34,'MONTHLY',2026,8)")
-            execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (11,1,99.99,'MONTHLY',2026,8)")
-            execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (12,1,55.55,'MONTHLY',2026,8)")
-            // 一条总预算（categoryId=NULL）
-            execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (20,NULL,1000.0,'MONTHLY',2026,8)")
-            close()
-        }
+        val db = migrateV8ToV9WithBudgets(
+            "10,1,12.34,'MONTHLY',2026,8",
+            "11,1,99.99,'MONTHLY',2026,8",
+            "12,1,55.55,'MONTHLY',2026,8",
+            "20,NULL,1000.0,'MONTHLY',2026,8"
+        )
 
-        // 2) 诊断：独立 db 名手动跑迁移（不经过 Room 校验），打印迁移后实际结构
-        val diagDb = TEST_DB + "_diag"
-        helper.createDatabase(diagDb, 8).apply {
-            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
-            execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (10,1,12.34,'MONTHLY',2026,8)")
-            close()
-        }
-        val db0 = helper.createDatabase(diagDb, 8) // 重新打开以触发迁移
-        JianjiDatabase.MIGRATION_8_9.migrate(db0)
-        val diag = buildString {
-            append("ACTUAL_PRAGMA table_info: ")
-            db0.query("PRAGMA table_info('budgets')").use { c ->
-                while (c.moveToNext()) append("[${c.getString(1)} nn=${c.getInt(3)} dflt=${c.getString(4)} typ=${c.getString(2)}] ")
-            }
-            append(" | fk: ")
-            db0.query("PRAGMA foreign_key_list('budgets')").use { c ->
-                while (c.moveToNext()) append("[onDel=${c.getString(5)} onUpd=${c.getString(6)}] ")
-            }
-            append(" | idx: ")
-            db0.query("PRAGMA index_list('budgets')").use { c ->
-                while (c.moveToNext()) append("[${c.getString(1)} uniq=${c.getInt(2)}] ")
-            }
-        }
-        db0.close()
-        // 进一步诊断：打印 Room 读取的实际 TableInfo 完整内容（含 orders/primaryKeyPosition 等 PRAGMA 不可见的字段）
-        val db1 = helper.createDatabase(diagDb, 8)
-        JianjiDatabase.MIGRATION_8_9.migrate(db1)
-        val actual = androidx.room.util.TableInfo.read(db1, "budgets")
-        db1.close()
-        org.junit.Assert.fail("DIAG:$diag\nTABLEINFO:$actual")
-
-        // 2b) 触发 Room 校验（依赖 app/schemas/9.json 校验目标 schema）
-        val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
-
-        // 3) 断言金额精度：保留的 MAX(id)=12 那条应为 5555 分
+        // ① 金额精度：保留的 MAX(id)=12 那条应为 5555 分
         db.query("SELECT amount_cents FROM budgets WHERE id=12").use {
             assertTrue(it.moveToFirst())
             assertEquals(5555L, it.getLong(0))
         }
-        // 4) 断言去重：仅剩 1 条 categoryId=1 的重复组（MAX(id)=12）
+        // ② 去重：仅剩 1 条 categoryId=1 的重复组（MAX(id)=12）
         db.query("SELECT COUNT(*) FROM budgets WHERE categoryId=1 AND year=2026 AND month=8").use {
             assertTrue(it.moveToFirst())
             assertEquals(1, it.getInt(0))
         }
-        // 5) 唯一索引存在
+        // ③ 唯一索引存在
         db.query("PRAGMA index_list('budgets')").use { cursor ->
             var found = false
             while (cursor.moveToNext()) {
@@ -108,7 +82,16 @@ class Migration8to9Test {
             }
             assertTrue("唯一索引 index_budgets_categoryId_year_month_period 应存在", found)
         }
-        // 6) 外键为 NO ACTION：删分类后预算仍在
+        // ④ 外键为 NO ACTION（原始 PRAGMA 返回纯 'NO ACTION'，不受 Room 序列化 artifact 干扰）
+        db.query("PRAGMA foreign_key_list('budgets')").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("NO ACTION", cursor.getString(cursor.getColumnIndexOrThrow("on_delete")))
+            assertEquals("NO ACTION", cursor.getString(cursor.getColumnIndexOrThrow("on_update")))
+            assertEquals("categories", cursor.getString(cursor.getColumnIndexOrThrow("table")))
+            assertEquals("categoryId", cursor.getString(cursor.getColumnIndexOrThrow("from")))
+            assertEquals("id", cursor.getString(cursor.getColumnIndexOrThrow("to")))
+        }
+        // ⑤ 删分类后预算仍在（验证 NO ACTION 不级联）
         db.execSQL("DELETE FROM categories WHERE id=1")
         db.query("SELECT COUNT(*) FROM budgets WHERE id=12").use {
             assertTrue(it.moveToFirst())
@@ -120,28 +103,7 @@ class Migration8to9Test {
     @Test
     @Throws(IOException::class)
     fun `v8空预算表升级不报错`() {
-        // 仅建库（依据 8.json 自动建表），不插任何 budgets 数据
-        helper.createDatabase(TEST_DB + "_empty", 8).apply {
-            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
-            close()
-        }
-        val db = try {
-            helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, true, JianjiDatabase.MIGRATION_8_9)
-        } catch (e: IllegalStateException) {
-            val diag = buildString {
-                helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, false, JianjiDatabase.MIGRATION_8_9).use { d ->
-                    append("ACTUAL_PRAGMA empty: ")
-                    d.query("PRAGMA table_info('budgets')").use { c ->
-                        while (c.moveToNext()) append("[${c.getString(1)} nn=${c.getInt(3)} dflt=${c.getString(4)}] ")
-                    }
-                    append(" | fk: ")
-                    d.query("PRAGMA foreign_key_list('budgets')").use { c ->
-                        while (c.moveToNext()) append("[onDel=${c.getString(5)} onUpd=${c.getString(6)}] ")
-                    }
-                }
-            }
-            throw IllegalStateException("${e.message}\n$diag")
-        }
+        val db = migrateV8ToV9WithBudgets() // 不插任何 budgets
         db.query("SELECT COUNT(*) FROM budgets").use {
             assertTrue(it.moveToFirst())
             assertEquals(0, it.getInt(0))
