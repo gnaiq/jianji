@@ -24,6 +24,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getById(id: Long): Category?
 
+    @Query("SELECT * FROM categories WHERE name = :name AND isSystem = 1 LIMIT 1")
+    suspend fun getBySystemName(name: String): Category?
+
     @Query("SELECT * FROM categories WHERE type = :type ORDER BY sortOrder ASC, name ASC")
     fun getCategoriesByType(type: CategoryType): Flow<List<Category>>
 
@@ -41,6 +44,10 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun getCount(): Int
+
+    // 修复 B1-4/B5-6：删除分类时把其「可见」交易改挂目标分类（回收站软删记录 excluded）
+    @Query("UPDATE transactions SET categoryId = :targetId WHERE categoryId = :sourceId AND deleted_at IS NULL")
+    suspend fun reassignCategory(sourceId: Long, targetId: Long)
 
     @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM categories")
     suspend fun getMaxSortOrder(): Int
