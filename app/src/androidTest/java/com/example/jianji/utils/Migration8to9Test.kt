@@ -78,7 +78,12 @@ class Migration8to9Test {
             }
         }
         db0.close()
-        org.junit.Assert.fail("DIAG:$diag")
+        // 进一步诊断：打印 Room 读取的实际 TableInfo 完整内容（含 orders/primaryKeyPosition 等 PRAGMA 不可见的字段）
+        val db1 = helper.createDatabase(diagDb, 8)
+        JianjiDatabase.MIGRATION_8_9.migrate(db1)
+        val actual = androidx.room.util.TableInfo.read(db1, "budgets")
+        db1.close()
+        org.junit.Assert.fail("DIAG:$diag\nTABLEINFO:$actual")
 
         // 2b) 触发 Room 校验（依赖 app/schemas/9.json 校验目标 schema）
         val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
