@@ -38,7 +38,7 @@ class Migration8to9Test {
 
     @Test
     @Throws(IOException::class)
-    fun `v8 升级到 v9 预算转分且去重且外键NO_ACTION`() {
+    fun `v8升级到v9_预算转分且去重且外键NO_ACTION`() {
         // 1) 在 v8 上构造数据（须模拟真实 v8 的 budgets 结构：amount REAL 无唯一索引无外键）
         helper.createDatabase(TEST_DB, 8).apply {
             execSQL("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT '💰', color TEXT NOT NULL DEFAULT '#6200EE', type TEXT NOT NULL, isDefault INTEGER NOT NULL DEFAULT 0, isSystem INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0, parentId INTEGER NOT NULL DEFAULT 0)")
@@ -94,7 +94,7 @@ class Migration8to9Test {
 
     @Test
     @Throws(IOException::class)
-    fun `v8 空预算表升级不报错`() {
+    fun `v8空预算表升级不报错`() {
         helper.createDatabase(TEST_DB + "_empty", 8).apply {
             execSQL("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT '💰', color TEXT NOT NULL DEFAULT '#6200EE', type TEXT NOT NULL, isDefault INTEGER NOT NULL DEFAULT 0, isSystem INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0, parentId INTEGER NOT NULL DEFAULT 0)")
             execSQL("""CREATE TABLE budgets (
