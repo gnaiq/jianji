@@ -14,7 +14,10 @@ import java.time.LocalDateTime
             entity = Category::class,
             parentColumns = ["id"],
             childColumns = ["categoryId"],
-            onDelete = ForeignKey.CASCADE
+            // 修复 B1-4/B5-6：删除分类不得级联物理删除交易（含转账引用系统分类、
+            // 含回收站软删记录）。改为 NO ACTION，由应用层在 deleteCategory 时
+            // 把可见交易改挂「未分类」兜底分类，回收站记录保留不动。
+            onDelete = ForeignKey.NO_ACTION
         )
     ],
     // date 索引（§1 P0）：首页/历史/统计的日期范围过滤与 SUM 聚合均按 date 检索，
