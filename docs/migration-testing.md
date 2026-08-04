@@ -134,6 +134,9 @@ class MigrationTest {
 
 - [ ] `JianjiDatabase` version 号已 +1
 - [ ] 已定义对应的 `MIGRATION_(N-1)_N` 并注册到 `Room.databaseBuilder(...).addMigrations(...)`
-- [ ] CI 构建生成了新的 `<N>.json` 并已提交入库
-- [ ] 已补充 `(N-1)→N` 的 `MigrationTest`
+- [ ] **迁移 SQL 的外键/索引/列定义必须逐字对齐 Room 导出的 `N.json`**（⚠️ SQLite 省略 `ON UPDATE/DELETE` 默认等同，但 Room 启动校验逐字符比对，缺子句即崩——见 v1.6.31 故障）
+- [ ] CI 构建生成了新的 `<N>.json` 并已**在同一 PR 提交入库**（防护网基线，不是缓存，禁止 `.gitignore`）
+- [ ] 已补充 `(N-1)→N` 的 `MigrationTest`，且**禁止 `@Ignore`**（`runMigrationsAndValidate(..., validateDroppedTables=true)` 是唯一能 catch 外键/列/索引不一致的自动化手段）
 - [ ] CI 上 `connectedAndroidTest`（或对应任务）通过
+
+> ⚠️ **v1.6.31 教训**：若把迁移测试 `@Ignore` 等待"基线取回后再启用"，等于在等待期间**完全没有防护网**。正确做法是：先取回 `N.json` 入库，立即启用测试，二者必须在同一 PR。v1.6.30 曾因 `Migration8to9Test` 被 `@Ignore` 而漏测外键缺失，导致升级用户启动闪退。
