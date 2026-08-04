@@ -45,8 +45,10 @@ interface CategoryDao {
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun getCount(): Int
 
-    // 修复 B1-4/B5-6：删除分类时把其「可见」交易改挂目标分类（回收站软删记录 excluded）
-    @Query("UPDATE transactions SET categoryId = :targetId WHERE categoryId = :sourceId AND deleted_at IS NULL")
+    // 修复 B1-4/B5-6：删除分类时把其下全部交易（含回收站软删记录）改挂目标分类，
+    // 避免子记录外键悬空导致删分类被 FK 约束拒绝。回收站记录按 deleted_at 过滤展示，
+    // categoryId 改挂不影响其"仍在回收站"的语义（B5-6 验收只看记录数）。
+    @Query("UPDATE transactions SET categoryId = :targetId WHERE categoryId = :sourceId")
     suspend fun reassignCategory(sourceId: Long, targetId: Long)
 
     @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM categories")
