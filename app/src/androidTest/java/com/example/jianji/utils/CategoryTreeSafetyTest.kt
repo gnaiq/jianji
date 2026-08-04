@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.fail
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -19,12 +18,10 @@ import org.junit.runner.RunWith
  *  - B7-5：删除父分类时，其子分类应升为一级（parentId=0），不丢数据；
  *  - B7-2：禁止自引用、禁止超过两级深度（二级小类不能再当父）。
  *
- * ⚠️ 暂 @Ignore：AndroidJUnit4 在 API 30 emulator 上实例化本类报 initializationError，
- * 根因待排查（疑似测试 runner 对中文方法名/构造的处理）。代码逻辑（promoteChildrenToRoot +
- * setParent）已在 CategoryRepository 实现并通过编译；后续单独排查看 CI 反馈。
+ * 方法名统一用下划线（非反引号中文模板），规避 API 30 AndroidJUnit4 runner
+ * 对反引号方法名实例化报 initializationError 的问题（其余 androidTest 已验证此写法可靠）。
  */
 @RunWith(AndroidJUnit4::class)
-@Ignore("待排查 AndroidJUnit4 实例化 initializationError")
 class CategoryTreeSafetyTest {
 
     private lateinit var db: JianjiDatabase
@@ -43,7 +40,7 @@ class CategoryTreeSafetyTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `删除父分类后子分类升为一级_promoteToRoot`() = runBlocking {
+    fun 删除父分类后子分类升为一级_promoteToRoot() = runBlocking {
         val parentId = categoryRepo.insertCategory(
             Category(name = "餐饮大类", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
         )
@@ -67,7 +64,7 @@ class CategoryTreeSafetyTest {
     }
 
     @Test
-    fun `禁止自引用设为父`() {
+    fun 禁止自引用设为父() {
         val catId = runBlocking { categoryRepo.insertCategory(
             Category(name = "X", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
         ) }
@@ -78,7 +75,7 @@ class CategoryTreeSafetyTest {
     }
 
     @Test
-    fun `禁止把二级小类设为父_超过两级`() {
+    fun 禁止把二级小类设为父_超过两级() {
         val grandParentId = runBlocking { categoryRepo.insertCategory(
             Category(name = "一级", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
         ) }
