@@ -36,7 +36,7 @@ class Migration7to8RealTest {
     )
 
     @Test
-    fun `v7 升级到 v8 不闪退 且交易保留 且外键为 NO ACTION`() {
+    fun `v7升级到v8_不闪退且交易保留且外键为NO_ACTION`() {
         helper.createDatabase(TEST_DB, 7).apply {
             execSQL("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT '💰', color TEXT NOT NULL DEFAULT '#6200EE', type TEXT NOT NULL, isDefault INTEGER NOT NULL DEFAULT 0, isSystem INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0, parentId INTEGER NOT NULL DEFAULT 0)")
             execSQL("INSERT INTO categories (id,name,type) VALUES (1,'餐饮','EXPENSE')")
