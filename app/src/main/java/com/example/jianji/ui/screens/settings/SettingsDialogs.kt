@@ -41,7 +41,7 @@ fun BudgetSettingsDialog(budgetVM: BudgetViewModel?, onDismiss: () -> Unit) {
     val month = YearMonth.now().monthValue
     // 回显当前月度预算：保存完整 Budget 实体以支持删除（需 id）
     var currentBudgetEntity by remember { mutableStateOf<Budget?>(null) }
-    val currentBudget = currentBudgetEntity?.amount ?: 0.0
+    val currentBudget = currentBudgetEntity?.amountCents?.toDouble()?.div(100.0) ?: 0.0
     LaunchedEffect(budgetVM) {
         budgetVM?.let { vm ->
             val ym = YearMonth.of(year, month)
@@ -90,7 +90,7 @@ fun BudgetSettingsDialog(budgetVM: BudgetViewModel?, onDismiss: () -> Unit) {
                             val amt = budgetAmount.toDoubleOrNull() ?: return@Button
                             scope.launch {
                                 budgetVM?.setBudget(Budget(
-                                    amount = amt, period = BudgetPeriod.MONTHLY,
+                                    amountCents = Math.round(amt * 100), period = BudgetPeriod.MONTHLY,
                                     year = year, month = month
                                 ))
                             }
