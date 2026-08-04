@@ -364,10 +364,12 @@ abstract class JianjiDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE `budgets`")
                 db.execSQL("ALTER TABLE `budgets_new` RENAME TO `budgets`")
-                // 3) 唯一索引（与 @Entity indices 完全一致，否则 schema 校验失败）
+                // 3) 唯一索引（与 @Entity indices 完全一致，否则 schema 校验失败）。
+                // ⚠️ 不要额外建 `index_budgets_categoryId` 单列外键索引：
+                //    该唯一索引已覆盖 categoryId 列首部，Room 据此**不会**单独生成
+                //    外键单列索引（9.json 中 budgets 仅此一个索引）。多建会导致迁移后
+                //    索引集合与 9.json 不符，MigrationTestHelper 报 "didn't properly handle"。
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_budgets_categoryId_year_month_period` ON `budgets` (`categoryId`, `year`, `month`, `period`)")
-                // 4) categoryId 单列索引（外键字段，Room 生成的 index_budgets_categoryId）
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_budgets_categoryId` ON `budgets` (`categoryId`)")
             }
         }
 
