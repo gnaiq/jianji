@@ -169,7 +169,7 @@ class DataImportManager {
             },
             budgets = budgets.map { b ->
                 BudgetImport(
-                    id = b.id, categoryId = b.categoryId, amount = b.amount,
+                    id = b.id, categoryId = b.categoryId, amount = b.amountCents / 100.0,
                     period = b.period.name, year = b.year, month = b.month
                 )
             },
@@ -304,7 +304,7 @@ class DataImportManager {
                     Budget(
                         id = b.id ?: 0,
                         categoryId = b.categoryId,
-                        amount = b.amount,
+                        amountCents = Math.round(b.amount * 100),
                         period = if (b.period == "YEARLY") BudgetPeriod.YEARLY else BudgetPeriod.MONTHLY,
                         year = b.year,
                         month = b.month
