@@ -31,8 +31,8 @@ class TransferValidationTest {
         override suspend fun insertAll(list: List<Transaction>): List<Long> = emptyList()
         override suspend fun update(transaction: Transaction) {}
         override suspend fun delete(transaction: Transaction) {}
-        override suspend fun softDelete(transaction: Transaction) {}
         override fun getDeletedTransactions() = kotlinx.coroutines.flow.emptyFlow()
+        override suspend fun getById(id: Long): Transaction? = null
         override suspend fun restoreTransaction(id: Long) {}
         override suspend fun purgeDeleted() {}
         override fun getTransactionsByTagIds(ids: List<Long>) = kotlinx.coroutines.flow.emptyFlow()
