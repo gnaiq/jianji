@@ -9,6 +9,7 @@ class CategoryRepository(private val dao: CategoryDao) {
         const val UNCLASSIFIED_NAME = "未分类"
     }
     fun getAllCategories(): Flow<List<Category>> = dao.getAllCategories()
+    suspend fun getBySystemName(name: String): Category? = dao.getBySystemName(name)
     fun getCategoriesByType(type: TransactionType): Flow<List<Category>> {
         val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
         return dao.getCategoriesByType(ct)
