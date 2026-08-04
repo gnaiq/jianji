@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Tag::class,
         TransactionTagCrossRef::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -272,6 +272,50 @@ abstract class JianjiDatabase : RoomDatabase() {
             }
         }
 
+        // v1.6.27：修复 B1-4/B5-6 —— transactions.categoryId 外键 ON DELETE 由 CASCADE 改为 NO ACTION。
+        // 重建 transactions 表以变更外键动作（SQLite 不支持 ALTER 外键），
+        // 其余列与索引保持不变，数据无损迁移。
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE `transactions_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `categoryId` INTEGER NOT NULL,
+                        `amount_cents` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `description` TEXT NOT NULL DEFAULT '',
+                        `date` TEXT NOT NULL,
+                        `accountId` INTEGER,
+                        `toAccountId` INTEGER,
+                        `deleted_at` TEXT,
+                        `createdAt` TEXT NOT NULL,
+                        `updatedAt` TEXT NOT NULL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                    """
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `transactions_new` (
+                        id, categoryId, amount_cents, type, description, date,
+                        accountId, toAccountId, deleted_at, createdAt, updatedAt
+                    ) SELECT
+                        id, categoryId, amount_cents, type, description, date,
+                        accountId, toAccountId, deleted_at, createdAt, updatedAt
+                    FROM `transactions`
+                    """
+                )
+                db.execSQL("DROP TABLE `transactions`")
+                db.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_accountId` ON `transactions` (`accountId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_description` ON `transactions` (`description`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_date` ON `transactions` (`date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_deleted_at` ON `transactions` (`deleted_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
+            }
+        }
+
         fun getDatabase(context: Context): JianjiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -279,7 +323,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                     JianjiDatabase::class.java,
                     "jianji_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     // 版本回退机制：允许 schema 降级时走破坏性迁移，避免回退到旧版
                     // （如从未来 v1.6.7 DB v7 回退到本版 v1.6.6 DB v6）时因 Room 拒绝降级而闪退。
                     // 代价是回退会清空 DB，属回退预期内的数据损失，已在 rollback 脚本中说明。
