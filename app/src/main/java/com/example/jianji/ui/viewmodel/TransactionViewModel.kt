@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.example.jianji.data.*
 import com.example.jianji.utils.DateUtils
+import com.example.jianji.utils.computeRecurringNextRun
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
