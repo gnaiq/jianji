@@ -51,4 +51,12 @@ interface CategoryDao {
 
     @Query("SELECT COALESCE(MAX(sortOrder), 0) FROM categories")
     suspend fun getMaxSortOrder(): Int
+
+    // B7-5：查询某父分类下的直接子分类
+    @Query("SELECT * FROM categories WHERE parentId = :parentId")
+    suspend fun getChildren(parentId: Long): List<Category>
+
+    // B7-5：删除父分类时，将其子分类升为一级（parentId 置 0），保留数据不丢
+    @Query("UPDATE categories SET parentId = 0 WHERE parentId = :parentId")
+    suspend fun promoteChildrenToRoot(parentId: Long)
 }
