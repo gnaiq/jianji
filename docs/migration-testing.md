@@ -49,6 +49,11 @@
    `app/schemas/com.example.jianji.data.JianjiDatabase/<version>.json`。
 4. 自此，`6→7` 及以后的迁移即可用 `MigrationTestHelper` 编写自动化测试。
 
+> **状态更新（2026-08-04）**：`app/schemas/` 仍未提交入库（open 项）。本次 v7→v8 迁移
+> 改用「不依赖 schemas JSON 的升级冒烟测试」`Migration7to8Test`（androidTest，手工建 v7 库
+> 触发 `MIGRATION_7_8` 断言不闪退+数据保留），已在 CI `connectedCheck` 通过，临时绕过基线缺失。
+> **仍建议**：补齐 `schemas/7.json` 与 `8.json` 入库，使后续迁移可走标准 `MigrationTestHelper` 基线。
+
 > 说明：把 `schemas/` 纳入 `.gitignore` 是**错误**做法 —— 一旦忽略，迁移测试将失去基线。
 
 ## 未来 6→7 迁移测试模板
