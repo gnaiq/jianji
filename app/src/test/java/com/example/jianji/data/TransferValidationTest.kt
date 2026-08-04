@@ -36,7 +36,7 @@ class TransferValidationTest {
         override fun getTransactionsByTagIds(ids: List<Long>): Flow<List<Transaction>> = emptyFlow()
         override suspend fun getAllSnapshot(): List<Transaction> = emptyList()
         override suspend fun getAllIncludingDeletedSnapshot(): List<Transaction> = emptyList()
-        override fun getByDateRangeSnapshot(startDate: LocalDateTime, endDate: LocalDateTime): List<Transaction> = emptyList()
+        override suspend fun getByDateRangeSnapshot(startDate: LocalDateTime, endDate: LocalDateTime): List<Transaction> = emptyList()
         override suspend fun getSumByType(type: TransactionType, start: LocalDateTime, end: LocalDateTime): Double? = 0.0
         override fun observeSumByType(type: TransactionType, start: LocalDateTime, end: LocalDateTime): Flow<Double?> = emptyFlow()
         override suspend fun getSumByCategoryAndType(categoryId: Long, type: TransactionType, start: LocalDateTime, end: LocalDateTime): Double? = 0.0
