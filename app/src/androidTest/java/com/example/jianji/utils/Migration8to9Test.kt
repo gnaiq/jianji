@@ -44,7 +44,7 @@ class Migration8to9Test {
         //    这里只插入数据，不要把 DDL 手搓一遍（手搓会与 MigrationTestHelper 校验打架，
         //    导致 "budgets already exists" / "categories.icon NOT NULL" 等假失败）。
         helper.createDatabase(TEST_DB, 8).apply {
-            execSQL("INSERT INTO categories (id,name,type) VALUES (1,'餐饮','EXPENSE')")
+            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
             // 构造 3 条重复预算（categoryId=1,year=2026,month=8,MONTHLY），金额不同
             execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (10,1,12.34,'MONTHLY',2026,8)")
             execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (11,1,99.99,'MONTHLY',2026,8)")
@@ -91,7 +91,7 @@ class Migration8to9Test {
     fun `v8空预算表升级不报错`() {
         // 仅建库（依据 8.json 自动建表），不插任何 budgets 数据
         helper.createDatabase(TEST_DB + "_empty", 8).apply {
-            execSQL("INSERT INTO categories (id,name,type) VALUES (1,'餐饮','EXPENSE')")
+            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
             close()
         }
         val db = helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, true, JianjiDatabase.MIGRATION_8_9)
