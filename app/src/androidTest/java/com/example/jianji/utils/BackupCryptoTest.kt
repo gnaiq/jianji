@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 class BackupCryptoTest {
 
     @Test
-    fun `加密后密文不以明文开头 且可解密还原`() {
+    fun `加密后密文不以明文开头_且可解密还原`() {
         val plain = """{"version":4,"transactions":[{"id":1,"amount":12.34}]}"""
         val ct = BackupCrypto.encrypt(plain, "s3cret-pass")
         assertTrue("应标记为加密格式", BackupCrypto.isEncrypted(ct))
@@ -37,7 +37,7 @@ class BackupCryptoTest {
     }
 
     @Test
-    fun `相同明文每次加密密文不同 IV随机`() {
+    fun `相同明文每次加密密文不同_IV随机`() {
         val plain = "repeat"
         val a = BackupCrypto.encrypt(plain, "p")
         val b = BackupCrypto.encrypt(plain, "p")
