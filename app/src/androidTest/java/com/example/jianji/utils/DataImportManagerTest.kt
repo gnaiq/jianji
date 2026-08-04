@@ -67,7 +67,7 @@ class DataImportManagerTest {
                     description = "月薪", date = "2026-04-01T09:00:00"
                 )
             ),
-            accounts = listOf(AccountImport(id = 1, name = "现金", balance = 100.0)),
+            accounts = listOf(AccountImport(id = 1, name = "现金")),
             budgets = listOf(BudgetImport(id = 1, categoryId = 1, amount = 500.0, period = "MONTHLY", year = 2026, month = 4)),
             recurringTransactions = listOf(
                 RecurringImport(
@@ -138,7 +138,7 @@ class DataImportManagerTest {
         db.budgetDao().insertAll(
             listOf(
                 com.example.jianji.data.Budget(
-                    id = 99, categoryId = null, amount = 1000.0,
+                    id = 99, categoryId = null, amountCents = 100000,
                     period = com.example.jianji.data.BudgetPeriod.MONTHLY, year = 2026, month = 4
                 )
             )
