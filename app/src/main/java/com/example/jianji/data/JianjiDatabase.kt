@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Tag::class,
         TransactionTagCrossRef::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -316,6 +316,57 @@ abstract class JianjiDatabase : RoomDatabase() {
             }
         }
 
+        // v1.6.30：budgets.amount REAL → amount_cents INTEGER（消除预算浮点误差）；
+        // 先去重（保留 MAX(id)）再建唯一索引 (categoryId, year, month, period)；
+        // 加 categoryId 外键 → categories.id ON DELETE NO ACTION（孤儿预算不再悬空，
+        // 删分类时由应用层 reassign 后再删，见 CategoryRepository.deleteCategory）。
+        // 重建表模式（SQLite 不支持 ALTER 改列类型/加唯一索引/加外键）。
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1) 去重：把重复 (categoryId, year, month, period) 组中除 MAX(id) 外的行删除
+                db.execSQL(
+                    """
+                    DELETE FROM budgets
+                    WHERE id NOT IN (
+                        SELECT MAX(id) FROM budgets
+                        GROUP BY categoryId, year, month, period
+                    )
+                    """
+                )
+                // 2) 重建表（amount → amount_cents 整数分；舍入误差按 ROUND 处理存量 Double）
+                db.execSQL(
+                    """
+                    CREATE TABLE `budgets_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `categoryId` INTEGER,
+                        `amount_cents` INTEGER NOT NULL,
+                        `period` TEXT NOT NULL DEFAULT 'MONTHLY',
+                        `year` INTEGER NOT NULL,
+                        `month` INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`)
+                    )
+                    """
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `budgets_new` (
+                        id, categoryId, amount_cents, period, year, month
+                    ) SELECT
+                        id, categoryId,
+                        CAST(ROUND(COALESCE(amount, 0) * 100) AS INTEGER),
+                        period, year, month
+                    FROM `budgets`
+                    """
+                )
+                db.execSQL("DROP TABLE `budgets`")
+                db.execSQL("ALTER TABLE `budgets_new` RENAME TO `budgets`")
+                // 3) 唯一索引（与 @Entity indices 完全一致，否则 schema 校验失败）
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_budgets_categoryId_year_month_period` ON `budgets` (`categoryId`, `year`, `month`, `period`)")
+                // 4) categoryId 单列索引（外键字段，Room 生成的 index_budgets_categoryId）
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_budgets_categoryId` ON `budgets` (`categoryId`)")
+            }
+        }
+
         fun getDatabase(context: Context): JianjiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -323,7 +374,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                     JianjiDatabase::class.java,
                     "jianji_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     // 版本回退机制：允许 schema 降级时走破坏性迁移，避免回退到旧版
                     // （如从未来 v1.6.7 DB v7 回退到本版 v1.6.6 DB v6）时因 Room 拒绝降级而闪退。
                     // 代价是回退会清空 DB，属回退预期内的数据损失，已在 rollback 脚本中说明。
