@@ -334,6 +334,10 @@ abstract class JianjiDatabase : RoomDatabase() {
                     """
                 )
                 // 2) 重建表（amount → amount_cents 整数分；舍入误差按 ROUND 处理存量 Double）
+                // ⚠️ 外键子句必须与 @Entity(foreignKeys=) + Room 导出的 9.json 逐字一致，
+                // 即必须显式写出 `ON UPDATE NO ACTION ON DELETE NO ACTION`（SQLite 省略默认等同，
+                // 但 Room MigrationTestHelper 启动校验是逐字符比对，缺此即报 schema mismatch 闪退）。
+                // v1.6.30 曾因此缺子句导致升级用户启动即崩，此行是血泪基线，勿删。
                 db.execSQL(
                     """
                     CREATE TABLE `budgets_new` (
@@ -343,7 +347,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                         `period` TEXT NOT NULL DEFAULT 'MONTHLY',
                         `year` INTEGER NOT NULL,
                         `month` INTEGER NOT NULL DEFAULT 0,
-                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`)
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
                     )
                     """
                 )
