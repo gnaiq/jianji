@@ -70,7 +70,8 @@ class CategoryRepository(private val dao: CategoryDao) {
         )
     }
 
-    /** 把某分类下「可见」交易改挂「未分类」（回收站软删记录不动） */
+    /** 把某分类下全部交易（含回收站软删记录）改挂「未分类」兜底分类，
+     *  避免删分类时子记录外键悬空被 FK 约束拒绝（回收站记录数不变，仅 categoryId 改挂） */
     suspend fun reassignTransactionsToUncategorized(categoryId: Long) {
         val target = ensureUncategorized()
         dao.reassignCategory(categoryId, target)
