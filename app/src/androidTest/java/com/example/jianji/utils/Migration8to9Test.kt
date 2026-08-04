@@ -40,18 +40,11 @@ class Migration8to9Test {
     @Test
     @Throws(IOException::class)
     fun `v8升级到v9_预算转分且去重且外键NO_ACTION`() {
-        // 1) 在 v8 上构造数据（须模拟真实 v8 的 budgets 结构：amount REAL 无唯一索引无外键）
+        // 1) createDatabase(TEST_DB, 8) 会依据 app/schemas/8.json 自动建好 v8 全部表，
+        //    这里只插入数据，不要把 DDL 手搓一遍（手搓会与 MigrationTestHelper 校验打架，
+        //    导致 "budgets already exists" / "categories.icon NOT NULL" 等假失败）。
         helper.createDatabase(TEST_DB, 8).apply {
-            execSQL("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT '💰', color TEXT NOT NULL DEFAULT '#6200EE', type TEXT NOT NULL, isDefault INTEGER NOT NULL DEFAULT 0, isSystem INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0, parentId INTEGER NOT NULL DEFAULT 0)")
             execSQL("INSERT INTO categories (id,name,type) VALUES (1,'餐饮','EXPENSE')")
-            execSQL("""CREATE TABLE budgets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                categoryId INTEGER,
-                amount REAL NOT NULL,
-                period TEXT NOT NULL DEFAULT 'MONTHLY',
-                year INTEGER NOT NULL,
-                month INTEGER NOT NULL DEFAULT 0
-            )""")
             // 构造 3 条重复预算（categoryId=1,year=2026,month=8,MONTHLY），金额不同
             execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (10,1,12.34,'MONTHLY',2026,8)")
             execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (11,1,99.99,'MONTHLY',2026,8)")
@@ -61,7 +54,7 @@ class Migration8to9Test {
             close()
         }
 
-        // 2) 触发完整迁移链至 v9（依赖 app/schemas/9.json 校验目标 schema）
+        // 2) 触发完整迁移链至 v9（依赖 app/schemas/9.json 校验目标 schema，逐字比对外键/索引）
         val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
 
         // 3) 断言金额精度：保留的 MAX(id)=12 那条应为 5555 分
@@ -96,14 +89,9 @@ class Migration8to9Test {
     @Test
     @Throws(IOException::class)
     fun `v8空预算表升级不报错`() {
+        // 仅建库（依据 8.json 自动建表），不插任何 budgets 数据
         helper.createDatabase(TEST_DB + "_empty", 8).apply {
-            execSQL("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT '💰', color TEXT NOT NULL DEFAULT '#6200EE', type TEXT NOT NULL, isDefault INTEGER NOT NULL DEFAULT 0, isSystem INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0, parentId INTEGER NOT NULL DEFAULT 0)")
-            execSQL("""CREATE TABLE budgets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                categoryId INTEGER, amount REAL NOT NULL,
-                period TEXT NOT NULL DEFAULT 'MONTHLY',
-                year INTEGER NOT NULL, month INTEGER NOT NULL DEFAULT 0
-            )""")
+            execSQL("INSERT INTO categories (id,name,type) VALUES (1,'餐饮','EXPENSE')")
             close()
         }
         val db = helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, true, JianjiDatabase.MIGRATION_8_9)
