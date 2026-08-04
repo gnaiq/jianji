@@ -364,3 +364,74 @@ fun AnnualPosterDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
     )
 }
+
+// ======== 备份加密口令设置（P6-1 收尾）========
+/**
+ * 设置/清除备份加密口令。
+ * - 设置时二次确认输入，避免误输入（口令无法找回，见 backup-encryption-design.md §5）。
+ * - 清除后备份恢复为明文（向下兼容旧备份恢复）。
+ */
+@Composable
+fun BackupPassphraseDialog(
+    initialSet: Boolean,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+    onCleared: () -> Unit
+) {
+    val context = LocalContext.current
+    var pass by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialSet) "修改/清除备份加密口令" else "设置备份加密口令") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "口令一旦遗忘，对应加密备份将永久无法恢复。请务必牢记口令。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                OutlinedTextField(
+                    value = pass, onValueChange = { pass = it; error = null },
+                    label = { Text("加密口令") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = confirm, onValueChange = { confirm = it; error = null },
+                    label = { Text("确认口令") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error != null) {
+                    Text(error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                when {
+                    pass.length < 4 -> error = "口令至少 4 位"
+                    pass != confirm -> error = "两次输入不一致"
+                    else -> {
+                        AppPrefs.setBackupPassphrase(context, pass)
+                        Toast.makeText(context, "备份加密口令已设置", Toast.LENGTH_SHORT).show()
+                        onSaved()
+                    }
+                }
+            }) { Text("设置口令") }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (initialSet) {
+                    TextButton(onClick = {
+                        AppPrefs.setBackupPassphrase(context, "")
+                        Toast.makeText(context, "已清除口令，备份将恢复明文", Toast.LENGTH_SHORT).show()
+                        onCleared()
+                    }) { Text("清除口令") }
+                }
+                TextButton(onClick = onDismiss) { Text("取消") }
+            }
+        }
+    )
+}
