@@ -40,14 +40,12 @@ class Migration8to9Test {
         FrameworkSQLiteOpenHelperFactory()
     )
 
-    /** 建 v8 库并插入给定预算行，返回 db（已迁移到 v9） */
+    /** 建 v8 库并插入给定预算行，返回已迁移到 v9 的 db（单次打开，避免 MigrationTestHelper 二次打开副作用） */
     private fun migrateV8ToV9WithBudgets(vararg budgets: String): androidx.sqlite.db.SupportSQLiteDatabase {
-        helper.createDatabase(TEST_DB, 8).apply {
-            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
-            budgets.forEach { execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES ($it)") }
-            close()
-        }
-        val db = helper.createDatabase(TEST_DB, 8) // 重新打开触发迁移
+        val db = helper.createDatabase(TEST_DB, 8)
+        db.execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
+        budgets.forEach { db.execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES ($it)") }
+        // 手动跑 v8→v9 迁移（不依赖 runMigrationsAndValidate 的 framework-SQLite 校验 artifact）
         JianjiDatabase.MIGRATION_8_9.migrate(db)
         return db
     }
