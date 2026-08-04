@@ -1,6 +1,10 @@
 # 简记备份加密方案设计（P1-阶段二·项4）
 
-> 状态：**设计稿，待后续迭代实现**。本次迭代仅落地设计文档与 UI 风险明示文案（UI 文案由 SettingsScreen 负责人执行），`BackupStorage.kt` 代码本次不改。
+> 状态：**核心加密能力已实现（v1.6.27 落地，v1.6.28 修复迁移闪退后发布）**。
+> 已实现：`BackupCrypto`（PBKDF2+AES-GCM）、`AutoBackup`/`DataImportManager` 透明加解密、
+> `AppPrefs` 口令存储、加解密单元测试（CI 通过）。
+> **仍待办（非阻塞）**：设置页「备份加密口令」输入框 UI 入口 + 口令不可找回的醒目提示文案
+> （§5 / §6 第 3 点）。当前加密能力代码层已就绪，仅缺用户在界面启用/输入的入口。
 
 ## 1. 背景与被否决方案
 
@@ -81,12 +85,14 @@ key = PBKDF2(password, salt, iterations, keyLen=32) // HmacSHA256
 - 建议二次确认输入口令，降低误输入风险。
 - 不提供「找回口令 / 重置口令」入口（任何此类入口都意味着密钥可被绕过，破坏加密意义）。
 
-## 6. 与现有代码的衔接点（后续迭代实现清单）
+## 6. 与现有代码的衔接点（实现清单 · 状态更新于 2026-08-04）
 
-- 新增 `BackupCrypto`（工具对象）：`encrypt(json, password): ByteArray` / `decrypt(bytes, password): String`，封装 PBKDF2 + AES-GCM 与头编解码。
-- `BackupStorage.save/saveAutoBackup`：内容改为写 `BackupCrypto.encrypt(...)`（用户开启加密时）；未开启则保持明文并在 UI 明示风险。
-- 恢复入口：读取后先按第 4 节识别明文/密文，密文则弹口令框解密。
-- 依赖：全部使用 JDK/Android 内置 `javax.crypto`（`SecretKeyFactory`、`Cipher`、`SecureRandom`），无需第三方库。
+- [x] **已完成** 新增 `BackupCrypto`（工具对象）：`encrypt(json, pass): String` / `decrypt(content, pass): String`，封装 PBKDF2 + AES-GCM 与 `v1:<salt>:<iv>:<ct>` 头编解码。
+- [x] **已完成** `AutoBackup.save/saveAutoBackup` + `snapshotBeforeDestructive`：按 `AppPrefs` 口令加密（失败退明文，不阻断）；`DataImportManager.importFromJson` 透明解密（加密则解密、明文原样），向下兼容旧备份。
+- [ ] **未完成（待办）** 设置页「备份加密口令」输入框 UI 入口 + 读入口令弹框；恢复入口按 §4 识别明文/密文后弹口令框解密（当前 `importFromJson` 已支持密文，但恢复 UI 未传口令框交互，依赖 `AppPrefs` 中已存口令）。
+- [x] **已完成** 依赖：全部使用 JDK/Android 内置 `javax.crypto`（`SecretKeyFactory`、`Cipher`、`SecureRandom`），无第三方库。
+- [ ] **未完成（待办，安全 UX）** §5 口令不可找回的醒目提示文案（「口令无法找回…」）与二次确认输入，待设置页口令 UI 入口一并落地。
+- [x] **已完成** 验收测试：`BackupCryptoTest`（androidTest）覆盖加解密往返、错口令失败、IV 随机，CI 通过。
 
 ## 7. 安全性小结
 
