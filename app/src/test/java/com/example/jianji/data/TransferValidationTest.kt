@@ -44,6 +44,9 @@ class TransferValidationTest {
             kotlinx.coroutines.flow.emptyFlow()
         override suspend fun getSumByCategoryAndType(categoryId: Long, type: TransactionType, start: LocalDateTime, end: LocalDateTime): Double? = 0.0
         override suspend fun deleteAll() {}
+        override suspend fun getCount(): Int = 0
+        override suspend fun clearAccount(accountId: Long) {}
+        override suspend fun clearToAccount(accountId: Long) {}
     }
 
     private fun repo() = TransactionRepository(FakeDao())
