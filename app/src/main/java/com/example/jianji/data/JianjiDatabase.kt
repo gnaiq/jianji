@@ -334,19 +334,22 @@ abstract class JianjiDatabase : RoomDatabase() {
                     """
                 )
                 // 2) 重建表（amount → amount_cents 整数分；舍入误差按 ROUND 处理存量 Double）
-                // ⚠️ 外键子句必须与 @Entity(foreignKeys=) + Room 导出的 9.json 逐字一致，
-                // 即必须显式写出 `ON UPDATE NO ACTION ON DELETE NO ACTION`（SQLite 省略默认等同，
-                // 但 Room MigrationTestHelper 启动校验是逐字符比对，缺此即报 schema mismatch 闪退）。
-                // v1.6.30 曾因此缺子句导致升级用户启动即崩，此行是血泪基线，勿删。
+                // ⚠️ 列定义必须与 Room 导出的 9.json 逐字一致，包括**不要**写 SQLite DEFAULT 子句：
+                //    @Entity 里 Kotlin 默认值（如 period=BudgetPeriod.MONTHLY、month=0）Room 不会
+                //    转成 SQL DEFAULT，故 9.json 这些列 defaultValue='undefined'（无默认）。
+                //    迁移 SQL 若写成 `DEFAULT 'MONTHLY'` / `DEFAULT 0`，迁移后表的 defaultValue 与
+                //    9.json 不符 → MigrationTestHelper 报 "didn't properly handle"，且正是 v1.6.30
+                //    升级闪退的同类根因（缺外键子句 + 多 DEFAULT）。此表结构是血泪基线，勿改。
+                // ⚠️ 外键子句必须显式 `ON UPDATE NO ACTION ON DELETE NO ACTION`（与 9.json 逐字一致）。
                 db.execSQL(
                     """
                     CREATE TABLE `budgets_new` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         `categoryId` INTEGER,
                         `amount_cents` INTEGER NOT NULL,
-                        `period` TEXT NOT NULL DEFAULT 'MONTHLY',
+                        `period` TEXT NOT NULL,
                         `year` INTEGER NOT NULL,
-                        `month` INTEGER NOT NULL DEFAULT 0,
+                        `month` INTEGER NOT NULL,
                         FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
                     )
                     """
