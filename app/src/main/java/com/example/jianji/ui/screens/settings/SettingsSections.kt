@@ -92,9 +92,11 @@ fun LazyListScope.dataManagementSection(
                                 return@launch
                             }
                             val json = DataImportManager().generateExportJson(db)
+                            val pass = AppPrefs.getBackupPassphrase(context)
+                            val content = if (pass.isBlank()) json else BackupCrypto.encrypt(json, pass)
                             val fileName = "简记备份_${LocalDate.now()}.json"
-                            val savedName = BackupStorage.save(context, fileName, "application/json", json)
-                            Toast.makeText(context, "备份成功: $savedName", Toast.LENGTH_SHORT).show()
+                            val savedName = BackupStorage.save(context, fileName, "application/json", content)
+                            Toast.makeText(context, if (pass.isBlank()) "备份成功(明文): $savedName" else "备份成功(已加密): $savedName", Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
                             Toast.makeText(context, "备份失败: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -111,6 +113,26 @@ fun LazyListScope.dataManagementSection(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(horizontal = 4.dp)
         )
+    }
+
+    // === 备份加密口令（P6-1 收尾：让用户在界面启用加密）===
+    item {
+        var passSet by remember { mutableStateOf(AppPrefs.getBackupPassphrase(context).isNotBlank()) }
+        var showPassDialog by remember { mutableStateOf(false) }
+        SettingsCard(
+            icon = Icons.Default.Lock,
+            title = if (passSet) "备份加密口令（已设置）" else "备份加密口令（未设置）",
+            subtitle = if (passSet) "备份已加密，他人无法读取" else "设置后备份将以口令加密保存",
+            onClick = { showPassDialog = true }
+        )
+        if (showPassDialog) {
+            BackupPassphraseDialog(
+                initialSet = passSet,
+                onDismiss = { showPassDialog = false },
+                onSaved = { showPassDialog = false; passSet = true },
+                onCleared = { showPassDialog = false; passSet = false }
+            )
+        }
     }
 
     item {
