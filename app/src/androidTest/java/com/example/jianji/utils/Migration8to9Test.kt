@@ -54,35 +54,34 @@ class Migration8to9Test {
             close()
         }
 
-        // 2) 触发完整迁移链至 v9（依赖 app/schemas/9.json 校验目标 schema，逐字比对外键/索引）
-        val db = try {
-            helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
-        } catch (e: IllegalStateException) {
-            // 诊断：把迁移后实际结构打印进异常 message，便于 CI 日志暴露 Room 的 Found 差异
-            val diag = buildString {
-                append("ACTUAL_PRAGMA table_info: ")
-                helper.runMigrationsAndValidate(TEST_DB, 9, false, JianjiDatabase.MIGRATION_8_9).use { d ->
-                    d.query("PRAGMA table_info('budgets')").use { c ->
-                        while (c.moveToNext()) {
-                            append("[${c.getString(1)} nn=${c.getInt(3)} dflt=${c.getString(4)}] ")
-                        }
-                    }
-                    append(" | fk: ")
-                    d.query("PRAGMA foreign_key_list('budgets')").use { c ->
-                        while (c.moveToNext()) {
-                            append("[${c.getString(2)}.${c.getString(3)}->${c.getString(4)} onDel=${c.getString(5)} onUpd=${c.getString(6)}] ")
-                        }
-                    }
-                    append(" | idx: ")
-                    d.query("PRAGMA index_list('budgets')").use { c ->
-                        while (c.moveToNext()) {
-                            append("[${c.getString(1)} uniq=${c.getInt(2)}] ")
-                        }
-                    }
-                }
-            }
-            throw IllegalStateException("${e.message}\n$diag")
+        // 2) 诊断：独立 db 名手动跑迁移（不经过 Room 校验），打印迁移后实际结构
+        val diagDb = TEST_DB + "_diag"
+        helper.createDatabase(diagDb, 8).apply {
+            execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
+            execSQL("INSERT INTO budgets (id,categoryId,amount,period,year,month) VALUES (10,1,12.34,'MONTHLY',2026,8)")
+            close()
         }
+        val db0 = helper.createDatabase(diagDb, 8) // 重新打开以触发迁移
+        JianjiDatabase.MIGRATION_8_9.migrate(db0)
+        val diag = buildString {
+            append("ACTUAL_PRAGMA table_info: ")
+            db0.query("PRAGMA table_info('budgets')").use { c ->
+                while (c.moveToNext()) append("[${c.getString(1)} nn=${c.getInt(3)} dflt=${c.getString(4)} typ=${c.getString(2)}] ")
+            }
+            append(" | fk: ")
+            db0.query("PRAGMA foreign_key_list('budgets')").use { c ->
+                while (c.moveToNext()) append("[onDel=${c.getString(5)} onUpd=${c.getString(6)}] ")
+            }
+            append(" | idx: ")
+            db0.query("PRAGMA index_list('budgets')").use { c ->
+                while (c.moveToNext()) append("[${c.getString(1)} uniq=${c.getInt(2)}] ")
+            }
+        }
+        db0.close()
+        org.junit.Assert.fail("DIAG:$diag")
+
+        // 2b) 触发 Room 校验（依赖 app/schemas/9.json 校验目标 schema）
+        val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
 
         // 3) 断言金额精度：保留的 MAX(id)=12 那条应为 5555 分
         db.query("SELECT amount_cents FROM budgets WHERE id=12").use {
