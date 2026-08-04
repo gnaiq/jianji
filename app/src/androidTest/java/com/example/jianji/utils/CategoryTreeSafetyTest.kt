@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,35 +61,37 @@ class CategoryTreeSafetyTest {
     }
 
     @Test
-    fun `禁止自引用设为父`() = runBlocking {
-        val catId = categoryRepo.insertCategory(
+    fun `禁止自引用设为父`() {
+        val catId = runBlocking { categoryRepo.insertCategory(
             Category(name = "X", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
-        )
-        assertThrows(IllegalArgumentException::class.java) {
+        ) }
+        try {
             runBlocking { categoryRepo.setParent(Category(id = catId, name = "X", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0), catId) }
-        }
+            fail("应抛出 IllegalArgumentException")
+        } catch (e: IllegalArgumentException) { /* expected */ }
     }
 
     @Test
-    fun `禁止把二级小类设为父_超过两级`() = runBlocking {
-        val grandParentId = categoryRepo.insertCategory(
+    fun `禁止把二级小类设为父_超过两级`() {
+        val grandParentId = runBlocking { categoryRepo.insertCategory(
             Category(name = "一级", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
-        )
+        ) }
         // 二级小类（parentId 指向一级）
-        val subId = categoryRepo.insertCategory(
+        val subId = runBlocking { categoryRepo.insertCategory(
             Category(name = "二级", type = CategoryType.EXPENSE, parentId = grandParentId, sortOrder = 0)
-        )
+        ) }
         // 试图把另一个分类挂到「二级」下 → 三级，应被拒
-        val otherId = categoryRepo.insertCategory(
+        val otherId = runBlocking { categoryRepo.insertCategory(
             Category(name = "三级候选", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 1)
-        )
-        assertThrows(IllegalArgumentException::class.java) {
+        ) }
+        try {
             runBlocking {
                 categoryRepo.setParent(
                     Category(id = otherId, name = "三级候选", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 1),
                     subId
                 )
             }
-        }
+            fail("应抛出 IllegalArgumentException")
+        } catch (e: IllegalArgumentException) { /* expected */ }
     }
 }
