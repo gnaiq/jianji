@@ -19,8 +19,16 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun getByAccount(accountId: Long): Flow<List<Transaction>> =
         transactionDao.getByAccount(accountId)
 
-    suspend fun insertTransaction(transaction: Transaction): Long =
-        transactionDao.insert(transaction)
+    suspend fun insertTransaction(transaction: Transaction): Long {
+        // B1-2 数据层兜底：转账交易必须有转出/转入账户且不可相同，
+        // 防止绕过 UI 校验（导入/API）写入悬空转账导致对账缺口。
+        if (transaction.type == TransactionType.TRANSFER) {
+            require(transaction.accountId != null) { "TRANSFER 必须指定转出账户 accountId" }
+            require(transaction.toAccountId != null) { "TRANSFER 必须指定转入账户 toAccountId" }
+            require(transaction.accountId != transaction.toAccountId) { "TRANSFER 转出与转入账户不可相同" }
+        }
+        return transactionDao.insert(transaction)
+    }
 
     suspend fun insertAll(transactions: List<Transaction>): List<Long> =
         transactionDao.insertAll(transactions)
@@ -85,7 +93,8 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         } else {
             transactionDao.getSumByType(TransactionType.EXPENSE, start, end) ?: 0.0
         }
-        return BudgetProgress(spent, budget.amount, if (budget.amount > 0) spent / budget.amount else 0.0)
+        val budgetCents = budget.amountCents / 100.0
+        return BudgetProgress(spent, budgetCents, if (budgetCents > 0) spent / budgetCents else 0.0)
     }
 }
 
