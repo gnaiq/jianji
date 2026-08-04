@@ -55,7 +55,34 @@ class Migration8to9Test {
         }
 
         // 2) 触发完整迁移链至 v9（依赖 app/schemas/9.json 校验目标 schema，逐字比对外键/索引）
-        val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
+        val db = try {
+            helper.runMigrationsAndValidate(TEST_DB, 9, true, JianjiDatabase.MIGRATION_8_9)
+        } catch (e: IllegalStateException) {
+            // 诊断：把迁移后实际结构打印进异常 message，便于 CI 日志暴露 Room 的 Found 差异
+            val diag = buildString {
+                append("ACTUAL_PRAGMA table_info: ")
+                helper.runMigrationsAndValidate(TEST_DB, 9, false, JianjiDatabase.MIGRATION_8_9).use { d ->
+                    d.query("PRAGMA table_info('budgets')").use { c ->
+                        while (c.moveToNext()) {
+                            append("[${c.getString(1)} nn=${c.getInt(3)} dflt=${c.getString(4)}] ")
+                        }
+                    }
+                    append(" | fk: ")
+                    d.query("PRAGMA foreign_key_list('budgets')").use { c ->
+                        while (c.moveToNext()) {
+                            append("[${c.getString(2)}.${c.getString(3)}->${c.getString(4)} onDel=${c.getString(5)} onUpd=${c.getString(6)}] ")
+                        }
+                    }
+                    append(" | idx: ")
+                    d.query("PRAGMA index_list('budgets')").use { c ->
+                        while (c.moveToNext()) {
+                            append("[${c.getString(1)} uniq=${c.getInt(2)}] ")
+                        }
+                    }
+                }
+            }
+            throw IllegalStateException("${e.message}\n$diag")
+        }
 
         // 3) 断言金额精度：保留的 MAX(id)=12 那条应为 5555 分
         db.query("SELECT amount_cents FROM budgets WHERE id=12").use {
@@ -94,7 +121,23 @@ class Migration8to9Test {
             execSQL("INSERT INTO categories (id,name,icon,color,type,isDefault,isSystem,sortOrder) VALUES (1,'餐饮','💰','#6200EE','EXPENSE',0,0,0)")
             close()
         }
-        val db = helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, true, JianjiDatabase.MIGRATION_8_9)
+        val db = try {
+            helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, true, JianjiDatabase.MIGRATION_8_9)
+        } catch (e: IllegalStateException) {
+            val diag = buildString {
+                helper.runMigrationsAndValidate(TEST_DB + "_empty", 9, false, JianjiDatabase.MIGRATION_8_9).use { d ->
+                    append("ACTUAL_PRAGMA empty: ")
+                    d.query("PRAGMA table_info('budgets')").use { c ->
+                        while (c.moveToNext()) append("[${c.getString(1)} nn=${c.getInt(3)} dflt=${c.getString(4)}] ")
+                    }
+                    append(" | fk: ")
+                    d.query("PRAGMA foreign_key_list('budgets')").use { c ->
+                        while (c.moveToNext()) append("[onDel=${c.getString(5)} onUpd=${c.getString(6)}] ")
+                    }
+                }
+            }
+            throw IllegalStateException("${e.message}\n$diag")
+        }
         db.query("SELECT COUNT(*) FROM budgets").use {
             assertTrue(it.moveToFirst())
             assertEquals(0, it.getInt(0))
