@@ -139,36 +139,42 @@ class TransactionViewModel(
         transactionRepository.getTransactionsByTagIds(ids.toList())
 
     // -- Recurring Processing --
+    // D2-2/D2-3：getDue 必须在事务内执行，且用 Mutex 防重入——
+    // 否则并发两次调用各自先 getDue 再排队事务，会读到相同 due 导致重复记账。
+    private val recurringMutex = kotlinx.coroutines.sync.Mutex()
+
     fun processRecurringDue() {
         viewModelScope.launch {
-            val now = LocalDateTime.now()
-            val due = recurringRepo.getDue(now)
-            val defaultAcc = accountRepo.getDefault()?.id
-            database.withTransaction {
-                for (rtx in due) {
-                    val occurrences = mutableListOf<LocalDateTime>()
-                    var cur = rtx.nextRunDate
-                    var guard = 0
-                    while (cur <= now && guard < 1000) {
-                        occurrences.add(cur)
-                        cur = nextRunAfter(cur, rtx)
-                        guard++
-                    }
-                    occurrences.forEach { date ->
-                        transactionRepository.insertTransaction(
-                            Transaction(
-                                categoryId = rtx.categoryId,
-                                amountCents = rtx.amountCents,
-                                type = rtx.type,
-                                description = rtx.description,
-                                date = date,
-                                accountId = rtx.accountId ?: defaultAcc
+            recurringMutex.withLock {
+                database.withTransaction {
+                    val now = LocalDateTime.now()
+                    val due = recurringRepo.getDue(now)
+                    val defaultAcc = accountRepo.getDefault()?.id
+                    for (rtx in due) {
+                        val occurrences = mutableListOf<LocalDateTime>()
+                        var cur = rtx.nextRunDate
+                        var guard = 0
+                        while (cur <= now && guard < 1000) {
+                            occurrences.add(cur)
+                            cur = nextRunAfter(cur, rtx)
+                            guard++
+                        }
+                        occurrences.forEach { date ->
+                            transactionRepository.insertTransaction(
+                                Transaction(
+                                    categoryId = rtx.categoryId,
+                                    amountCents = rtx.amountCents,
+                                    type = rtx.type,
+                                    description = rtx.description,
+                                    date = date,
+                                    accountId = rtx.accountId ?: defaultAcc
+                                )
                             )
-                        )
+                        }
+                        var next = rtx.nextRunDate
+                        while (next <= now) next = nextRunAfter(next, rtx)
+                        if (next != rtx.nextRunDate) recurringRepo.update(rtx.copy(nextRunDate = next))
                     }
-                    var next = rtx.nextRunDate
-                    while (next <= now) next = nextRunAfter(next, rtx)
-                    if (next != rtx.nextRunDate) recurringRepo.update(rtx.copy(nextRunDate = next))
                 }
             }
         }
