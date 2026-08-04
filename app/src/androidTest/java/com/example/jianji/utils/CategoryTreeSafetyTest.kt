@@ -36,7 +36,7 @@ class CategoryTreeSafetyTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `删除父分类后子分类升为一级`() = runBlocking {
+    fun `删除父分类后子分类升为一级_promoteToRoot`() = runBlocking {
         val parentId = categoryRepo.insertCategory(
             Category(name = "餐饮大类", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
         )
@@ -70,7 +70,7 @@ class CategoryTreeSafetyTest {
     }
 
     @Test
-    fun `禁止把二级小类设为父 超过两级`() = runBlocking {
+    fun `禁止把二级小类设为父_超过两级`() = runBlocking {
         val grandParentId = categoryRepo.insertCategory(
             Category(name = "一级", type = CategoryType.EXPENSE, parentId = 0, sortOrder = 0)
         )
