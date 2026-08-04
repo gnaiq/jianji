@@ -10,6 +10,8 @@ import com.example.jianji.utils.computeRecurringNextRun
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -141,7 +143,7 @@ class TransactionViewModel(
     // -- Recurring Processing --
     // D2-2/D2-3：getDue 必须在事务内执行，且用 Mutex 防重入——
     // 否则并发两次调用各自先 getDue 再排队事务，会读到相同 due 导致重复记账。
-    private val recurringMutex = kotlinx.coroutines.sync.Mutex()
+    private val recurringMutex = Mutex()
 
     fun processRecurringDue() {
         viewModelScope.launch {
