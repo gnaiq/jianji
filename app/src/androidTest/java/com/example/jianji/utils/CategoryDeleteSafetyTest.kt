@@ -39,7 +39,7 @@ class CategoryDeleteSafetyTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `删除普通分类后其交易不丢失 改挂未分类`() = runBlocking {
+    fun `删除普通分类后其交易不丢失_改挂未分类`() = runBlocking {
         val cat = Category(name = "餐饮", type = CategoryType.EXPENSE, sortOrder = 0)
         val catId = categoryRepo.insertCategory(cat)
         txRepo.insertTransaction(
@@ -77,7 +77,7 @@ class CategoryDeleteSafetyTest {
     }
 
     @Test
-    fun `系统分类不可删除 转账交易保留`() = runBlocking {
+    fun `系统分类不可删除_转账交易保留`() = runBlocking {
         // 种植系统「转账」分类（与真实建库一致）
         val transferCatId = categoryRepo.insertCategory(
             Category(name = "转账", type = CategoryType.EXPENSE, isSystem = true, sortOrder = 999)
