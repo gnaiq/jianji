@@ -126,9 +126,21 @@ class MigrationTest {
 ### 编写要点
 
 - `MIGRATION_6_7` 请引用 `JianjiDatabase.kt` 中定义的真实 `Migration` 对象，**不要**在测试里另写一份。
-- `runMigrationsAndValidate` 的第 3 个参数 `validateDroppedTables = true` 会用 `7.json` 校验迁移后结构，是发现「迁移漏改列」的关键。
 - 每新增一个版本 N：CI 会生成 `N.json`，入库后即可补一条 `(N-1)→N` 测试，逐步补齐迁移测试链。
 - 破坏性迁移（`fallbackToDestructiveMigration`）不在此测试覆盖范围内 —— 那会丢数据，需在业务层单独评估。
+
+### ⚠️ MigrationTestHelper + framework SQLite 的校验 artifact（v1.6.31 踩坑）
+
+`MigrationTestHelper` 使用 Android **framework SQLite**，Room 在该环境下读取外键动作时会把
+`NO ACTION` 序列化成 `NO ACTION +`（artifact），与 `app/schemas/N.json` 基线的 `NO ACTION`
+逐字不符，导致 `runMigrationsAndValidate(..., validateDroppedTables=true)` 误报
+`Migration didn't properly handle: <table>`（**真机 bundled SQLite 无此问题**，故不影响用户）。
+
+**写法约定**：androidTest 迁移测试**不要依赖 `runMigrationsAndValidate` 的自动 schema 校验**
+（会被 framework artifact 误伤）。改为：**手动 `MIGRATION_X_Y.migrate(db)` + 直接读 `PRAGMA` 断言
+关键不变量**（外键 `on_delete`/`on_update = 'NO ACTION'`、唯一索引存在、列结构、金额精度、去重等）。
+原始 `PRAGMA foreign_key_list` 返回纯 `NO ACTION`，不受 Room 序列化 artifact 干扰，且能精准 catch
+外键缺失类回归（v1.6.30 升级闪退的根因即外键子句缺失）。参见 `Migration8to9Test.kt` 实现范式。
 
 ## 检查清单（每次 schema 升级时）
 
@@ -136,7 +148,7 @@ class MigrationTest {
 - [ ] 已定义对应的 `MIGRATION_(N-1)_N` 并注册到 `Room.databaseBuilder(...).addMigrations(...)`
 - [ ] **迁移 SQL 的外键/索引/列定义必须逐字对齐 Room 导出的 `N.json`**（⚠️ SQLite 省略 `ON UPDATE/DELETE` 默认等同，但 Room 启动校验逐字符比对，缺子句即崩——见 v1.6.31 故障）
 - [ ] CI 构建生成了新的 `<N>.json` 并已**在同一 PR 提交入库**（防护网基线，不是缓存，禁止 `.gitignore`）
-- [ ] 已补充 `(N-1)→N` 的 `MigrationTest`，且**禁止 `@Ignore`**（`runMigrationsAndValidate(..., validateDroppedTables=true)` 是唯一能 catch 外键/列/索引不一致的自动化手段）
+- [ ] 已补充 `(N-1)→N` 的 `MigrationTest`，且**禁止 `@Ignore`**；采用「手动 migrate + PRAGMA 断言」范式（避开 framework SQLite 的 Room 校验 artifact，仍能 catch 外键/列/索引缺失）
 - [ ] CI 上 `connectedAndroidTest`（或对应任务）通过
 
-> ⚠️ **v1.6.31 教训**：若把迁移测试 `@Ignore` 等待"基线取回后再启用"，等于在等待期间**完全没有防护网**。正确做法是：先取回 `N.json` 入库，立即启用测试，二者必须在同一 PR。v1.6.30 曾因 `Migration8to9Test` 被 `@Ignore` 而漏测外键缺失，导致升级用户启动闪退。
+> ⚠️ **v1.6.31 教训**：① 若把迁移测试 `@Ignore` 等待"基线取回后再启用"，等于在等待期间**完全没有防护网**，v1.6.30 曾因此漏测外键缺失导致升级用户启动闪退。② `runMigrationsAndValidate` 在 `MigrationTestHelper`（framework SQLite）下对 `NO ACTION` 外键有序列化 artifact，androidTest 改用 PRAGMA 断言即可。③ 真机以编译期 `N.json` 为准，迁移 SQL 与 `N.json` 逐字对齐即不闪退。
