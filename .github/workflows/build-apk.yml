@@ -53,6 +53,16 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
+      # Room schema 导出基线（MIGRATION 测试基线，见 docs/migration-testing.md）
+      - name: Upload Room schema artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jianji-room-schemas
+          path: app/schemas/**/*.json
+          retention-days: 7
+          if-no-files-found: ignore
+
       # 版本号守卫：发布版 versionCode 必须严格大于上一个 release tag
       - name: Guard versionCode strictly increases
         if: startsWith(github.ref, 'refs/tags/')
