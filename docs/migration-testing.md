@@ -49,10 +49,14 @@
    `app/schemas/com.example.jianji.data.JianjiDatabase/<version>.json`。
 4. 自此，`6→7` 及以后的迁移即可用 `MigrationTestHelper` 编写自动化测试。
 
-> **状态更新（2026-08-04）**：`app/schemas/` 仍未提交入库（open 项）。本次 v7→v8 迁移
-> 改用「不依赖 schemas JSON 的升级冒烟测试」`Migration7to8Test`（androidTest，手工建 v7 库
-> 触发 `MIGRATION_7_8` 断言不闪退+数据保留），已在 CI `connectedCheck` 通过，临时绕过基线缺失。
-> **仍建议**：补齐 `schemas/7.json` 与 `8.json` 入库，使后续迁移可走标准 `MigrationTestHelper` 基线。
+> **状态更新（2026-08-04，v1.6.29）**：已提交**真实的** `app/schemas/com.example.jianji.data.JianjiDatabase/8.json`
+> （由 CI `jianji-room-schemas` artifact 取回，Room 编译期真实导出）。该基线可用于未来 v8→v9 迁移测试。
+> **关于 7.json**：项目历史上从未导出过 v7 的 schema JSON（v7→v8 跳跃式提交，CI 仅导出当前版 v8），
+> 且 Room `identityHash` 无法手工可靠重算，故**不伪造 7.json**。v7→v8 升级路径改由
+> `Migration7to8Test`（androidTest，手工建 v7 库触发 `MIGRATION_7_8`，断言不闪退+数据保留+外键变 NO ACTION）
+> 在 CI `connectedCheck` 覆盖，已在 v1.6.28/v1.6.29 多次通过。后续若需 `MigrationTestHelper` 标准基线测试，
+> 可在一次 v7 临时构建中取回 7.json 再补。
+> CI 已新增 `upload-artifact: jianji-room-schemas` 步骤，后续每次构建自动产出最新 schema 供取回入库。
 
 > 说明：把 `schemas/` 纳入 `.gitignore` 是**错误**做法 —— 一旦忽略，迁移测试将失去基线。
 
