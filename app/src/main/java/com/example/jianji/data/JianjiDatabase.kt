@@ -291,7 +291,7 @@ abstract class JianjiDatabase : RoomDatabase() {
                         `deleted_at` TEXT,
                         `createdAt` TEXT NOT NULL,
                         `updatedAt` TEXT NOT NULL,
-                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`)
                     )
                     """
                 )
