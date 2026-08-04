@@ -1,5 +1,7 @@
 package com.example.jianji.data
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
@@ -19,29 +21,24 @@ class TransferValidationTest {
             return transaction.id
         }
         // 其余为测试不需要的桩
-        override fun getAllTransactions(): kotlinx.coroutines.flow.Flow<List<Transaction>> =
-            kotlinx.coroutines.flow.emptyFlow()
-        override fun getTransactionsByDateRange(start: LocalDateTime, end: LocalDateTime) =
-            kotlinx.coroutines.flow.emptyFlow()
-        override fun getTransactionsByCategory(categoryId: Long) =
-            kotlinx.coroutines.flow.emptyFlow()
-        override fun getTransactionsByType(type: TransactionType) =
-            kotlinx.coroutines.flow.emptyFlow()
-        override fun getByAccount(accountId: Long) = kotlinx.coroutines.flow.emptyFlow()
+        override fun getAllTransactions(): Flow<List<Transaction>> = emptyFlow()
+        override fun getTransactionsByDateRange(start: LocalDateTime, end: LocalDateTime): Flow<List<Transaction>> = emptyFlow()
+        override fun getTransactionsByCategory(categoryId: Long): Flow<List<Transaction>> = emptyFlow()
+        override fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> = emptyFlow()
+        override fun getByAccount(accountId: Long): Flow<List<Transaction>> = emptyFlow()
         override suspend fun insertAll(list: List<Transaction>): List<Long> = emptyList()
         override suspend fun update(transaction: Transaction) {}
         override suspend fun delete(transaction: Transaction) {}
-        override fun getDeletedTransactions() = kotlinx.coroutines.flow.emptyFlow()
+        override fun getDeletedTransactions(): Flow<List<Transaction>> = emptyFlow()
         override suspend fun getById(id: Long): Transaction? = null
         override suspend fun restoreTransaction(id: Long) {}
         override suspend fun purgeDeleted() {}
-        override fun getTransactionsByTagIds(ids: List<Long>) = kotlinx.coroutines.flow.emptyFlow()
+        override fun getTransactionsByTagIds(ids: List<Long>): Flow<List<Transaction>> = emptyFlow()
         override suspend fun getAllSnapshot(): List<Transaction> = emptyList()
         override suspend fun getAllIncludingDeletedSnapshot(): List<Transaction> = emptyList()
         override fun getByDateRangeSnapshot(start: LocalDateTime, end: LocalDateTime): List<Transaction> = emptyList()
         override suspend fun getSumByType(type: TransactionType, start: LocalDateTime, end: LocalDateTime): Double? = 0.0
-        override fun observeSumByType(type: TransactionType, start: LocalDateTime, end: LocalDateTime) =
-            kotlinx.coroutines.flow.emptyFlow()
+        override fun observeSumByType(type: TransactionType, start: LocalDateTime, end: LocalDateTime): Flow<Double?> = emptyFlow()
         override suspend fun getSumByCategoryAndType(categoryId: Long, type: TransactionType, start: LocalDateTime, end: LocalDateTime): Double? = 0.0
         override suspend fun deleteAll() {}
         override suspend fun getCount(): Int = 0
