@@ -50,7 +50,7 @@ fun ImportDialog(
                         AutoBackup.snapshotBeforeDestructive(context, "恢复备份前")
                         val importer = DataImportManager()
                         val result = importer.importFromJson(
-                            jsonText, JianjiDatabase.getDatabase(context.applicationContext)
+                            jsonText, JianjiDatabase.getDatabase(context.applicationContext), context
                         )
                         importing = false
                         val ok = result.transactionCount > 0 || result.categoryCount > 0
