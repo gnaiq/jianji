@@ -65,12 +65,12 @@ class Migration8to9Test {
         // ① 金额精度：保留的 MAX(id)=12 那条应为 5555 分
         db.query("SELECT amount_cents FROM budgets WHERE id=12").use {
             assertTrue(it.moveToFirst())
-            assertEquals(5555L, it.getLong(0))
+            assertEquals("金额精度 12.34 应转 1234 分", 5555L, it.getLong(0))
         }
         // ② 去重：仅剩 1 条 categoryId=1 的重复组（MAX(id)=12）
         db.query("SELECT COUNT(*) FROM budgets WHERE categoryId=1 AND year=2026 AND month=8").use {
             assertTrue(it.moveToFirst())
-            assertEquals(1, it.getInt(0))
+            assertEquals("去重后应仅剩 1 条重复组", 1, it.getInt(0))
         }
         // ③ 唯一索引存在
         db.query("PRAGMA index_list('budgets')").use { cursor ->
@@ -85,8 +85,10 @@ class Migration8to9Test {
         // ④ 外键为 NO ACTION（原始 PRAGMA 返回纯 'NO ACTION'，不受 Room 序列化 artifact 干扰）
         db.query("PRAGMA foreign_key_list('budgets')").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals("NO ACTION", cursor.getString(cursor.getColumnIndexOrThrow("on_delete")))
-            assertEquals("NO ACTION", cursor.getString(cursor.getColumnIndexOrThrow("on_update")))
+            val onDel = cursor.getString(cursor.getColumnIndexOrThrow("on_delete"))
+            val onUpd = cursor.getString(cursor.getColumnIndexOrThrow("on_update"))
+            assertEquals("外键 on_delete 应为 NO ACTION，实际=$onDel", "NO ACTION", onDel)
+            assertEquals("外键 on_update 应为 NO ACTION，实际=$onUpd", "NO ACTION", onUpd)
             assertEquals("categories", cursor.getString(cursor.getColumnIndexOrThrow("table")))
             assertEquals("categoryId", cursor.getString(cursor.getColumnIndexOrThrow("from")))
             assertEquals("id", cursor.getString(cursor.getColumnIndexOrThrow("to")))
