@@ -1,7 +1,6 @@
 package com.example.jianji.utils
 
 import android.content.Context
-import androidx.room.withTransaction
 import com.example.jianji.data.*
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -218,8 +217,20 @@ class DataImportManager {
      *
      * @return 导入的交易条数、分类数；解析失败或为空返回 0
      */
-    suspend fun importFromJson(json: String, db: JianjiDatabase): ImportResult = withContext(Dispatchers.IO) {
-        val data = parseJson(json) ?: return@withContext ImportResult(0, false)
+    suspend fun importFromJson(
+        json: String,
+        db: JianjiDatabase,
+        context: Context? = null
+    ): ImportResult = withContext(Dispatchers.IO) {
+        // 修复 P6-1：透明解密——若为加密备份（"v1:" 前缀）则用备份口令解密，
+        // 失败抛异常交由上层提示用户；明文旧备份原样通过，向下兼容。
+        val plain = if (BackupCrypto.isEncrypted(json)) {
+            val pass = if (context != null) AppPrefs.getBackupPassphrase(context) else ""
+            BackupCrypto.decrypt(json, pass)
+        } else {
+            json
+        }
+        val data = parseJson(plain) ?: return@withContext ImportResult(0, false)
         val txs = data.transactions
         val cats = data.categories
         if (txs.isEmpty() && cats.isEmpty()) return@withContext ImportResult(0, false)
