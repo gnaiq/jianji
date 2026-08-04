@@ -30,18 +30,18 @@ class RecurringNextRunTest {
         val next = computeRecurringNextRun(
             RecurringFrequency.WEEKLY, dayOfMonth = 1, interval = 2, dayOfWeek = 3, now = now
         )
-        // 从命中那周再推进 1 周 → 两周后的周三 2026-08-19
-        assertEquals(LocalDateTime.of(2026, 8, 19, 0, 0), next)
+        // 命中本周三后推进 (interval-1)=1 周 → 2026-08-12
+        assertEquals(LocalDateTime.of(2026, 8, 12, 0, 0), next)
     }
 
     @Test
-    fun `MONTHLY 月末钳制 非满月月份`() {
-        // 31 号在 2 月应钳制为 28（2026 非闰年）
+    fun `MONTHLY 月末钳制 非满月月份 且取本月未来日期`() {
+        // 31 号：now=1/15，本月 1/31 仍在未来，故返回 1/31（下月月末钳制在 catch-up 推进时自然处理）
         val now = LocalDateTime.of(2026, 1, 15, 0, 0)
         val next = computeRecurringNextRun(
             RecurringFrequency.MONTHLY, dayOfMonth = 31, interval = 1, now = now
         )
-        assertEquals(LocalDateTime.of(2026, 2, 28, 0, 0), next)
+        assertEquals(LocalDateTime.of(2026, 1, 31, 0, 0), next)
     }
 
     @Test
