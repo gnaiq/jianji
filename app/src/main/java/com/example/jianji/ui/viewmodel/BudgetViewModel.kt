@@ -17,7 +17,7 @@ class BudgetViewModel(
 
     fun getMonthlyBudget(yearMonth: YearMonth): Flow<Double> =
         budgetRepo.observeTotalBudget(yearMonth.year, yearMonth.monthValue)
-            .map { it?.amount ?: 0.0 }
+            .map { it?.amountCents?.toDouble()?.div(100.0) ?: 0.0 }
 
     suspend fun getMonthlyBudgetEntity(yearMonth: YearMonth): Budget? =
         budgetRepo.getTotalBudget(yearMonth.year, yearMonth.monthValue)
