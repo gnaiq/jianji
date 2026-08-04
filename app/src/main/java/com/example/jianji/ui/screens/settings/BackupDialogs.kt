@@ -80,17 +80,59 @@ fun ImportDialog(
         backups = BackupStorage.list(context)
     }
 
+    // 加密备份的口令解对话框状态
+    var decryptPass by remember { mutableStateOf("") }
+    var showDecrypt by remember { mutableStateOf(false) }
+
+    fun tryDecrypt(raw: String): Boolean = try {
+        jsonText = BackupCrypto.decrypt(raw, decryptPass)
+        true
+    } catch (e: Exception) {
+        Toast.makeText(context, "解密失败：口令错误或文件损坏", Toast.LENGTH_SHORT).show()
+        false
+    }
+
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                jsonText = stream.bufferedReader().readText()
+            val raw = context.contentResolver.openInputStream(uri)?.use { stream ->
+                stream.bufferedReader().readText()
+            } ?: return@rememberLauncherForActivityResult
+            if (BackupCrypto.isEncrypted(raw)) {
+                decryptPass = ""
+                showDecrypt = true
+                jsonText = raw // 暂存密文，解密成功后再覆盖为明文
+            } else {
+                jsonText = raw
             }
         } catch (e: Exception) {
             Toast.makeText(context, "读取文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    if (showDecrypt) {
+        AlertDialog(
+            onDismissRequest = { showDecrypt = false },
+            title = { Text("输入备份口令") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("该备份已加密，请输入加密时设置的口令。", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = decryptPass, onValueChange = { decryptPass = it },
+                        label = { Text("口令") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (tryDecrypt(jsonText)) showDecrypt = false
+                }) { Text("解密") }
+            },
+            dismissButton = { TextButton(onClick = { showDecrypt = false }) { Text("取消") } }
+        )
     }
 
     AlertDialog(
