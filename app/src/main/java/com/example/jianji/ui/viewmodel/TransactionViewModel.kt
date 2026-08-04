@@ -65,25 +65,10 @@ class TransactionViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // 各账户实时余额（由交易汇总计算）
+    // 修复 B3-4：以 Long 分累加资金流（见 computeAccountBalancesCents），仅在最终输出时除以 100，
+    // 避免逐笔 `amountCents / 100.0` 转 Double 累加导致的浮点精度丢失。
     val accountBalances: StateFlow<Map<Long, Double>> = transactions
-        .map { txs ->
-            val map = mutableMapOf<Long, Double>()
-            fun add(accId: Long?, delta: Double) {
-                if (accId == null) return
-                map[accId] = (map[accId] ?: 0.0) + delta
-            }
-            for (t in txs) {
-                when (t.type) {
-                    TransactionType.INCOME -> add(t.accountId, t.amountCents / 100.0)
-                    TransactionType.EXPENSE -> add(t.accountId, -t.amountCents / 100.0)
-                    TransactionType.TRANSFER -> {
-                        add(t.accountId, -t.amountCents / 100.0)
-                        add(t.toAccountId, t.amountCents / 100.0)
-                    }
-                }
-            }
-            map
-        }
+        .map { txs -> computeAccountBalancesCents(txs).mapValues { (_, v) -> v / 100.0 } }
         // ⚠️ 必须保持 Eagerly，不可改回 WhileSubscribed：
         // SettingsScreen 与 JianjiApp 的账户弹窗是以 `accountBalances.value` 快照方式读取的
         // （读 .value 不构成订阅）。若改回 WhileSubscribed，上游在无订阅者时不会启动收集，
@@ -189,24 +174,18 @@ class TransactionViewModel(
     }
 
     private fun nextRunAfter(prev: LocalDateTime, rtx: RecurringTransaction): LocalDateTime {
-        val iv = maxOf(1, rtx.interval)
-        val dom = rtx.dayOfMonth.coerceIn(1, 31)
-        return when (rtx.frequency) {
-            RecurringFrequency.DAILY -> prev.toLocalDate().plusDays(iv.toLong()).atStartOfDay()
-            RecurringFrequency.WEEKLY -> prev.plusWeeks(iv.toLong())
-            RecurringFrequency.MONTHLY -> {
-                val d = prev.toLocalDate().plusMonths(iv.toLong())
-                val day = if (dom > d.lengthOfMonth()) d.lengthOfMonth() else dom
-                d.withDayOfMonth(day).atStartOfDay()
-            }
-            RecurringFrequency.YEARLY -> {
-                val d = prev.toLocalDate().plusYears(iv.toLong())
-                val m = rtx.monthOfYear.coerceIn(1, 12)
-                val maxDom = java.time.YearMonth.of(d.year, m).lengthOfMonth()
-                val day = if (dom > maxDom) maxDom else dom
-                java.time.LocalDate.of(d.year, m, day).atStartOfDay()
-            }
-        }
+        // 修复 D2-1：catch-up 推进必须与 computeRecurringNextRun（预览/保存）的语义一致，
+        // 避免 WEEKLY 用简单 plusWeeks 跳过 dayOfWeek 导致的重复/漏记。
+        // 以 prev 之后第一个符合频率规则的日期为基准，复用统一的"从 now 推算"算法。
+        val base = prev.plusSeconds(1)
+        return computeRecurringNextRun(
+            freq = rtx.frequency,
+            dayOfMonth = rtx.dayOfMonth,
+            interval = rtx.interval,
+            dayOfWeek = rtx.dayOfWeek,
+            monthOfYear = rtx.monthOfYear,
+            now = base
+        )
     }
 
     // -- Snapshots for export --
@@ -240,4 +219,27 @@ class TransactionViewModel(
             delay(if (waitMs > 0) waitMs else 1000L)
         }
     }
+}
+
+/**
+ * 修复 B3-4：账户余额以 Long 分累加（纯函数，便于单测）。
+ * 输入交易列表，返回 accountId -> 余额（单位：分）。转账的起账户减、止账户加。
+ */
+internal fun computeAccountBalancesCents(txs: List<Transaction>): Map<Long, Long> {
+    val cents = mutableMapOf<Long, Long>()
+    fun add(accId: Long?, deltaCents: Long) {
+        if (accId == null) return
+        cents[accId] = (cents[accId] ?: 0L) + deltaCents
+    }
+    for (t in txs) {
+        when (t.type) {
+            TransactionType.INCOME -> add(t.accountId, t.amountCents)
+            TransactionType.EXPENSE -> add(t.accountId, -t.amountCents)
+            TransactionType.TRANSFER -> {
+                add(t.accountId, -t.amountCents)
+                add(t.toAccountId, t.amountCents)
+            }
+        }
+    }
+    return cents
 }
