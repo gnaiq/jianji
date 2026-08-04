@@ -184,7 +184,7 @@ fun CategoryManagementScreen(
         )
     }
 
-    // 删除确认：分类删除会级联删除其下全部交易记录（外键 CASCADE），必须二次确认
+    // 删除确认：分类删除不再级联删交易（修复 B1-4/B5-6），其下可见交易改挂「未分类」，回收站记录保留
     if (deletingCategory != null) {
         val dc = deletingCategory!!
         val subCount = categories.count { it.parentId == dc.id }
@@ -194,9 +194,9 @@ fun CategoryManagementScreen(
             text = {
                 Text(
                     buildString {
-                        append("该分类下的所有交易记录将被一并永久删除，无法恢复。")
+                        append("该分类下的交易记录不会丢失，将自动归入「未分类」分类；回收站中的记录也会保留。")
                         if (subCount > 0) {
-                            append("\n\n此大类还包含 $subCount 个小类，小类及其交易记录也会同时删除。")
+                            append("\n\n此大类还包含 $subCount 个小类，小类及其交易记录会一并归入「未分类」。")
                         }
                     }
                 )
