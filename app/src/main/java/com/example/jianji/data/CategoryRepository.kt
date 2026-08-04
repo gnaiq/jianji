@@ -20,8 +20,32 @@ class CategoryRepository(private val dao: CategoryDao) {
         // 修复 B1-4/B5-6：禁止删除系统分类（如「转账」，被转账交易引用）；
         // 普通分类删除前，把其下「可见」交易改挂「未分类」兜底分类，回收站记录保留不动。
         if (category.isSystem) return
+        // B7-5：删除父分类前，把其直接子分类升为一级（parentId=0），避免子分类变成孤儿
+        dao.promoteChildrenToRoot(category.id)
         reassignTransactionsToUncategorized(category.id)
         dao.delete(category)
+    }
+
+    /**
+     * 设置分类的父节点（B7-2 分类树完整性约束）：
+     *  - 禁止自引用（parentId == id）；
+     *  - 只允许挂到「一级大类」（parentId 指向的分类自身 parentId 必须为 0），
+     *    即分类树最大深度为 2，避免深层级导致环/无限递归；
+     *  - 不允许形成环（节点不能挂到自己的后代下，由深度<=2 + 自引用检查共同保证）。
+     */
+    suspend fun setParent(category: Category, newParentId: Long) {
+        if (newParentId == category.id) {
+            throw IllegalArgumentException("分类不能把自身设为父分类")
+        }
+        if (newParentId != 0L) {
+            val parent = dao.getById(newParentId)
+                ?: throw IllegalArgumentException("父分类不存在")
+            // 只允许挂到一级大类；若父分类自身还有父级，则超过深度 2
+            if (parent.parentId != 0L) {
+                throw IllegalArgumentException("分类树深度超限：只允许两级（大类-小类）")
+            }
+        }
+        dao.update(category.copy(parentId = newParentId))
     }
 
     /**
