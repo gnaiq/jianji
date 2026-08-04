@@ -4,6 +4,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
 class CategoryRepository(private val dao: CategoryDao) {
+    companion object {
+        /** 「未分类」兜底系统分类名（删除普通分类时交易改挂到此） */
+        const val UNCLASSIFIED_NAME = "未分类"
+    }
     fun getAllCategories(): Flow<List<Category>> = dao.getAllCategories()
     fun getCategoriesByType(type: TransactionType): Flow<List<Category>> {
         val ct = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
@@ -12,7 +16,40 @@ class CategoryRepository(private val dao: CategoryDao) {
 
     suspend fun insertCategory(category: Category): Long = dao.insert(category)
     suspend fun updateCategory(category: Category) = dao.update(category)
-    suspend fun deleteCategory(category: Category) = dao.delete(category)
+    suspend fun deleteCategory(category: Category) {
+        // 修复 B1-4/B5-6：禁止删除系统分类（如「转账」，被转账交易引用）；
+        // 普通分类删除前，把其下「可见」交易改挂「未分类」兜底分类，回收站记录保留不动。
+        if (category.isSystem) return
+        reassignTransactionsToUncategorized(category.id)
+        dao.delete(category)
+    }
+
+    /**
+     * 保证存在「未分类」系统兜底分类，返回其 id。删除普通分类时把交易改挂到此分类，
+     * 避免交易丢失（修复 B1-4 转账误删 / B5-6 回收站穿透删除）。
+     */
+    suspend fun ensureUncategorized(): Long {
+        val existing = dao.getBySystemName(UNCLASSIFIED_NAME)
+        if (existing != null) return existing.id
+        return dao.insert(
+            Category(
+                name = UNCLASSIFIED_NAME,
+                icon = "❓",
+                color = "#9E9E9E",
+                type = CategoryType.EXPENSE,
+                isDefault = false,
+                isSystem = true,
+                sortOrder = 998,
+                parentId = 0
+            )
+        )
+    }
+
+    /** 把某分类下「可见」交易改挂「未分类」（回收站软删记录不动） */
+    suspend fun reassignTransactionsToUncategorized(categoryId: Long) {
+        val target = ensureUncategorized()
+        dao.reassignCategory(categoryId, target)
+    }
     suspend fun getDefaultCategories(): List<Category> = dao.getDefaultCategories()
     suspend fun deleteAll() = dao.deleteAll()
     suspend fun getCount(): Int = dao.getCount()
