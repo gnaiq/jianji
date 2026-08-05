@@ -1,5 +1,6 @@
 package com.example.jianji.utils
 
+import com.example.jianji.core.backup.BackupCrypto
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
