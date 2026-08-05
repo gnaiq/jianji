@@ -544,3 +544,28 @@ root/
 | 主项目 `./gradlew :app:assembleDebug` 不受影响 | 构建通过，APK 生成正常 |
 | CI 单元测试 job 切换到 `./testing/run-tests.sh` | CI 绿色 |
 | 新增测试文件均在 `testing/` 下，不在 `app/src/test/` | `find app/src/test -name "*.kt"` 返回空（或仅剩旧文件） |
+
+---
+
+## 十一、落地结论（2026-08-05 · 不可行，已闭环）
+
+**方案 B 经核实不可行，已废弃。单元测试维持现状（`app/src/test/`）。**
+
+### 不可行根因
+- 方案 B 假设 `testing/` 纯 JVM 模块可通过 `sourceSets.srcDir("../app/src/main/java")` 引用生产代码独立编译。
+- 实际 `app/src/main/java` 下约 90 个 Kotlin 文件**全部 import `android.*` / `androidx.*`**（`@Entity`/`@Dao`/`Context`/Compose 等）。纯 `kotlin-jvm` 模块无 Android SDK，无法编译这些源码。
+- 现有单测（`TransferValidationTest` 直接 `implements TransactionDao`、`AccountBalanceCentsTest` 调 ViewModel 内部纯函数、`RecurringNextRunTest` 调 `computeRecurringNextRun`）均**依赖 Android 模块的生产代码符号**，无法脱离 `:app` 编译。
+- 结论：方案 B 的「独立 JVM 模块引用 app 源码」在纸面上成立，落地即挂 CI，无价值。
+
+### 决策（用户确认，最小变更）
+- **保留**现有 7 个 JVM 单测于 `app/src/test/`（`data/`、`utils/`、`ui/viewmodel/` 三类），由 CI `./gradlew testDebugUnitTest` 继续运行（已绿）。
+- 仪器化测试（`app/src/androidTest/`，含 `Migration7to8Test`/`Migration8to9Test` 等）维持不变。
+- **不创建** `testing/` 子项目；不引入 `run-tests.sh`；不动 `settings.gradle.kts`；不删 `app/src/test/` 任何文件。
+- 文档层面纠正：本方案 §二「推荐方案 B」的结论失效，以本章为准。
+
+### 若未来确需真·独立（备注，非本次范围）
+- 可行路径：将纯逻辑（如 `RecurringSchedule.computeRecurringNextRun`、`TransactionViewModel.computeAccountBalancesCents`）抽到 `:app` 的 `testFixtures`，再让独立 `testing` 模块依赖该 `testFixtures`。该改动与 Wave E（M4 分层重构 / `domain` 层建立）重叠，建议并入 Wave E 一并处理，避免重复劳动。
+
+### 验收（按用户决策版）
+- `app/src/test/` 7 个单测持续由 CI 运行且通过（commit d116c4d 已验证 green）。
+- `find app/src/test -name "*.kt"` 返回 7 个文件（现状保留，非空）。
