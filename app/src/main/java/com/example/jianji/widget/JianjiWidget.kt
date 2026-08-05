@@ -8,7 +8,7 @@ import androidx.glance.layout.*
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import com.example.jianji.data.local.JianjiDatabase
+import com.example.jianji.data.JianjiDatabase
 import com.example.jianji.data.TransactionType
 import java.text.NumberFormat
 import java.time.LocalDate
