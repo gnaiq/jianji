@@ -7,6 +7,15 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.jianji.data.Account
+import com.example.jianji.data.AccountBalance
+import com.example.jianji.data.Budget
+import com.example.jianji.data.Category
+import com.example.jianji.data.QuickTemplate
+import com.example.jianji.data.RecurringTransaction
+import com.example.jianji.data.Tag
+import com.example.jianji.data.Transaction
+import com.example.jianji.data.TransactionTagCrossRef
 
 @Database(
     entities = [

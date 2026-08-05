@@ -2,6 +2,7 @@ package com.example.jianji.data
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
+import com.example.jianji.data.*
 
 @Dao
 interface AccountDao {

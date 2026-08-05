@@ -1,8 +1,8 @@
 package com.example.jianji.core.backup
 
 import android.content.Context
-import com.example.jianji.data.local.entity.Category
-import com.example.jianji.data.local.entity.Transaction
+import com.example.jianji.data.Category
+import com.example.jianji.data.Transaction
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVPrinter
 import java.io.File

@@ -1,6 +1,8 @@
 package com.example.jianji.data
 
 import kotlinx.coroutines.flow.Flow
+import com.example.jianji.data.*
+import com.example.jianji.data.*
 
 class QuickTemplateRepository(private val dao: QuickTemplateDao) {
     fun observeAll(): Flow<List<QuickTemplate>> = dao.observeAll()

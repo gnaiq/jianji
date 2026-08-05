@@ -1,6 +1,10 @@
 package com.example.jianji.data
 
 import androidx.room.TypeConverter
+import com.example.jianji.data.BudgetPeriod
+import com.example.jianji.data.CategoryType
+import com.example.jianji.data.RecurringFrequency
+import com.example.jianji.data.TransactionType
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 

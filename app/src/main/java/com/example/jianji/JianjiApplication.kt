@@ -3,9 +3,9 @@ package com.example.jianji
 import android.app.Application
 import android.os.Build
 import com.example.jianji.core.backup.BackupScheduler
-import com.example.jianji.data.local.repository.CategoryRepository
-import com.example.jianji.data.local.repository.AccountRepository
-import com.example.jianji.data.local.JianjiDatabase
+import com.example.jianji.data.CategoryRepository
+import com.example.jianji.data.AccountRepository
+import com.example.jianji.data.JianjiDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext

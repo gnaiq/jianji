@@ -1,7 +1,7 @@
 package com.example.jianji.core.common
 
-import com.example.jianji.data.local.entity.Category
-import com.example.jianji.data.local.entity.Transaction
+import com.example.jianji.data.Category
+import com.example.jianji.data.Transaction
 import com.example.jianji.data.TransactionType
 import java.time.LocalDateTime
 import java.time.YearMonth
