@@ -23,6 +23,7 @@ import com.example.jianji.ui.viewmodel.AccountViewModel
 import com.example.jianji.ui.viewmodel.BudgetViewModel
 import com.example.jianji.ui.viewmodel.SettingsViewModel
 import com.example.jianji.core.common.AppPrefs
+import com.example.jianji.core.common.PosterGenerator
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate

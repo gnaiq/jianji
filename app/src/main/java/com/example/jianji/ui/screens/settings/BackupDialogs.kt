@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import com.example.jianji.core.backup.AutoBackup
 import com.example.jianji.core.backup.BackupCrypto
+import com.example.jianji.core.backup.BackupFileEntry
 import com.example.jianji.core.backup.BackupStorage
 import com.example.jianji.core.backup.DataImportManager
 import kotlinx.coroutines.launch

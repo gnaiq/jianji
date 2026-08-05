@@ -37,6 +37,7 @@ import com.example.jianji.ui.viewmodel.AccountViewModel
 import com.example.jianji.ui.viewmodel.BudgetViewModel
 import com.example.jianji.ui.viewmodel.TagViewModel
 import com.example.jianji.ui.viewmodel.SettingsViewModel
+import com.example.jianji.core.common.PosterGenerator
 import com.example.jianji.core.io.ExcelExportManager
 import com.example.jianji.core.update.UpdateManager
 import com.example.jianji.BuildConfig
