@@ -2,9 +2,14 @@ package com.example.jianji.utils
 
 import com.example.jianji.core.backup.DataImportManager
 import com.example.jianji.core.backup.ImportData
-import com.example.jianji.core.backup.TransactionImport
+import com.example.jianji.core.backup.AccountImport
+import com.example.jianji.core.backup.BudgetImport
 import com.example.jianji.core.backup.CategoryImport
 import com.example.jianji.core.backup.RecurringImport
+import com.example.jianji.core.backup.TagImport
+import com.example.jianji.core.backup.TemplateImport
+import com.example.jianji.core.backup.TransactionImport
+import com.example.jianji.core.backup.TransactionTagImport
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
