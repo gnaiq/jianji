@@ -1,5 +1,6 @@
 package com.example.jianji.core.update
 
+import com.example.jianji.core.common.compareVersionNewer
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
