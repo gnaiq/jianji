@@ -89,10 +89,12 @@ key = PBKDF2(password, salt, iterations, keyLen=32) // HmacSHA256
 
 - [x] **已完成** 新增 `BackupCrypto`（工具对象）：`encrypt(json, pass): String` / `decrypt(content, pass): String`，封装 PBKDF2 + AES-GCM 与 `v1:<salt>:<iv>:<ct>` 头编解码。
 - [x] **已完成** `AutoBackup.save/saveAutoBackup` + `snapshotBeforeDestructive`：按 `AppPrefs` 口令加密（失败退明文，不阻断）；`DataImportManager.importFromJson` 透明解密（加密则解密、明文原样），向下兼容旧备份。
-- [ ] **未完成（待办）** 设置页「备份加密口令」输入框 UI 入口 + 读入口令弹框；恢复入口按 §4 识别明文/密文后弹口令框解密（当前 `importFromJson` 已支持密文，但恢复 UI 未传口令框交互，依赖 `AppPrefs` 中已存口令）。
+- [x] **已完成（v1.6.29 闭环）** 设置页「备份加密口令」输入框 UI 入口（`SettingsDialogs.BackupPassphraseDialog`）+ 读入口令弹框（`BackupDialogs.ImportDialog` 识别 `v1:` 头弹「输入备份口令」框）；恢复入口按 §4 识别明文/密文后弹口令框解密。
 - [x] **已完成** 依赖：全部使用 JDK/Android 内置 `javax.crypto`（`SecretKeyFactory`、`Cipher`、`SecureRandom`），无第三方库。
-- [ ] **未完成（待办，安全 UX）** §5 口令不可找回的醒目提示文案（「口令无法找回…」）与二次确认输入，待设置页口令 UI 入口一并落地。
+- [x] **已完成（v1.6.29 闭环，安全 UX）** §5 口令不可找回的醒目提示文案（红字「口令一旦遗忘将永久无法恢复」）+ 二次确认输入（`BackupPassphraseDialog` 双 OutlinedTextField 校验一致 + ≥4 位），已在 v1.6.29 随 UI 入口一并落地。
 - [x] **已完成** 验收测试：`BackupCryptoTest`（androidTest）覆盖加解密往返、错口令失败、IV 随机，CI 通过。
+
+> **状态更新（2026-08-05 校准）**：本文 §6 原标「未完成」两项，经代码勘察确认已于 v1.6.29 随备份加密 UI 闭环一并完成（见 `缺陷验收报告.md` 第七章）。文档原标注为过时结论，以代码事实为准。
 
 ## 7. 安全性小结
 

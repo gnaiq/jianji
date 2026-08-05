@@ -108,4 +108,24 @@ interface TransactionDao {
     // 删除账户前同时清空转账目标账户引用（P1-4 账户删除治理）
     @Query("UPDATE transactions SET toAccountId = NULL WHERE toAccountId = :accountId")
     suspend fun clearToAccount(accountId: Long)
+
+    // P3-1 余额 SQL 聚合（替代 ViewModel 内存遍历）：把 INCOME/EXPENSE/TRANSFER(双边)
+    // 统一为 (accountId, delta) 后 GROUP BY。SQLite 无 PIVOT，用 UNION ALL。
+    // 金额全程 Long 分，避免浮点累加误差（B3-4）。
+    @Query("""
+        SELECT accountId, SUM(delta) AS balanceCents FROM (
+            SELECT accountId, amount_cents AS delta
+            FROM transactions WHERE deleted_at IS NULL AND type = 'INCOME' AND accountId IS NOT NULL
+            UNION ALL
+            SELECT accountId, -amount_cents AS delta
+            FROM transactions WHERE deleted_at IS NULL AND type = 'EXPENSE' AND accountId IS NOT NULL
+            UNION ALL
+            SELECT accountId, -amount_cents AS delta
+            FROM transactions WHERE deleted_at IS NULL AND type = 'TRANSFER' AND accountId IS NOT NULL
+            UNION ALL
+            SELECT toAccountId AS accountId, amount_cents AS delta
+            FROM transactions WHERE deleted_at IS NULL AND type = 'TRANSFER' AND toAccountId IS NOT NULL
+        ) GROUP BY accountId
+    """)
+    fun observeAccountBalances(): Flow<List<AccountBalance>>
 }

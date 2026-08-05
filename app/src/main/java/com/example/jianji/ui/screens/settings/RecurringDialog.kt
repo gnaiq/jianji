@@ -16,13 +16,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.SettingsViewModel
-import com.example.jianji.utils.*
+import com.example.jianji.core.common.computeRecurringNextRun
 import java.time.format.DateTimeFormatter
 
 /**
  * 周期交易管理弹窗。
  * 从 SettingsScreen.kt / SettingsDialogs.kt 纯搬移，逻辑与状态提升方式未改动。
- * 下次执行时间计算已抽到 com.example.jianji.utils.computeRecurringNextRun（纯函数，便于测试）。
+ * 下次执行时间计算已抽到 com.example.jianji.core.common.computeRecurringNextRun（纯函数，便于测试）。
  */
 @Composable
 fun RecurringManagementDialog(

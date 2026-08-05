@@ -59,6 +59,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun observeSumByType(type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Flow<Double?> =
         transactionDao.observeSumByType(type, startDate, endDate)
 
+    // P3-1 余额 SQL 聚合（UNION ALL 四类型，吃 accountId 索引）
+    fun observeAccountBalances(): Flow<List<AccountBalance>> =
+        transactionDao.observeAccountBalances()
+
     suspend fun getSumByCategoryAndType(categoryId: Long, type: TransactionType, startDate: LocalDateTime, endDate: LocalDateTime): Double =
         transactionDao.getSumByCategoryAndType(categoryId, type, startDate, endDate) ?: 0.0
 

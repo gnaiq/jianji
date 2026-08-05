@@ -5,8 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.example.jianji.data.*
-import com.example.jianji.utils.DateUtils
-import com.example.jianji.utils.computeRecurringNextRun
+import com.example.jianji.core.common.DateUtils
+import com.example.jianji.core.common.computeRecurringNextRun
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -68,15 +68,15 @@ class TransactionViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // 各账户实时余额（由交易汇总计算）
-    // 修复 B3-4：以 Long 分累加资金流（见 computeAccountBalancesCents），仅在最终输出时除以 100，
-    // 避免逐笔 `amountCents / 100.0` 转 Double 累加导致的浮点精度丢失。
-    val accountBalances: StateFlow<Map<Long, Double>> = transactions
-        .map { txs -> computeAccountBalancesCents(txs).mapValues { (_, v) -> v / 100.0 } }
+    // 修复 B3-4 + P3-1：余额改由 DAO SQL 聚合（observeAccountBalances，UNION ALL 四类型，
+    // 吃 accountId 索引），仅在最终输出时除以 100，避免逐笔 Double 累加的浮点误差与 O(n) 内存扫描。
+    val accountBalances: StateFlow<Map<Long, Double>> = transactionRepository.observeAccountBalances()
+        .map { balances -> balances.associate { it.accountId to it.balanceCents / 100.0 } }
         // ⚠️ 必须保持 Eagerly，不可改回 WhileSubscribed：
         // SettingsScreen 与 JianjiApp 的账户弹窗是以 `accountBalances.value` 快照方式读取的
         // （读 .value 不构成订阅）。若改回 WhileSubscribed，上游在无订阅者时不会启动收集，
         // .value 将恒为初始 emptyMap()，账户余额会再次全部显示为 ¥0.00。
-        // 此处 Eagerly 同时兼任上游 transactions(WhileSubscribed) 的常驻订阅者。
+        // 此处 Eagerly 同时兼任上游 observeAccountBalances(WhileSubscribed) 的常驻订阅者。
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     // -- Transaction CRUD --

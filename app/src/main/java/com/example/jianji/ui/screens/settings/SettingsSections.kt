@@ -16,7 +16,13 @@ import androidx.compose.ui.unit.dp
 import com.example.jianji.BuildConfig
 import com.example.jianji.data.*
 import com.example.jianji.ui.viewmodel.TransactionViewModel
-import com.example.jianji.utils.*
+import com.example.jianji.core.backup.BackupCrypto
+import com.example.jianji.core.backup.BackupScheduler
+import com.example.jianji.core.backup.BackupStorage
+import com.example.jianji.core.backup.DataImportManager
+import com.example.jianji.core.common.AppPrefs
+import com.example.jianji.core.io.ExcelExportManager
+import com.example.jianji.core.update.UpdateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch

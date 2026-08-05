@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.jianji.data.*
-import com.example.jianji.utils.BackupScheduler
+import com.example.jianji.core.backup.BackupScheduler
 import com.example.jianji.widget.JianjiWidget
 import timber.log.Timber
 import androidx.glance.GlanceId

@@ -2,7 +2,7 @@ package com.example.jianji
 
 import android.app.Application
 import android.os.Build
-import com.example.jianji.utils.BackupScheduler
+import com.example.jianji.core.backup.BackupScheduler
 import com.example.jianji.data.CategoryRepository
 import com.example.jianji.data.AccountRepository
 import com.example.jianji.data.JianjiDatabase

@@ -128,9 +128,6 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-
     // Charts (for statistics)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 

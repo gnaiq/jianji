@@ -1,5 +1,6 @@
 package com.example.jianji.utils
 
+import com.example.jianji.core.common.compareVersionNewer
 import org.junit.Assert.*
 import org.junit.Test
 

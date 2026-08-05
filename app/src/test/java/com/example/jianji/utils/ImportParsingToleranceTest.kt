@@ -2,7 +2,7 @@ package com.example.jianji.utils
 
 import com.example.jianji.data.RecurringFrequency
 import com.example.jianji.data.TransactionType
-import com.example.jianji.utils.DataImportManager
+import com.example.jianji.core.backup.DataImportManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

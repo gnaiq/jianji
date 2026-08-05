@@ -12,8 +12,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.example.jianji.ui.JianjiApp
 import com.example.jianji.ui.theme.JianjiTheme
-import com.example.jianji.utils.AppPrefs
-import com.example.jianji.utils.UpdateManager
+import com.example.jianji.core.common.AppPrefs
+import com.example.jianji.core.update.UpdateManager
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {

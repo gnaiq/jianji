@@ -43,18 +43,18 @@
 -keepattributes *Annotation*
 -dontwarn sun.misc.**
 # Gson 库自带 consumer rules（META-INF/proguard/gson.pro）已覆盖其内部类，故移除 -keep com.google.gson.**。
-# 业务序列化 DTO 必须保留：备份/恢复的 ImportData 及 *Import 系列 DTO 全部位于 utils 包，
-# Gson 依赖「字段名反射 + 字段泛型签名（List<TransactionImport> 等）」做反序列化。
+# 业务序列化 DTO 必须保留：备份/恢复的 ImportData 及 *Import 系列 DTO 现位于 core.backup 包
+# （原 utils 包，Wave E-2 已拆包），Gson 依赖「字段名反射 + 字段泛型签名（List<TransactionImport> 等）」做反序列化。
 # 若这些类被 R8 混淆/裁剪，嵌套 List 的元素类型在运行时会绑定到错误类，
 # 触发 gson 内部 checkcast 失败：典型报错 "p6.n cannot be cast to z5.h"（仅 release 混淆包出现）。
-# 因此 data.** 与 utils.** 两类 DTO 都必须 -keep 且保留字段名。
-# 修复 P6-2 加固：显式点名备份序列化 DTO 与加密工具类，防止未来把 DTO 移出 utils 包后
+# 因此 data.** 与 core.** 两类必须 -keep 且保留字段名。
+# 修复 P6-2 加固（E-2 同步）：显式点名备份序列化 DTO 与加密工具类，防止未来把 DTO 移出 core 包后
 # 丢失 -keep 导致 release 包恢复备份崩溃。
 -keep class com.example.jianji.data.** { *; }
--keep class com.example.jianji.utils.** { *; }
--keep class com.example.jianji.utils.ImportData { *; }
--keep class com.example.jianji.utils.*Import { *; }
--keep class com.example.jianji.utils.BackupCrypto { *; }
+-keep class com.example.jianji.core.** { *; }
+-keep class com.example.jianji.core.backup.ImportData { *; }
+-keep class com.example.jianji.core.backup.*Import { *; }
+-keep class com.example.jianji.core.backup.BackupCrypto { *; }
 
 # Keep Timber (for tag-based filtering)
 -dontwarn timber.log.**
