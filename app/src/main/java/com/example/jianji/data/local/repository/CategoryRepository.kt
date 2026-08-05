@@ -2,6 +2,8 @@ package com.example.jianji.data.local.repository
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+com.example.jianji.data.local.dao.*
+com.example.jianji.data.local.entity.*
 
 class CategoryRepository(private val dao: CategoryDao) {
     companion object {

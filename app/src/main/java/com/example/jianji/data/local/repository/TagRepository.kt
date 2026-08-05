@@ -1,6 +1,8 @@
 package com.example.jianji.data.local.repository
 
 import kotlinx.coroutines.flow.Flow
+com.example.jianji.data.local.dao.*
+com.example.jianji.data.local.entity.*
 
 class TagRepository(private val tagDao: TagDao) {
     fun observeAll(): Flow<List<Tag>> = tagDao.observeAll()

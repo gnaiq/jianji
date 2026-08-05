@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+com.example.jianji.data.local.entity.*
 
 @Dao
 interface CategoryDao {

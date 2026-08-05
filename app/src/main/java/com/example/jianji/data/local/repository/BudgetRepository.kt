@@ -1,6 +1,8 @@
 package com.example.jianji.data.local.repository
 
 import kotlinx.coroutines.flow.Flow
+com.example.jianji.data.local.dao.*
+com.example.jianji.data.local.entity.*
 
 class BudgetRepository(private val dao: BudgetDao) {
     suspend fun getForMonth(year: Int, month: Int): List<Budget> = dao.getForMonth(year, month)

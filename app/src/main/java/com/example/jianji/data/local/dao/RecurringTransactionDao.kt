@@ -2,6 +2,7 @@ package com.example.jianji.data.local.dao
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
+com.example.jianji.data.local.entity.*
 
 @Dao
 interface RecurringTransactionDao {
