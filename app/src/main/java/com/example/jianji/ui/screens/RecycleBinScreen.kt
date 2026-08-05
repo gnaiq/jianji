@@ -15,8 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.jianji.data.local.entity.Category
-import com.example.jianji.data.local.entity.Transaction
+import com.example.jianji.data.Category
+import com.example.jianji.data.Transaction
 import com.example.jianji.data.TransactionType
 import com.example.jianji.ui.viewmodel.TransactionViewModel
 import java.time.format.DateTimeFormatter
