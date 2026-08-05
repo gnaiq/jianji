@@ -2,8 +2,8 @@ package com.example.jianji.data.local.repository
 
 import java.time.LocalDateTime
 import kotlinx.coroutines.flow.Flow
-com.example.jianji.data.local.dao.*
-com.example.jianji.data.local.entity.*
+import com.example.jianji.data.local.dao.*
+import com.example.jianji.data.local.entity.*
 
 class RecurringTransactionRepository(private val dao: RecurringTransactionDao) {
     fun observeAll(): Flow<List<RecurringTransaction>> = dao.observeAll()

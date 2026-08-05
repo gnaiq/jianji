@@ -7,7 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
-com.example.jianji.data.local.entity.*
+import com.example.jianji.data.local.entity.*
 
 @Dao
 interface TransactionDao {
