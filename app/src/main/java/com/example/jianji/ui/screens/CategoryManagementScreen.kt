@@ -46,7 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.jianji.data.Category
+import com.example.jianji.data.local.entity.Category
 import com.example.jianji.data.CategoryType
 import com.example.jianji.data.TransactionType
 

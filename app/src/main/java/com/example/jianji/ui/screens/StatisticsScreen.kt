@@ -24,8 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.jianji.data.Category
-import com.example.jianji.data.Transaction
+import com.example.jianji.data.local.entity.Category
+import com.example.jianji.data.local.entity.Transaction
 import com.example.jianji.data.TransactionType
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Description

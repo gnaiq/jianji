@@ -19,7 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.jianji.data.Tag
+import com.example.jianji.data.local.entity.Tag
 import com.example.jianji.ui.components.TagFormDialog
 import com.example.jianji.ui.viewmodel.TagViewModel
 

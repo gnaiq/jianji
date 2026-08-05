@@ -2,7 +2,7 @@ package com.example.jianji.core.backup
 
 import android.content.Context
 import com.example.jianji.core.common.AppPrefs
-import com.example.jianji.data.JianjiDatabase
+import com.example.jianji.data.local.JianjiDatabase
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers

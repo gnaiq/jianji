@@ -15,9 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.jianji.data.Category
-import com.example.jianji.data.Tag
-import com.example.jianji.data.Transaction
+import com.example.jianji.data.local.entity.Category
+import com.example.jianji.data.local.entity.Tag
+import com.example.jianji.data.local.entity.Transaction
 
 /**
  * 滑动删除包装组件：左滑交易卡片弹出删除确认。
