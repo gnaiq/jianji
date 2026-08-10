@@ -59,6 +59,7 @@ fun AddTransactionDialog(
     onRequestAddTag: () -> Unit = {},
     onDismiss: () -> Unit,
     onRequestAddCategory: (TransactionType) -> Unit = {},
+    topCategoryIds: Map<TransactionType, List<Long>> = emptyMap(),
     onConfirm: (categoryId: Long, amount: Double, type: TransactionType, description: String, date: LocalDateTime, accountId: Long?, toAccountId: Long?, tagIds: List<Long>) -> Unit
 ) {
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
@@ -88,8 +89,16 @@ fun AddTransactionDialog(
     val filteredTemplates = templates.filter { it.type == selectedType }
     val selectedCategory = categories.find { it.id == selectedCategoryId }
     val transferCategory = categories.firstOrNull { it.isSystem }
-    // 高频分类：同类型下取排序前 6 个非 major 子类（复用现有 categories，不新增数据层调用）
-    val topCategories = filteredCategories.filter { !it.isMajor }.take(6)
+    // 高频分类：按交易笔数降序（有历史数据）；若无则回退到 sortOrder 前 6
+    val topCategories = remember(filteredCategories, topCategoryIds, selectedType) {
+        val freqIds = topCategoryIds[selectedType] ?: emptyList()
+        if (freqIds.isNotEmpty()) {
+            val catMap = categories.associateBy { it.id }
+            freqIds.mapNotNull { catMap[it] }.filter { !it.isMajor }.take(6)
+        } else {
+            filteredCategories.filter { !it.isMajor }.take(6)
+        }
+    }
     // 支持计算器表达式（如 12+3.5）；纯数字也能直接解析
     val parsedAmount = evalExpression(amount) ?: amount.toDoubleOrNull() ?: 0.0
     // 金额格式错误提示：表达式解析失败且无法作为纯数字解析时显示错误
@@ -517,18 +526,23 @@ fun AddTransactionDialog(
                                     maxLines = 1
                                 )
                                 CalculatorKeypad { key ->
+                                    val ops = setOf('+', '−', '×', '÷')
                                     when (key) {
                                         "⌫" -> amount = if (amount.isNotEmpty()) amount.dropLast(1) else ""
                                         "C" -> amount = ""
-                                        "=" -> { val r = evalExpression(amount); if (r != null) amount = formatCalc(r) }
                                         else -> {
                                             val last = amount.lastOrNull()
-                                            val ops = setOf('+', '−', '×', '÷')
                                             when {
-                                                key in listOf("+", "−", "×", "÷") ->
-                                                    if (amount.isNotEmpty() && last !in ops && last != '.') amount += key
+                                                key in listOf("+", "−", "×", "÷") -> {
+                                                    // 实时求值：先计算当前表达式再追加运算符
+                                                    if (amount.isNotEmpty() && last !in ops && last != '.') {
+                                                        val r = evalExpression(amount)
+                                                        if (r != null) amount = formatCalc(r)
+                                                        amount += key
+                                                    }
+                                                }
                                                 key == "." -> {
-                                                    val seg = amount.split(Regex("[-+×÷]")).last()
+                                                    val seg = amount.split("[-+×÷]".toRegex()).last()
                                                     amount += if (amount.isEmpty() || last in ops) "0." else if ("." !in seg) "." else ""
                                                 }
                                                 else -> amount += key
@@ -548,10 +562,23 @@ fun AddTransactionDialog(
     }
     }
 
+// 计算器底层常量与工具函数
+
+private val EXPR_PATTERN = Regex("^[0-9.+\\-*/ ]+$")
+
+// 计算器键盘布局（不含 =，实时求值替代）
+private val CALC_KEYPAD_ROWS = listOf(
+    listOf("7", "8", "9", "÷"),
+    listOf("4", "5", "6", "×"),
+    listOf("1", "2", "3", "−"),
+    listOf("C", "0", ".", "+"),
+    listOf("⌫")
+)
+
 // 计算器表达式求值（支持 + − × ÷，含运算符优先级），非法返回 null
 private fun evalExpression(input: String): Double? {
     val s = input.replace('×', '*').replace('÷', '/')
-    if (s.isBlank() || !s.matches(Regex("^[0-9.+\\-*/ ]+$"))) return null
+    if (s.isBlank() || !s.matches(EXPR_PATTERN)) return null
     return try {
         val tokens = mutableListOf<String>()
         var num = ""
@@ -587,36 +614,25 @@ private fun evalExpression(input: String): Double? {
 
 private fun formatCalc(v: Double): String {
     val value = if (v.isNaN() || v.isInfinite()) 0.0 else v
-    return if (value % 1.0 == 0.0) value.toLong().toString()
+    val bd = java.math.BigDecimal.valueOf(value).setScale(2, java.math.RoundingMode.HALF_UP)
+    return if (bd.stripTrailingZeros().scale() <= 0) bd.toBigInteger().toString()
     else String.format(java.util.Locale.US, "%.2f", value)
 }
 
 @Composable
 private fun CalculatorKeypad(onInput: (String) -> Unit) {
-    val keys = listOf(
-        listOf("7", "8", "9", "÷"),
-        listOf("4", "5", "6", "×"),
-        listOf("1", "2", "3", "−"),
-        listOf("C", "0", ".", "+"),
-        listOf("⌫", "=")
-    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        keys.forEach { row ->
+        CALC_KEYPAD_ROWS.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 row.forEach { key ->
-                    val weight = when {
-                        row.size == 1 -> 4f
-                        key == "=" -> 3f
-                        else -> 1f
-                    }
                     OutlinedButton(
                         onClick = { onInput(key) },
-                        modifier = Modifier.weight(weight).height(54.dp),
+                        modifier = Modifier.weight(1f).height(54.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (key in listOf("+", "−", "×", "÷", "="))
+                            containerColor = if (key in listOf("+", "−", "×", "÷"))
                                 MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surface
                         )

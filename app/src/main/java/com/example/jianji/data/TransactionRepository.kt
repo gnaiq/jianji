@@ -76,6 +76,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         transactionDao.clearToAccount(accountId)
     }
 
+    // 高频分类：按交易笔数降序取各类型 top categoryId
+    suspend fun getTopCategoryIdsByType(type: TransactionType): List<Long> =
+        transactionDao.getTopCategoryUsagesByType(type).map { it.categoryId }
+
     suspend fun getCount(): Int = transactionDao.getCount()
 
     suspend fun getByDateRangeSnapshot(startDate: LocalDateTime, endDate: LocalDateTime): List<Transaction> =

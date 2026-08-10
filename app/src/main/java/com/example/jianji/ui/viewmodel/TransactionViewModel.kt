@@ -79,6 +79,10 @@ class TransactionViewModel(
         // 此处 Eagerly 同时兼任上游 observeAccountBalances(WhileSubscribed) 的常驻订阅者。
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    // 高频分类：按交易笔数降序取各类型前 6 个 categoryId
+    suspend fun getTopCategoryIdsByType(type: TransactionType): List<Long> =
+        transactionRepository.getTopCategoryIdsByType(type)
+
     // -- Transaction CRUD --
     fun addTransaction(
         categoryId: Long,

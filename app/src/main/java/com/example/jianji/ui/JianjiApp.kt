@@ -132,11 +132,22 @@ fun JianjiApp(
 
     // 对话框 / 表单状态
     var showAddDialog by remember { mutableStateOf(false) }
+    var topCategoryIds by remember { mutableStateOf<Map<TransactionType, List<Long>>>(emptyMap()) }
     var showAddCategoryDialogTab by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<AppTransaction?>(null) }
     var showAddCategoryQuick by remember { mutableStateOf(false) }
     var addCategoryQuickType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var categoryTabType by remember { mutableStateOf(CategoryType.EXPENSE) }
+
+    // 打开添加交易弹窗时预加载高频分类统计
+    LaunchedEffect(showAddDialog) {
+        if (showAddDialog) {
+            topCategoryIds = mapOf(
+                TransactionType.EXPENSE to transactionVM.getTopCategoryIdsByType(TransactionType.EXPENSE),
+                TransactionType.INCOME to transactionVM.getTopCategoryIdsByType(TransactionType.INCOME)
+            )
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -335,6 +346,7 @@ fun JianjiApp(
                     showAddDialog = false
                     editingTransaction = null
                 },
+                topCategoryIds = topCategoryIds,
                 onRequestAddCategory = { type ->
                     addCategoryQuickType = type
                     showAddCategoryQuick = true

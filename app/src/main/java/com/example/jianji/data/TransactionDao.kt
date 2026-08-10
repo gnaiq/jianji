@@ -129,4 +129,14 @@ interface TransactionDao {
         ) GROUP BY accountId
     """)
     fun observeAccountBalances(): Flow<List<AccountBalance>>
+
+    // 高频分类：按交易笔数降序，取各类型前 6 个 categoryId
+    @Query("""
+        SELECT categoryId, COUNT(*) as count FROM transactions
+        WHERE deleted_at IS NULL AND type = :type
+        GROUP BY categoryId ORDER BY count DESC LIMIT 6
+    """)
+    suspend fun getTopCategoryUsagesByType(type: TransactionType): List<CategoryUsage>
 }
+
+data class CategoryUsage(val categoryId: Long, val count: Int)
