@@ -326,11 +326,74 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 「更多选项」折叠区（v2 §5.4 / B-4）：日期、标签、描述默认收起
+                // 金额输入：始终可见，0 点击可输入
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = {
+                        if (it.length <= 16 && (it.isEmpty() || it.matches(Regex("^[0-9.]*$")))) amount = it
+                    },
+                    label = { Text("金额") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = isAmountError,
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.End),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+                    trailingIcon = {
+                        IconButton(onClick = { showCalculator = true }) {
+                            Icon(Icons.Filled.Calculate, contentDescription = "打开计算器")
+                        }
+                    }
+                )
+
+                // 金额格式错误提示
+                if (isAmountError) {
+                    Text(
+                        "金额格式无效，请输入数字或计算表达式（如 12+3.5）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // 标签多选（§6）：始终可见
+                Text("标签", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tags.forEach { tag ->
+                        val selected = tag.id in selectedTagIds
+                        val tagColor = runCatching { Color(android.graphics.Color.parseColor(tag.color)) }
+                            .getOrDefault(MaterialTheme.colorScheme.primary)
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                selectedTagIds = if (selected) selectedTagIds - tag.id else selectedTagIds + tag.id
+                            },
+                            label = { Text("${tag.icon} ${tag.name}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = tagColor.copy(alpha = 0.25f),
+                                selectedLabelColor = tagColor
+                            )
+                        )
+                    }
+                    AssistChip(
+                        onClick = onRequestAddTag,
+                        label = { Text("+ 新建标签") },
+                        leadingIcon = { Icon(Icons.Default.Add, null) }
+                    )
+                }
+
+                // 「更多选项」折叠区：日期、描述默认收起
                 TextButton(
                     onClick = { showMore = !showMore },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text(if (showMore) "收起更多选项 ▲" else "更多选项（日期 / 标签 / 描述）▼") }
+                ) { Text(if (showMore) "收起更多选项 ▲" else "更多选项（日期 / 描述）▼") }
 
                 if (showMore) {
                 // 日期时间选择
@@ -388,69 +451,6 @@ fun AddTransactionDialog(
                                 style = MaterialTheme.typography.bodyLarge)
                         }
                     }
-                }
-
-                // 金额输入（v2 §5.2）：系统数字键盘直接输入 + 🧮 渐进唤起计算器
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = {
-                        if (it.length <= 16 && (it.isEmpty() || it.matches(Regex("^[0-9.]*$")))) amount = it
-                    },
-                    label = { Text("金额") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    isError = isAmountError,
-                    textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.End),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
-                    trailingIcon = {
-                        IconButton(onClick = { showCalculator = true }) {
-                            Icon(Icons.Filled.Calculate, contentDescription = "打开计算器")
-                        }
-                    }
-                )
-
-                // 金额格式错误提示
-                if (isAmountError) {
-                    Text(
-                        "金额格式无效，请输入数字或计算表达式（如 12+3.5）",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-
-                // 标签多选（§6）
-                Text("标签", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    tags.forEach { tag ->
-                        val selected = tag.id in selectedTagIds
-                        val tagColor = runCatching { Color(android.graphics.Color.parseColor(tag.color)) }
-                            .getOrDefault(MaterialTheme.colorScheme.primary)
-                        FilterChip(
-                            selected = selected,
-                            onClick = {
-                                selectedTagIds = if (selected) selectedTagIds - tag.id else selectedTagIds + tag.id
-                            },
-                            label = { Text("${tag.icon} ${tag.name}") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = tagColor.copy(alpha = 0.25f),
-                                selectedLabelColor = tagColor
-                            )
-                        )
-                    }
-                    AssistChip(
-                        onClick = onRequestAddTag,
-                        label = { Text("+ 新建标签") },
-                        leadingIcon = { Icon(Icons.Default.Add, null) }
-                    )
                 }
 
                 // 描述
