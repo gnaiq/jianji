@@ -45,6 +45,7 @@ class TransferValidationTest {
         override suspend fun clearAccount(accountId: Long) {}
         override suspend fun clearToAccount(accountId: Long) {}
         override fun observeAccountBalances(): Flow<List<AccountBalance>> = emptyFlow()
+        override suspend fun getTopCategoryUsagesByType(type: TransactionType): List<CategoryUsage> = emptyList()
     }
 
     private fun repo() = TransactionRepository(FakeDao())
