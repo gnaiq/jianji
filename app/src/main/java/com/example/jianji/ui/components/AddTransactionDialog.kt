@@ -517,14 +517,28 @@ fun AddTransactionDialog(
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text(
-                                    text = if (amount.isEmpty()) "0.00" else amount,
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.End,
-                                    maxLines = 1
-                                )
+                                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = if (amount.isEmpty()) "0.00" else amount,
+                                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1
+                                    )
+                                    // 实时结果预览：每次输入后自动求值显示
+                                    val preview = if (amount.isNotEmpty()) evalExpression(amount) else null
+                                    if (preview != null) {
+                                        Text(
+                                            text = "= ${formatCalc(preview)}",
+                                            modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            textAlign = TextAlign.End,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                                 CalculatorKeypad { key ->
                                     val ops = setOf('+', '−', '×', '÷')
                                     when (key) {
@@ -550,7 +564,12 @@ fun AddTransactionDialog(
                                         }
                                     }
                                 }
-                                Button(onClick = { showCalculator = false }, modifier = Modifier.fillMaxWidth()) { Text("完成") }
+                                Button(onClick = {
+                                    // 完成时自动求值：表达式有结果则代入，无结果则保持原值
+                                    val r = if (amount.isNotEmpty()) evalExpression(amount) else null
+                                    if (r != null) amount = formatCalc(r)
+                                    showCalculator = false
+                                }, modifier = Modifier.fillMaxWidth()) { Text("完成") }
                                 Spacer(Modifier.height(8.dp))
                             }
                         }
