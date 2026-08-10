@@ -7,8 +7,9 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84">
   <img alt="License" src="https://img.shields.io/github/license/gnaiq/jianji">
   <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/gnaiq/jianji/build-apk.yml?branch=main">
-  <img alt="Kotlin" src="https://img.shields.io/badge/kotlin-1.9.24-blue">
+  <img alt="Kotlin" src="https://img.shields.io/badge/kotlin-1.9.24-blueviolet">
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-24%20%2F%20targetSdk-34-blue">
+  <img alt="AGP" src="https://img.shields.io/badge/AGP-8.4.0-orange">
 </p>
 
 ---
@@ -66,7 +67,7 @@
 - **年度账单海报**：按年份生成 1080×1920 海报（净结余、收支笔数、月度支出柱状图、消费亮点），写入媒体库公共目录，相册可见、可分享。
 
 ### 数据安全
-- **本地存储**：基于 Room 数据库（schema v6，完整迁移链），离线可用，隐私不出本机。
+- **本地存储**：基于 Room 数据库（schema v9，完整迁移链），离线可用，隐私不出本机。
 - **备份与恢复**：JSON 全量备份（6 张表、单事务原子恢复）、CSV / **Excel（XLSX）** 导出；「管理备份」可清理旧备份文件。
 - **自动备份**：定时（每天 / 每周 / 每月）+ 数据变更即时备份（防抖 5s）双机制；备份写入共享下载目录，**卸载后仍可恢复**。
 - **应用内更新**：检查 GitHub Releases、下载进度显示、可取消；安装前自检包名 / 版本 / 签名，签名不一致或降级时给出明确中文告警。
@@ -98,8 +99,12 @@
 | Gson | 2.10.1 |
 | kotlinx-serialization-json | 1.6.3 |
 | Apache Commons CSV | 1.10.0 |
+| WorkManager | 2.9.1 |
+| Timber（结构化日志） | 5.0.1 |
+| Koin DI（依赖注入） | 3.5.0 |
 | desugar_jdk_libs（java.time on minSdk 24） | 2.0.4 |
 | Gradle | 8.9 |
+| AGP | 8.4.0 |
 | JDK | 17 |
 | minSdk / targetSdk | 24 / 34 |
 
@@ -113,7 +118,7 @@
 jianji/
 ├── app/
 │   ├── src/main/java/com/example/jianji/
-│   │   ├── data/                         # 数据层（Room schema v6，8 个实体）
+│   │   ├── data/                         # 数据层（Room schema v9，8 个实体）
 │   │   │   ├── Transaction.kt            #   交易实体（金额以分存储、软删除、转账）
 │   │   │   ├── Category.kt               #   分类实体（支持父子层级 parentId）
 │   │   │   ├── Account.kt                #   账户实体（余额、默认账户）
@@ -124,7 +129,7 @@ jianji/
 │   │   │   ├── RecurringTransaction.kt   #   周期交易（日/周/月/年）
 │   │   │   ├── SearchFilters.kt          #   高级筛选条件模型
 │   │   │   ├── *Dao.kt / *Repository.kt  #   各实体 DAO 与仓库
-│   │   │   ├── JianjiDatabase.kt         #   Room 数据库（含 MIGRATION_1_2 … 5_6）
+│   │   │   ├── JianjiDatabase.kt         #   Room 数据库（含 MIGRATION_1_2 … MIGRATION_8_9）
 │   │   │   ├── DefaultCategories.kt      #   默认分类树定义
 │   │   │   └── Converters.kt             #   类型转换器
 │   │   ├── ui/
@@ -189,7 +194,7 @@ cd jianji
 
 ## 🗄 数据模型
 
-Room 数据库 schema **v6**，共 8 个实体，迁移链 `MIGRATION_1_2` → `5_6` 完整保留历史数据。
+Room 数据库 schema **v9**，共 8 个实体，迁移链 `MIGRATION_1_2` → `MIGRATION_8_9` 完整保留历史数据。
 
 ### Transaction（交易）
 
@@ -324,6 +329,31 @@ git push origin v1.0.0
 ---
 
 ## 📝 更新日志
+
+### v1.6.41 (2026-08)
+
+- **计算器键盘**：表达式实时预览计算结果（蓝色 `= 15`），点击"完成"自动求值，无须手动按等号
+- **记账弹窗 UX**：金额输入框和标签始终可见，日期/描述折叠在"更多选项"下（减少点击）
+
+### v1.6.36 – v1.6.40 (2026-08)
+
+- **CI 守卫修复**：解决 versionCode / versionName 不同步导致的 tag 构建失败，CI 现在要求 `versionCode` 严格递增且 `versionName` 匹配 tag
+- 记账弹窗 UX 优化：金额输入与标签从折叠区移出，零点击即可输入核心数据
+- **依赖注入**：引入 Koin DI（替代手动 `ViewModelFactory`）
+- **结构化日志**：引入 Timber（替代静默 `catch` 与文件写日志）
+
+### v1.6.34 – v1.6.35 (2026-08)
+
+- **数据库迁移 v8 → v9**：`AccountBalance` 数据类与实体解耦
+- Excel 导出优化、历史筛选修复
+
+### v1.6.27 – v1.6.33 (2026-08)
+
+- **备份口令**：备份加密与恢复口令校验，防止未授权数据恢复
+- **Room 迁移 v6 → v8**：`AccountBalance` / `description` 字段变更，`deleted_at` 索引补全
+- **迁移冒烟测试**：`MigrationTestHelper` 覆盖 v(N-1)→v(N) 升级路径
+- **ProGuard 修复**：混淆导致 Gson 反序列化崩溃（`-keep class com.example.jianji.utils.**`）
+- **Room schema 基线**：CI 构建 `8.json` 入库，防迁移回归
 
 ### v1.6.10 (2026-07)
 
